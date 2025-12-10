@@ -121,6 +121,9 @@ workflow {
     }
 
     // Create channel from samples
+    // Optional: params.subdir can be used to organize outputs into subdirectories
+    def subdir = params.subdir ?: ''
+
     samples_ch = Channel.fromList(samples_list)
         .map { sample ->
             def sample_id = sample.id
@@ -132,7 +135,7 @@ workflow {
                 exit 1
             }
 
-            tuple(sample_id, sample_dir, file_type)
+            tuple(sample_id, sample_dir, file_type, subdir)
         }
 
     // Check library and fasta files

@@ -3,13 +3,20 @@
 
 process TUNE_MODELS {
     label 'diann_tune'
-    publishDir "${params.outdir}/tuning", mode: 'copy', overwrite: true
 
-    tag "${tune_name}"
+    // Dynamic publishDir: supports optional subdirectory organization
+    // If subdir is provided: outdir/subdir/
+    // If subdir is empty:    outdir/
+    publishDir "${params.outdir}${subdir ? '/' + subdir : ''}",
+        mode: 'copy',
+        overwrite: true
+
+    tag "${subdir ? subdir + '/' : ''}${tune_name}"
 
     input:
     path library
     val tune_name
+    val subdir
 
     output:
     path "out-lib.dict.txt", emit: tokens

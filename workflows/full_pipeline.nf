@@ -3,19 +3,20 @@
 /*
  * DIANN Full Pipeline Workflow
  *
- * Complete multi-round workflow:
- *   Round 1: Generate library with default models → Quantify samples
+ * Complete multi-stage workflow with flexible output organization:
+ *   Stage 1: Generate library with default models → Quantify samples
  *   Tuning:  Fine-tune prediction models using specified sample
- *   Round 2: Generate library with RT+IM tuned models → Quantify samples
- *   Round 3: Generate library with RT+IM+FR tuned models → Quantify samples (DIANN 2.3.1+)
+ *   Stage 2: Generate library with RT+IM tuned models → Quantify samples
+ *   Stage 3: Generate library with RT+IM+FR tuned models → Quantify samples
  *
- * This is the complex workflow used for comprehensive analysis with model optimization.
- * For most cases, use quantify_only.nf or create_library.nf instead.
+ * Output organization is configurable via params.output_organization:
+ *   - 'by_stage' (default): Separate results by stage (stage1/, stage2/, stage3/)
+ *   - 'flat': All results in same directory (samples may be overwritten)
+ *   - custom: Use params.stage_names to define custom stage names
  *
  * Required parameters:
  *   --fasta              Path to FASTA file
  *   --samples            Sample definitions
- *   --tune_sample        Which sample to use for tuning (sample id)
  *
  * Example usage:
  *   nextflow run workflows/full_pipeline.nf -params-file configs/full_pipeline.yaml -profile slurm
@@ -39,30 +40,35 @@ def helpMessage() {
     Required Parameters:
       --fasta PATH              FASTA file
       --samples LIST            Sample definitions
-      --tune_sample ID          Sample to use for model tuning
 
     Workflow Control:
-      --run_r1 true/false       Run round 1 (default library) [default: true]
-      --run_tune true/false     Run model tuning [default: true]
-      --run_r2 true/false       Run round 2 (RT+IM tuning) [default: true]
-      --run_r3 true/false       Run round 3 (RT+IM+FR tuning) [default: false]
+      --stages LIST             List of stages to run [default: [1,2,3]]
+      --tune_after_stage INT    Which stage to tune after [default: 1]
+      --tune_sample ID          Sample to use for model tuning [required if tuning]
 
-    Version Control:
-      --r1_diann_version VER    DIANN version for R1 [default: 2.3.1]
-      --r2_diann_version VER    DIANN version for R2 [default: 2.2.0]
-      --r3_diann_version VER    DIANN version for R3 [default: 2.3.1]
+    Output Organization:
+      --output_organization STR Organization strategy: 'by_stage', 'flat' [default: 'by_stage']
+      --stage_names MAP         Custom stage names (e.g., [1:'baseline', 2:'optimized'])
+
+    Stage-Specific Settings:
+      --stage_configs MAP       Per-stage configuration (DIANN version, library name, etc.)
 
     Examples:
-      # Full 3-round pipeline
+      # Full 3-stage pipeline with separated outputs
       nextflow run workflows/full_pipeline.nf \\
         -params-file configs/full_pipeline.yaml \\
         -profile slurm
 
-      # Only R1 and tuning (skip R2/R3)
+      # Run only stages 1 and 2
       nextflow run workflows/full_pipeline.nf \\
         -params-file configs/full_pipeline.yaml \\
-        --run_r2 false \\
-        --run_r3 false \\
+        --stages '[1,2]' \\
+        -profile slurm
+
+      # Custom stage names
+      nextflow run workflows/full_pipeline.nf \\
+        -params-file configs/full_pipeline.yaml \\
+        --stage_names '{1:"baseline", 2:"rt_im_optimized", 3:"full_optimized"}' \\
         -profile slurm
     """.stripIndent()
 }
@@ -86,15 +92,52 @@ if (!params.samples) {
     exit 1
 }
 
-// Set defaults
-params.run_r1 = params.run_r1 != null ? params.run_r1 : true
-params.run_tune = params.run_tune != null ? params.run_tune : true
-params.run_r2 = params.run_r2 != null ? params.run_r2 : true
-params.run_r3 = params.run_r3 != null ? params.run_r3 : false
+// Set defaults with backward compatibility
+params.stages = params.stages ?: [1, 2, 3]
+params.tune_after_stage = params.tune_after_stage ?: 1
+params.output_organization = params.output_organization ?: 'by_stage'
 
-params.r1_diann_version = params.r1_diann_version ?: '2.3.1'
-params.r2_diann_version = params.r2_diann_version ?: '2.2.0'
-params.r3_diann_version = params.r3_diann_version ?: '2.3.1'
+// Backward compatibility: map old parameters to new structure
+if (params.run_r1 != null || params.run_r2 != null || params.run_r3 != null) {
+    log.warn "DEPRECATED: run_r1, run_r2, run_r3 are deprecated. Use --stages instead."
+    def active_stages = []
+    if (params.run_r1) active_stages.add(1)
+    if (params.run_r2) active_stages.add(2)
+    if (params.run_r3) active_stages.add(3)
+    params.stages = active_stages
+}
+
+// Default stage names
+def default_stage_names = [
+    1: 'stage1',
+    2: 'stage2',
+    3: 'stage3'
+]
+
+// Default stage configurations
+def default_stage_configs = [
+    1: [
+        diann_version: params.r1_diann_version ?: params.diann_version ?: '2.3.1',
+        library_name: 'library_stage1',
+        use_tuned_models: false
+    ],
+    2: [
+        diann_version: params.r2_diann_version ?: params.diann_version ?: '2.2.0',
+        library_name: 'library_stage2',
+        use_tuned_models: true,
+        use_fr_model: false
+    ],
+    3: [
+        diann_version: params.r3_diann_version ?: params.diann_version ?: '2.3.1',
+        library_name: 'library_stage3',
+        use_tuned_models: true,
+        use_fr_model: true
+    ]
+]
+
+// Merge user-provided configurations
+def stage_names = params.stage_names ?: default_stage_names
+def stage_configs = params.stage_configs ?: default_stage_configs
 
 // Main workflow
 workflow {
@@ -128,139 +171,94 @@ workflow {
     log.info ""
     log.info "DIANN Full Pipeline Workflow"
     log.info "============================="
-    log.info "FASTA          : ${params.fasta}"
-    log.info "Samples        : ${samples_list.size()}"
-    log.info "Tune sample    : ${params.tune_sample ?: 'not specified'}"
-    log.info ""
-    log.info "Workflow stages:"
-    log.info "  Round 1      : ${params.run_r1} (DIANN ${params.r1_diann_version})"
-    log.info "  Tuning       : ${params.run_tune}"
-    log.info "  Round 2      : ${params.run_r2} (DIANN ${params.r2_diann_version})"
-    log.info "  Round 3      : ${params.run_r3} (DIANN ${params.r3_diann_version})"
+    log.info "FASTA                : ${params.fasta}"
+    log.info "Samples              : ${samples_list.size()}"
+    log.info "Stages to run        : ${params.stages}"
+    log.info "Output organization  : ${params.output_organization}"
+    log.info "Tune after stage     : ${params.tune_after_stage}"
+    log.info "Tune sample          : ${params.tune_sample ?: 'not specified'}"
     log.info ""
 
-    // ====== ROUND 1: Default models ======
-    if (params.run_r1) {
-        log.info "Starting Round 1: Library generation and quantification with default models"
+    // Initialize tuned model files
+    def tuned_tokens = file('NO_FILE')
+    def tuned_rt = file('NO_FILE')
+    def tuned_im = file('NO_FILE')
+    def tuned_fr = file('NO_FILE')
+    def last_stage_out_libs = null
 
-        // Generate R1 library
+    // Execute stages
+    params.stages.each { stage_num ->
+        def config = stage_configs[stage_num]
+        def stage_name = stage_names[stage_num]
+
+        // Determine output subdirectory based on organization strategy
+        def lib_subdir = params.output_organization == 'by_stage' ? "${stage_name}/library" : 'library'
+        def quant_subdir = params.output_organization == 'by_stage' ? stage_name : ''
+
+        log.info "Starting Stage ${stage_num}: ${stage_name}"
+        log.info "  DIANN version: ${config.diann_version}"
+        log.info "  Output subdir: ${quant_subdir ?: '(root)'}"
+
+        // Generate library for this stage
+        def use_tuned = config.use_tuned_models && tuned_tokens.name != 'NO_FILE'
+        def fr_param = (use_tuned && config.use_fr_model) ? tuned_fr : file('NO_FILE')
+
         GENERATE_LIBRARY(
             fasta_file,
-            "library_r1",
-            file('NO_FILE'),  // No tuned models
-            file('NO_FILE'),
-            file('NO_FILE'),
-            file('NO_FILE')
+            config.library_name,
+            lib_subdir,
+            use_tuned ? tuned_tokens : file('NO_FILE'),
+            use_tuned ? tuned_rt : file('NO_FILE'),
+            use_tuned ? tuned_im : file('NO_FILE'),
+            fr_param
         )
 
-        // Create samples channel
-        samples_r1_ch = Channel.fromList(samples_list)
+        // Create samples channel for this stage
+        def samples_ch = Channel.fromList(samples_list)
             .map { sample ->
                 tuple(
                     sample.id,
                     file(sample.dir),
-                    sample.file_type ?: 'raw'
+                    sample.file_type ?: 'raw',
+                    quant_subdir
                 )
             }
 
-        // Quantify R1
+        // Quantify samples
         QUANTIFY(
-            samples_r1_ch,
+            samples_ch,
             GENERATE_LIBRARY.out.library,
             fasta_file
         )
 
-        r1_results = QUANTIFY.out.out_lib
-    }
+        // Store out-lib results for tuning
+        last_stage_out_libs = QUANTIFY.out.out_lib
 
-    // ====== TUNING: Fine-tune models ======
-    if (params.run_tune) {
-        if (!params.tune_sample) {
-            log.error "ERROR: --tune_sample is required when tuning is enabled"
-            exit 1
+        // Tune models after specified stage
+        if (stage_num == params.tune_after_stage && params.tune_sample) {
+            log.info "Starting Model Tuning after Stage ${stage_num}"
+            log.info "  Using sample: ${params.tune_sample}"
+
+            // Get the out-lib.parquet from the specified sample
+            def tune_lib = last_stage_out_libs
+                .filter { sample_id, lib -> sample_id == params.tune_sample }
+                .map { sample_id, lib -> lib }
+
+            // Determine tuning output subdirectory
+            def tune_subdir = params.output_organization == 'by_stage' ? 'tuning' : 'tuning'
+
+            // Tune models
+            TUNE_MODELS(
+                tune_lib,
+                "tuned_models",
+                tune_subdir
+            )
+
+            tuned_tokens = TUNE_MODELS.out.tokens
+            tuned_rt = TUNE_MODELS.out.rt_model
+            tuned_im = TUNE_MODELS.out.im_model
+            tuned_fr = TUNE_MODELS.out.fr_model
         }
-
-        log.info "Starting Model Tuning using sample: ${params.tune_sample}"
-
-        // Get the out-lib.parquet from the specified sample
-        tune_lib = r1_results
-            .filter { sample_id, lib -> sample_id == params.tune_sample }
-            .map { sample_id, lib -> lib }
-
-        // Tune models
-        TUNE_MODELS(
-            tune_lib,
-            "tuned_models"
-        )
-
-        tuned_tokens = TUNE_MODELS.out.tokens
-        tuned_rt = TUNE_MODELS.out.rt_model
-        tuned_im = TUNE_MODELS.out.im_model
-        tuned_fr = TUNE_MODELS.out.fr_model
-    }
-
-    // ====== ROUND 2: RT + IM tuned models ======
-    if (params.run_r2 && params.run_tune) {
-        log.info "Starting Round 2: Library generation with RT+IM tuned models"
-
-        // Generate R2 library with RT+IM models
-        GENERATE_LIBRARY(
-            fasta_file,
-            "library_r2",
-            tuned_tokens,
-            tuned_rt,
-            tuned_im,
-            file('NO_FILE')  // No FR model for R2
-        )
-
-        // Create samples channel for R2
-        samples_r2_ch = Channel.fromList(samples_list)
-            .map { sample ->
-                tuple(
-                    sample.id,
-                    file(sample.dir),
-                    sample.file_type ?: 'raw'
-                )
-            }
-
-        // Quantify R2
-        QUANTIFY(
-            samples_r2_ch,
-            GENERATE_LIBRARY.out.library,
-            fasta_file
-        )
-    }
-
-    // ====== ROUND 3: RT + IM + FR tuned models ======
-    if (params.run_r3 && params.run_tune) {
-        log.info "Starting Round 3: Library generation with RT+IM+FR tuned models (DIANN 2.3.1+)"
-
-        // Generate R3 library with RT+IM+FR models
-        GENERATE_LIBRARY(
-            fasta_file,
-            "library_r3",
-            tuned_tokens,
-            tuned_rt,
-            tuned_im,
-            tuned_fr
-        )
-
-        // Create samples channel for R3
-        samples_r3_ch = Channel.fromList(samples_list)
-            .map { sample ->
-                tuple(
-                    sample.id,
-                    file(sample.dir),
-                    sample.file_type ?: 'raw'
-                )
-            }
-
-        // Quantify R3
-        QUANTIFY(
-            samples_r3_ch,
-            GENERATE_LIBRARY.out.library,
-            fasta_file
-        )
     }
 }
 

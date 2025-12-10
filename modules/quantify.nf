@@ -3,12 +3,18 @@
 
 process QUANTIFY {
     label 'diann_quantify'
-    publishDir "${params.outdir}/${sample_id}", mode: 'copy', overwrite: true
 
-    tag "$sample_id"
+    // Dynamic publishDir: supports optional subdirectory organization
+    // If subdir is provided: outdir/subdir/sample_id/
+    // If subdir is empty:    outdir/sample_id/
+    publishDir "${params.outdir}${subdir ? '/' + subdir : ''}/${sample_id}",
+        mode: 'copy',
+        overwrite: true
+
+    tag "${subdir ? subdir + '/' : ''}${sample_id}"
 
     input:
-    tuple val(sample_id), path(ms_dir), val(file_type)
+    tuple val(sample_id), path(ms_dir), val(file_type), val(subdir)
     path library
     path fasta
 

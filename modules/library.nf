@@ -3,13 +3,20 @@
 
 process GENERATE_LIBRARY {
     label 'diann_library'
-    publishDir "${params.outdir}/library", mode: 'copy', overwrite: true
 
-    tag "${library_name}"
+    // Dynamic publishDir: supports optional subdirectory organization
+    // If subdir is provided: outdir/subdir/
+    // If subdir is empty:    outdir/
+    publishDir "${params.outdir}${subdir ? '/' + subdir : ''}",
+        mode: 'copy',
+        overwrite: true
+
+    tag "${subdir ? subdir + '/' : ''}${library_name}"
 
     input:
     path fasta
     val library_name
+    val subdir
     path tokens, stageAs: 'tokens.txt'
     path rt_model, stageAs: 'rt_model.pt'
     path im_model, stageAs: 'im_model.pt'

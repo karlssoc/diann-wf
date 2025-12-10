@@ -155,10 +155,14 @@ workflow {
     }
     log.info ""
 
+    // Optional: params.subdir can be used to organize outputs into subdirectories
+    def subdir = params.subdir ?: 'library'
+
     // Generate library
     GENERATE_LIBRARY(
         fasta_file,
         params.library_name,
+        subdir,
         tokens_file,
         rt_model_file,
         im_model_file,
@@ -167,10 +171,11 @@ workflow {
 }
 
 workflow.onComplete {
+    def subdir = params.subdir ?: 'library'
     log.info ""
     log.info "Workflow completed at: ${workflow.complete}"
     log.info "Execution status: ${workflow.success ? 'Success' : 'Failed'}"
     log.info "Duration: ${workflow.duration}"
-    log.info "Library: ${params.outdir}/library/${params.library_name}.predicted.speclib"
+    log.info "Library: ${params.outdir}/${subdir}/${params.library_name}.predicted.speclib"
     log.info ""
 }

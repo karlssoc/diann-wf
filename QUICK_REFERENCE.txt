@@ -1,0 +1,83 @@
+╔═══════════════════════════════════════════════════════════════════════════╗
+║                  DIANN NEXTFLOW - QUICK REFERENCE CARD                    ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+📤 PUSH TO GITHUB (One Time)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Create repo at: https://github.com/new (name: diann-wf)
+2. Run these commands:
+   
+   git remote add origin git@github.com:karlssoc/diann-wf.git
+   git push -u origin main
+   git tag -a v1.0.0 -m "Initial release"
+   git push origin v1.0.0
+
+3. Verify: nextflow info karlssoc/diann-wf
+
+🖥️ USE ON SERVER (Every Time)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Simple Quantification (most common):
+  nextflow run karlssoc/diann-wf \
+    -params-file my_config.yaml \
+    -profile slurm
+
+Create Library:
+  nextflow run karlssoc/diann-wf/workflows/create_library.nf \
+    -params-file library_config.yaml \
+    -profile slurm
+
+Full Pipeline (R1→Tune→R2→R3):
+  nextflow run karlssoc/diann-wf/workflows/full_pipeline.nf \
+    -params-file full_config.yaml \
+    -profile slurm
+
+📝 MINIMAL CONFIG TEMPLATE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+library: '/path/to/library.speclib'
+fasta: '/path/to/protein.fasta'
+samples:
+  - {id: 'sample1', dir: '/path/to/input/sample1', file_type: 'd'}
+  - {id: 'sample2', dir: '/path/to/input/sample2', file_type: 'raw'}
+threads: 60
+outdir: 'results'
+slurm_account: 'my_username'
+
+🔧 COMMON OPERATIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Update workflow:        nextflow pull karlssoc/diann-wf
+Resume failed run:      Add -resume to your command
+Use specific version:   Add -r v1.0.0 to your command
+Override parameter:     Add --threads 40 to your command
+Check workflow info:    nextflow info karlssoc/diann-wf
+
+📊 MONITOR EXECUTION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SLURM jobs:       squeue -u $USER
+Nextflow log:     tail -f .nextflow.log
+Results:          ls -lh results/
+Reports:          ls -lh results/pipeline_info/
+
+📚 DOCUMENTATION FILES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+NEXT_STEPS.md        ← START HERE
+GITHUB_SETUP.md      Push to GitHub
+DEPLOY.md            Server deployment  
+QUICKSTART.md        5-minute tutorial
+README.md            Complete docs
+
+🆘 TROUBLESHOOTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Workflow not found:     nextflow pull karlssoc/diann-wf -f
+Can't access GitHub:    Check: ssh -T git@github.com
+SLURM account wrong:    Check: sacctmgr show associations user=$USER
+Out of memory:          Increase in nextflow.config
+
+✨ FEATURES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ Automatic .d file handling (--mass-acc 15/15)
+✅ Parallel sample processing
+✅ Resume from failure
+✅ Execution reports
+✅ SLURM integration
+✅ Multiple DIANN versions (2.3.1, 2.2.0, 1.8.1)

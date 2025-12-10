@@ -1,0 +1,57 @@
+# Example: Simple Quantification Configuration
+#
+# USE CASE: You have an existing spectral library and want to quantify samples
+#
+# INSTRUCTIONS:
+# 1. Copy this file: cp simple_quantification.yaml.example my_config.yaml
+# 2. Edit with your actual server paths
+# 3. Run: nextflow run karlssoc/diann-wf -params-file my_config.yaml -profile slurm
+
+# Spectral library (ABSOLUTE PATH)
+# Example: '/srv/data1/karlssoc/libraries/mylib.predicted.speclib'
+library: '/CHANGE/THIS/PATH/library.predicted.speclib'
+
+# FASTA file (ABSOLUTE PATH)
+# Example: '/srv/data1/karlssoc/fasta/uniprot_human.fasta'
+fasta: '/CHANGE/THIS/PATH/protein.fasta'
+
+# Sample definitions
+# IMPORTANT: Use absolute paths for 'dir'
+samples:
+  - id: 'sample1'                          # Unique sample identifier
+    dir: '/CHANGE/THIS/PATH/input/sample1' # Directory with MS files
+    file_type: 'd'                         # Options: 'd' (Bruker), 'raw' (Thermo), 'mzML'
+
+  - id: 'sample2'
+    dir: '/CHANGE/THIS/PATH/input/sample2'
+    file_type: 'd'
+
+  # Add more samples as needed
+  # - id: 'sample3'
+  #   dir: '/path/to/sample3'
+  #   file_type: 'raw'
+
+# DIANN version (available: 2.3.1, 2.2.0, 1.8.1)
+diann_version: '2.3.1'
+
+# Number of threads
+threads: 60
+
+# Output directory (ABSOLUTE PATH recommended)
+outdir: '/CHANGE/THIS/PATH/results'
+
+# SLURM configuration
+# Check your account: sacctmgr show associations user=$USER
+slurm_account: 'YOUR_SLURM_ACCOUNT'
+
+# Optional: Uncomment to specify queue
+# slurm_queue: 'normal'
+
+# Quantification parameters (these are good defaults)
+pg_level: 1
+mass_acc_cal: 25
+smart_profiling: true
+individual_mass_acc: true
+matrices: true
+
+# NOTE: .d files automatically get --mass-acc 15 --mass-acc-ms1 15

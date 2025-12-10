@@ -1,0 +1,42 @@
+# Library Creation Configuration
+# Use this to create a spectral library from a FASTA file
+
+# FASTA file
+fasta: 'idmapping_2025_11_20.fasta'
+
+# Output library name (without extension)
+library_name: 'idmapping_2025_11_20'
+
+# DIANN version
+diann_version: '2.3.1'
+
+# Number of threads
+threads: 60
+
+# Output directory
+outdir: 'results/library_generation'
+
+# SLURM settings (for -profile slurm)
+slurm_account: 'my_username'
+
+# Optional: Use pre-tuned models
+# Uncomment and provide paths if you want to use tuned models
+# tokens: 'results/tuning/out-lib.dict.txt'
+# rt_model: 'results/tuning/out-lib.tuned_rt.pt'
+# im_model: 'results/tuning/out-lib.tuned_im.pt'
+# fr_model: 'results/tuning/out-lib.tuned_fr.pt'  # Requires DIANN 2.3.1+
+
+# Library generation parameters
+library:
+  min_fr_mz: 200
+  max_fr_mz: 1800
+  min_pep_len: 7
+  max_pep_len: 30
+  min_pr_mz: 350
+  max_pr_mz: 1650
+  min_pr_charge: 2
+  max_pr_charge: 3
+  cut: 'K*,R*'
+  missed_cleavages: 1
+  met_excision: true
+  unimod4: true

@@ -1,0 +1,46 @@
+# Nextflow work directory
+work/
+.nextflow/
+.nextflow.log*
+
+# Results and outputs
+results/
+output/
+
+# Data files (usually too large for git)
+*.d/
+*.raw
+*.mzML
+*.fasta
+*.speclib
+*.parquet
+*.tsv
+
+# Tuned models
+*.pt
+*.dict.txt
+
+# Logs
+*.log
+slurm-*.out
+
+# Singularity cache
+.singularity/
+
+# Python
+__pycache__/
+*.pyc
+
+# macOS
+.DS_Store
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# User-specific configs (keep examples)
+configs/*_local.yaml
+configs/*_production.yaml

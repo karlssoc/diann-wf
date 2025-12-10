@@ -1,0 +1,70 @@
+# Full Pipeline Configuration
+# Use this for complete multi-round analysis with model tuning
+
+# FASTA file
+fasta: 'idmapping_2025_11_20.fasta'
+
+# Sample definitions
+samples:
+  - id: 'mann'
+    dir: 'input/mann'
+    file_type: 'd'
+
+  - id: 'p2'
+    dir: 'input/p2'
+    file_type: 'd'
+
+  - id: 'std'
+    dir: 'input/std'
+    file_type: 'd'
+
+# Which sample to use for model tuning
+tune_sample: 'p2'
+
+# Workflow control - which rounds to run
+run_r1: true      # Round 1: Default models
+run_tune: true    # Model tuning
+run_r2: true      # Round 2: RT+IM tuned models
+run_r3: true      # Round 3: RT+IM+FR tuned models (DIANN 2.3.1+)
+
+# DIANN versions for each round
+r1_diann_version: '2.3.1'
+r2_diann_version: '2.2.0'
+r3_diann_version: '2.3.1'
+
+# Number of threads
+threads: 60
+
+# Output directory
+outdir: 'results/full_pipeline'
+
+# SLURM settings
+slurm_account: 'my_username'
+
+# Tuning configuration
+tuning:
+  tune_rt: true
+  tune_im: true
+  tune_fr: true   # Only works with DIANN 2.3.1+
+
+# Library generation parameters
+library:
+  min_fr_mz: 200
+  max_fr_mz: 1800
+  min_pep_len: 7
+  max_pep_len: 30
+  min_pr_mz: 350
+  max_pr_mz: 1650
+  min_pr_charge: 2
+  max_pr_charge: 3
+  cut: 'K*,R*'
+  missed_cleavages: 1
+  met_excision: true
+  unimod4: true
+
+# Quantification parameters
+pg_level: 1
+mass_acc_cal: 25
+smart_profiling: true
+individual_mass_acc: true
+matrices: true

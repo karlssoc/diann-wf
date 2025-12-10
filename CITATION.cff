@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+message: "If you use this workflow, please cite both the workflow and DIA-NN"
+title: "DIANN Nextflow Workflows"
+version: 1.0.0
+date-released: 2024-12-10
+authors:
+  - family-names: "Karlsson"
+    given-names: "Your Name"
+    orcid: "https://orcid.org/0000-0000-0000-0000"  # Add your ORCID if you have one
+repository-code: "https://github.com/karlssoc/diann-wf"
+license: MIT
+keywords:
+  - proteomics
+  - mass-spectrometry
+  - dia-nn
+  - nextflow
+  - workflow
+references:
+  - type: software
+    title: "DIA-NN"
+    authors:
+      - family-names: "Demichev"
+        given-names: "Vadim"
+    doi: "10.1038/s41592-019-0638-x"
+    year: 2020

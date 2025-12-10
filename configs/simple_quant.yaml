@@ -1,0 +1,44 @@
+# Simple Quantification Configuration
+# Use this when you have an existing library and just need to quantify samples
+
+# Spectral library (must exist)
+library: '/srv/data1/karlssoc/libraries/idmapping_2025_11_20.predicted.speclib'
+
+# FASTA file (must exist)
+fasta: 'idmapping_2025_11_20.fasta'
+
+# Sample definitions
+# file_type: 'd' (Bruker .d) | 'raw' (Thermo .raw) | 'mzML'
+# Note: .d files automatically get --mass-acc 15 --mass-acc-ms1 15
+samples:
+  - id: 'mann'
+    dir: 'input/mann'
+    file_type: 'd'
+
+  - id: 'p2'
+    dir: 'input/p2'
+    file_type: 'd'
+
+  - id: 'std'
+    dir: 'input/std'
+    file_type: 'd'
+
+# DIANN version
+diann_version: '2.3.1'
+
+# Number of threads
+threads: 60
+
+# Output directory
+outdir: 'results/quantification'
+
+# SLURM settings (for -profile slurm)
+slurm_account: 'my_username'
+# slurm_queue: 'normal'
+
+# Optional: Quantification parameters
+pg_level: 1
+mass_acc_cal: 25
+smart_profiling: true
+individual_mass_acc: true
+matrices: true

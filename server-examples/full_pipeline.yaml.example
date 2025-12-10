@@ -1,0 +1,88 @@
+# Example: Full Multi-Round Pipeline Configuration
+#
+# USE CASE: Comprehensive analysis with model tuning and multiple library generations
+#
+# This runs:
+#   Round 1: Generate library (default models) → Quantify all samples
+#   Tuning:  Fine-tune RT/IM/FR models using specified sample
+#   Round 2: Generate library (RT+IM tuned) → Quantify all samples
+#   Round 3: Generate library (RT+IM+FR tuned) → Quantify all samples
+#
+# INSTRUCTIONS:
+# 1. Copy this file: cp full_pipeline.yaml.example my_pipeline_config.yaml
+# 2. Edit with your actual server paths
+# 3. Run: nextflow run karlssoc/diann-wf/workflows/full_pipeline.nf \
+#         -params-file my_pipeline_config.yaml -profile slurm
+
+# FASTA file (ABSOLUTE PATH)
+fasta: '/CHANGE/THIS/PATH/protein.fasta'
+
+# Sample definitions (ABSOLUTE PATHS)
+samples:
+  - id: 'replicate1'
+    dir: '/CHANGE/THIS/PATH/input/replicate1'
+    file_type: 'd'
+
+  - id: 'replicate2'
+    dir: '/CHANGE/THIS/PATH/input/replicate2'
+    file_type: 'd'
+
+  - id: 'replicate3'
+    dir: '/CHANGE/THIS/PATH/input/replicate3'
+    file_type: 'd'
+
+# Which sample to use for model tuning (must match one of the 'id' above)
+tune_sample: 'replicate1'
+
+# Workflow control - which rounds to run
+run_r1: true      # Round 1: Default models
+run_tune: true    # Model tuning
+run_r2: true      # Round 2: RT+IM tuned models
+run_r3: true      # Round 3: RT+IM+FR tuned models (requires DIANN 2.3.1+)
+
+# DIANN versions for each round
+r1_diann_version: '2.3.1'  # Round 1
+r2_diann_version: '2.2.0'  # Round 2 (2.2.0 is stable for RT+IM)
+r3_diann_version: '2.3.1'  # Round 3 (2.3.1+ required for FR tuning)
+
+# Number of threads
+threads: 60
+
+# Output directory (ABSOLUTE PATH)
+outdir: '/CHANGE/THIS/PATH/results/full_pipeline'
+
+# SLURM configuration
+slurm_account: 'YOUR_SLURM_ACCOUNT'
+
+# Tuning configuration
+tuning:
+  tune_rt: true   # Tune retention time model
+  tune_im: true   # Tune ion mobility model
+  tune_fr: true   # Tune fragment intensity model (DIANN 2.3.1+ only)
+
+# Library generation parameters
+library:
+  min_fr_mz: 200
+  max_fr_mz: 1800
+  min_pep_len: 7
+  max_pep_len: 30
+  min_pr_mz: 350
+  max_pr_mz: 1650
+  min_pr_charge: 2
+  max_pr_charge: 3
+  cut: 'K*,R*'
+  missed_cleavages: 1
+  met_excision: true
+  unimod4: true
+
+# Quantification parameters
+pg_level: 1
+mass_acc_cal: 25
+smart_profiling: true
+individual_mass_acc: true
+matrices: true
+
+# TIPS:
+# - Set run_r2: false and run_r3: false to only run R1 and tuning
+# - Use -resume to restart from failure without recomputing
+# - Check results in outdir/pipeline_info/ for execution reports

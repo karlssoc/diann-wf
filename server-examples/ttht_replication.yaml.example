@@ -1,0 +1,96 @@
+# Example: Replicating the tt/lfqb Multi-Round Workflow
+#
+# This configuration replicates your existing workflow from:
+# /srv/data1/karlssoc/projects/tt/lfqb/
+#
+# Your old workflow:
+#   run_diann3-r1a.sh → tune-2.3.1-ttht-p2.sh → run_diann3-r2a.sh → run_diann3-r3a.sh
+#
+# New workflow (single command):
+#   nextflow run karlssoc/diann-wf/workflows/full_pipeline.nf -params-file this_config.yaml -profile slurm
+#
+# INSTRUCTIONS:
+# 1. Copy to your tt/lfqb directory
+# 2. Edit paths if needed
+# 3. Run with nextflow
+
+# FASTA file
+fasta: '/srv/data1/karlssoc/projects/tt/lfqb/idmapping_2025_11_20.fasta'
+
+# Samples (matching your existing input directories)
+samples:
+  - id: 'mann'
+    dir: '/srv/data1/karlssoc/projects/tt/lfqb/input/mann'
+    file_type: 'd'
+
+  - id: 'p2'
+    dir: '/srv/data1/karlssoc/projects/tt/lfqb/input/p2'
+    file_type: 'd'
+
+  - id: 'std'
+    dir: '/srv/data1/karlssoc/projects/tt/lfqb/input/std'
+    file_type: 'd'
+
+# Use p2 for tuning (as in your tune-*-p2.sh scripts)
+tune_sample: 'p2'
+
+# Run all rounds (matching your r1a, tune, r2a, r3a workflow)
+run_r1: true
+run_tune: true
+run_r2: true
+run_r3: true
+
+# DIANN versions (matching your scripts)
+r1_diann_version: '2.3.1'  # As in run_diann3-r1a.sh
+r2_diann_version: '2.2.0'  # As in run_diann3-r2a.sh
+r3_diann_version: '2.3.1'  # As in run_diann3-r3a.sh
+
+# Threads (matching your scripts)
+threads: 60
+
+# Output directory
+outdir: '/srv/data1/karlssoc/projects/tt/lfqb/results/nextflow_pipeline'
+
+# SLURM settings
+slurm_account: 'my_username'  # CHANGE THIS
+
+# Tuning (matching tune-2.3.1-ttht-p2.sh)
+tuning:
+  tune_rt: true   # --tune-rt
+  tune_im: true   # --tune-im
+  tune_fr: true   # --tune-fr (2.3.1 only)
+
+# Library parameters (matching your run_diann3-r1a.sh)
+library:
+  min_fr_mz: 200
+  max_fr_mz: 1800
+  min_pep_len: 7
+  max_pep_len: 30
+  min_pr_mz: 350
+  max_pr_mz: 1650
+  min_pr_charge: 2
+  max_pr_charge: 3
+  cut: 'K*,R*'
+  missed_cleavages: 1
+  met_excision: true
+  unimod4: true
+
+# Quantification parameters (matching your run_diann3-*.sh scripts)
+pg_level: 1
+mass_acc_cal: 25
+smart_profiling: true
+individual_mass_acc: true
+matrices: true
+
+# USAGE:
+# cd /srv/data1/karlssoc/projects/tt/lfqb/
+# nextflow run karlssoc/diann-wf/workflows/full_pipeline.nf \
+#   -params-file configs/ttht_replication.yaml \
+#   -profile slurm
+#
+# BENEFITS vs old scripts:
+# - Automatic dependency tracking (no manual chaining)
+# - Resume capability: add -resume to restart from failure
+# - Parallel sample processing
+# - Execution reports in results/pipeline_info/
+# - Easy to modify: just edit this YAML file

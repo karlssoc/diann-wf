@@ -26,6 +26,9 @@ process TUNE_MODELS {
     path "tune.log", emit: log
 
     script:
+    // Use absolute path to DIANN binary (container ENTRYPOINT interferes with PATH)
+    def diann_cmd = "/usr/bin/diann-${params.diann_version}/diann-linux"
+
     // Determine which models to tune
     def tune_rt = params.tuning?.tune_rt ? "--tune-rt" : ""
     def tune_im = params.tuning?.tune_im ? "--tune-im" : ""
@@ -42,7 +45,7 @@ process TUNE_MODELS {
     ln -s \$(realpath ${library}) tune_work/out-lib.parquet
 
     # Run tuning
-    diann-linux \\
+    ${diann_cmd} \\
         --threads ${task.cpus} \\
         --tune-lib tune_work/out-lib.parquet \\
         ${tune_rt} \\

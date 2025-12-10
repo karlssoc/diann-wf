@@ -25,6 +25,9 @@ process QUANTIFY {
     path "diann.log", emit: log
 
     script:
+    // Use absolute path to DIANN binary (container ENTRYPOINT interferes with PATH)
+    def diann_cmd = "/usr/bin/diann-${params.diann_version}/diann-linux"
+
     // Directory parameter: use --dir-all for recursive, --dir for non-recursive
     def dir_param = recursive ? "--dir-all" : "--dir"
 
@@ -47,7 +50,7 @@ process QUANTIFY {
         "--matrices" : ""
 
     """
-    diann-linux \\
+    ${diann_cmd} \\
         --fasta ${fasta} \\
         ${dir_param} ${ms_dir} \\
         --lib ${library} \\

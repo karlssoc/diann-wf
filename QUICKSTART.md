@@ -54,8 +54,11 @@ slurm_account: 'my_username'
 Test your workflow locally before submitting to SLURM:
 
 ```bash
+# Pull the workflow from GitHub (first time only)
+nextflow pull karlssoc/diann-wf
+
 # Test run with minimal resources
-nextflow run workflows/quantify_only.nf \
+nextflow run karlssoc/diann-wf \
   -params-file configs/my_experiment.yaml \
   -profile test
 ```
@@ -70,10 +73,18 @@ If errors occur, check:
 Once testing works, submit to SLURM:
 
 ```bash
-nextflow run workflows/quantify_only.nf \
+# Run from GitHub (recommended - always gets latest version)
+nextflow run karlssoc/diann-wf \
+  -params-file configs/my_experiment.yaml \
+  -profile slurm
+
+# Or specify a workflow explicitly:
+nextflow run karlssoc/diann-wf/workflows/quantify_only.nf \
   -params-file configs/my_experiment.yaml \
   -profile slurm
 ```
+
+**Note:** The workflow is pulled from GitHub automatically. No need to clone the repository!
 
 The workflow will:
 1. Create SLURM jobs automatically
@@ -134,7 +145,8 @@ slurm_account: 'my_username'
 ```
 
 ```bash
-nextflow run workflows/quantify_only.nf -params-file configs/batch_quant.yaml -profile slurm
+# Run from GitHub (recommended - always gets latest version)
+nextflow run karlssoc/diann-wf -params-file configs/batch_quant.yaml -profile slurm
 ```
 
 ### Use Case 2: Create New Library from FASTA
@@ -148,7 +160,8 @@ slurm_account: 'my_username'
 ```
 
 ```bash
-nextflow run workflows/create_library.nf -params-file configs/new_library.yaml -profile slurm
+# Run from GitHub (specify workflow explicitly for library creation)
+nextflow run karlssoc/diann-wf/workflows/create_library.nf -params-file configs/new_library.yaml -profile slurm
 ```
 
 ### Use Case 3: Full Pipeline with Model Tuning
@@ -168,7 +181,8 @@ slurm_account: 'my_username'
 ```
 
 ```bash
-nextflow run workflows/full_pipeline.nf -params-file configs/tuned_pipeline.yaml -profile slurm
+# Run from GitHub (specify workflow explicitly for full pipeline)
+nextflow run karlssoc/diann-wf/workflows/full_pipeline.nf -params-file configs/tuned_pipeline.yaml -profile slurm
 ```
 
 ## Troubleshooting
@@ -205,7 +219,7 @@ withLabel: 'diann_quantify' {
 
 **Solution:** Use `-resume` flag:
 ```bash
-nextflow run workflows/quantify_only.nf \
+nextflow run karlssoc/diann-wf \
   -params-file configs/my_experiment.yaml \
   -profile slurm \
   -resume

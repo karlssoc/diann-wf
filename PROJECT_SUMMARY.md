@@ -52,7 +52,7 @@ diann-wf/
 
 **Typical usage:**
 ```bash
-nextflow run workflows/quantify_only.nf -params-file configs/simple_quant.yaml -profile slurm
+nextflow run karlssoc/diann-wf -params-file configs/simple_quant.yaml -profile slurm
 ```
 
 #### Workflow 2: create_library.nf
@@ -65,7 +65,7 @@ nextflow run workflows/quantify_only.nf -params-file configs/simple_quant.yaml -
 
 **Typical usage:**
 ```bash
-nextflow run workflows/create_library.nf -params-file configs/library_creation.yaml -profile slurm
+nextflow run karlssoc/diann-wf/workflows/create_library.nf -params-file configs/library_creation.yaml -profile slurm
 ```
 
 #### Workflow 3: full_pipeline.nf (Advanced)
@@ -79,7 +79,7 @@ nextflow run workflows/create_library.nf -params-file configs/library_creation.y
 
 **Typical usage:**
 ```bash
-nextflow run workflows/full_pipeline.nf -params-file configs/full_pipeline.yaml -profile slurm
+nextflow run karlssoc/diann-wf/workflows/full_pipeline.nf -params-file configs/full_pipeline.yaml -profile slurm
 ```
 
 ### 3. Smart Parameter Handling
@@ -143,7 +143,7 @@ run_diann3-r3a.sh     # Round 3
 ### New Nextflow Approach
 ```bash
 # Single command for entire pipeline
-nextflow run workflows/full_pipeline.nf -params-file configs/my_config.yaml -profile slurm
+nextflow run karlssoc/diann-wf/workflows/full_pipeline.nf -params-file configs/my_config.yaml -profile slurm
 ```
 
 **Advantages:**
@@ -175,7 +175,7 @@ samples:
 ```
 
 ```bash
-nextflow run workflows/quantify_only.nf -params-file configs/r1b_equivalent.yaml -profile slurm
+nextflow run karlssoc/diann-wf -params-file configs/r1b_equivalent.yaml -profile slurm
 ```
 
 ### Example 2: Your Multi-Round Pipeline → full_pipeline.nf
@@ -206,7 +206,7 @@ run_r3: true
 
 ```bash
 # Single command, automatic dependency handling
-nextflow run workflows/full_pipeline.nf -params-file configs/multi_round.yaml -profile slurm
+nextflow run karlssoc/diann-wf/workflows/full_pipeline.nf -params-file configs/multi_round.yaml -profile slurm
 ```
 
 ## Getting Started
@@ -223,13 +223,13 @@ cp configs/simple_quant.yaml configs/my_test.yaml
 nano configs/my_test.yaml  # Update paths
 
 # Test locally
-nextflow run workflows/quantify_only.nf -params-file configs/my_test.yaml -profile test
+nextflow run karlssoc/diann-wf -params-file configs/my_test.yaml -profile test
 ```
 
 ### 3. Production Run
 ```bash
 # Submit to SLURM
-nextflow run workflows/quantify_only.nf -params-file configs/my_test.yaml -profile slurm
+nextflow run karlssoc/diann-wf -params-file configs/my_test.yaml -profile slurm
 ```
 
 ### 4. Check Results
@@ -242,12 +242,12 @@ ls -lh results/pipeline_info/  # Execution reports
 
 ### Resume Failed Run
 ```bash
-nextflow run workflows/quantify_only.nf -params-file configs/my_config.yaml -profile slurm -resume
+nextflow run karlssoc/diann-wf -params-file configs/my_config.yaml -profile slurm -resume
 ```
 
 ### Override Single Parameter
 ```bash
-nextflow run workflows/quantify_only.nf \
+nextflow run karlssoc/diann-wf \
   -params-file configs/my_config.yaml \
   --threads 40 \
   --diann_version 2.2.0 \
@@ -257,7 +257,7 @@ nextflow run workflows/quantify_only.nf \
 ### Run Only Specific Rounds
 ```bash
 # Skip R1, only run R2 and R3 with existing tuned models
-nextflow run workflows/full_pipeline.nf \
+nextflow run karlssoc/diann-wf/workflows/full_pipeline.nf \
   -params-file configs/full_pipeline.yaml \
   --run_r1 false \
   -profile slurm

@@ -17,14 +17,17 @@ This workflow system provides three flexible entry points for different use case
 When you have an existing library and just need to quantify samples:
 
 ```bash
+# Pull the workflow from GitHub (first time only)
+nextflow pull karlssoc/diann-wf
+
 # Edit the config file with your paths
 nano configs/simple_quant.yaml
 
-# Run locally
-nextflow run workflows/quantify_only.nf -params-file configs/simple_quant.yaml
+# Run locally for testing
+nextflow run karlssoc/diann-wf -params-file configs/simple_quant.yaml
 
-# Submit to SLURM
-nextflow run workflows/quantify_only.nf -params-file configs/simple_quant.yaml -profile slurm
+# Submit to SLURM (recommended)
+nextflow run karlssoc/diann-wf -params-file configs/simple_quant.yaml -profile slurm
 ```
 
 ### 2. Create Library
@@ -35,8 +38,8 @@ Generate a spectral library from a FASTA file:
 # Edit the config file
 nano configs/library_creation.yaml
 
-# Run with SLURM
-nextflow run workflows/create_library.nf -params-file configs/library_creation.yaml -profile slurm
+# Run with SLURM (specify workflow explicitly for library creation)
+nextflow run karlssoc/diann-wf/workflows/create_library.nf -params-file configs/library_creation.yaml -profile slurm
 ```
 
 ### 3. Full Pipeline
@@ -47,8 +50,8 @@ Complete multi-round analysis with model tuning (rare, for comprehensive studies
 # Edit the config file
 nano configs/full_pipeline.yaml
 
-# Run with SLURM
-nextflow run workflows/full_pipeline.nf -params-file configs/full_pipeline.yaml -profile slurm
+# Run with SLURM (specify workflow explicitly for full pipeline)
+nextflow run karlssoc/diann-wf/workflows/full_pipeline.nf -params-file configs/full_pipeline.yaml -profile slurm
 ```
 
 ## Requirements
@@ -129,7 +132,7 @@ Override in `nextflow.config` if needed.
 **Use when:** You have an existing spectral library and need to quantify samples.
 
 ```bash
-nextflow run workflows/quantify_only.nf \
+nextflow run karlssoc/diann-wf \
   --library /path/to/library.predicted.speclib \
   --fasta mydata.fasta \
   --samples '[{"id":"exp01","dir":"input/exp01","file_type":"d"}]' \
@@ -154,7 +157,7 @@ slurm_account: 'my_username'
 ```
 
 ```bash
-nextflow run workflows/quantify_only.nf -params-file configs/my_quant.yaml -profile slurm
+nextflow run karlssoc/diann-wf -params-file configs/my_quant.yaml -profile slurm
 ```
 
 ### Workflow 2: Create Library
@@ -164,7 +167,7 @@ nextflow run workflows/quantify_only.nf -params-file configs/my_quant.yaml -prof
 #### Option A: Default Models
 
 ```bash
-nextflow run workflows/create_library.nf \
+nextflow run karlssoc/diann-wf/workflows/create_library.nf \
   --fasta mydata.fasta \
   --library_name mylib \
   --outdir results/library \
@@ -176,7 +179,7 @@ nextflow run workflows/create_library.nf \
 If you have pre-tuned models from a previous run:
 
 ```bash
-nextflow run workflows/create_library.nf \
+nextflow run karlssoc/diann-wf/workflows/create_library.nf \
   --fasta mydata.fasta \
   --library_name mylib_tuned \
   --tokens results/tuning/out-lib.dict.txt \
@@ -197,21 +200,21 @@ This workflow performs:
 4. **Round 3:** Generate library with RT+IM+FR models → Quantify all samples
 
 ```bash
-nextflow run workflows/full_pipeline.nf -params-file configs/full_pipeline.yaml -profile slurm
+nextflow run karlssoc/diann-wf/workflows/full_pipeline.nf -params-file configs/full_pipeline.yaml -profile slurm
 ```
 
 #### Control Which Rounds to Run
 
 ```bash
 # Only R1 and tuning (skip R2/R3)
-nextflow run workflows/full_pipeline.nf \
+nextflow run karlssoc/diann-wf/workflows/full_pipeline.nf \
   -params-file configs/full_pipeline.yaml \
   --run_r2 false \
   --run_r3 false \
   -profile slurm
 
 # Skip R1, only R2 and R3 (if you already have tuned models)
-nextflow run workflows/full_pipeline.nf \
+nextflow run karlssoc/diann-wf/workflows/full_pipeline.nf \
   -params-file configs/full_pipeline.yaml \
   --run_r1 false \
   -profile slurm
@@ -224,14 +227,14 @@ nextflow run workflows/full_pipeline.nf \
 Nextflow can resume interrupted workflows:
 
 ```bash
-nextflow run workflows/quantify_only.nf -params-file configs/simple_quant.yaml -resume
+nextflow run karlssoc/diann-wf -params-file configs/simple_quant.yaml -resume
 ```
 
 ### Use Different DIANN Versions
 
 ```bash
 # Command line override
-nextflow run workflows/quantify_only.nf \
+nextflow run karlssoc/diann-wf \
   -params-file configs/simple_quant.yaml \
   --diann_version 2.2.0 \
   -profile slurm
@@ -295,7 +298,7 @@ nextflow log <run_name> -f status,name,exit,duration
 
 ```bash
 # Run with minimal resources for testing
-nextflow run workflows/quantify_only.nf \
+nextflow run karlssoc/diann-wf \
   -params-file configs/simple_quant.yaml \
   -profile test
 ```
@@ -335,7 +338,7 @@ slurm_account: 'my_username'
 ```
 
 ```bash
-nextflow run workflows/quantify_only.nf -params-file configs/ttht_quant.yaml -profile slurm
+nextflow run karlssoc/diann-wf -params-file configs/ttht_quant.yaml -profile slurm
 ```
 
 ### Example 2: Full Pipeline (like your run_diann3-r2a.sh and r3a.sh)
@@ -359,7 +362,7 @@ slurm_account: 'my_username'
 ```
 
 ```bash
-nextflow run workflows/full_pipeline.nf -params-file configs/ttht_full.yaml -profile slurm
+nextflow run karlssoc/diann-wf/workflows/full_pipeline.nf -params-file configs/ttht_full.yaml -profile slurm
 ```
 
 ## Tips

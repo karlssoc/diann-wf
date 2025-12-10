@@ -26,9 +26,6 @@ process TUNE_MODELS {
     path "tune.log", emit: log
 
     script:
-    // Construct version-specific DIANN binary path
-    def diann_binary = "/usr/bin/diann-${params.diann_version}/diann-linux"
-
     // Determine which models to tune
     def tune_rt = params.tuning?.tune_rt ? "--tune-rt" : ""
     def tune_im = params.tuning?.tune_im ? "--tune-im" : ""
@@ -45,7 +42,7 @@ process TUNE_MODELS {
     ln -s \$(realpath ${library}) tune_work/out-lib.parquet
 
     # Run tuning
-    ${diann_binary} \\
+    diann-linux \\
         --threads ${task.cpus} \\
         --tune-lib tune_work/out-lib.parquet \\
         ${tune_rt} \\

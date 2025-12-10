@@ -28,6 +28,9 @@ process GENERATE_LIBRARY {
     path "library_generation.log", emit: log
 
     script:
+    // Construct version-specific DIANN binary path
+    def diann_binary = "/usr/bin/diann-${params.diann_version}/diann-linux"
+
     // Tuned model parameters (only add if files exist)
     def use_tuned = tokens.name != 'NO_FILE'
     def tokens_param = use_tuned ? "--tokens tokens.txt" : ""
@@ -51,7 +54,7 @@ process GENERATE_LIBRARY {
     def unimod4 = params.library?.unimod4 ? "--unimod4" : ""
 
     """
-    diann \\
+    ${diann_binary} \\
         --fasta ${fasta} \\
         --gen-spec-lib \\
         --threads ${params.threads} \\

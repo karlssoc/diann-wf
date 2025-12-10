@@ -48,10 +48,12 @@ def helpMessage() {
       samples:
         - id: 'sample1'
           dir: 'input/sample1'
-          file_type: 'd'      # Options: 'd', 'raw', 'mzML'
+          file_type: 'd'           # Options: 'd', 'raw', 'mzML'
+          recursive: false         # Optional: use --dir-all for recursive (default: false)
         - id: 'sample2'
           dir: 'input/sample2'
           file_type: 'raw'
+          recursive: true          # Use --dir-all to process subfolders recursively
 
     Examples:
       # Using config file
@@ -129,13 +131,14 @@ workflow {
             def sample_id = sample.id
             def sample_dir = file(sample.dir)
             def file_type = sample.file_type ?: 'raw'
+            def recursive = sample.recursive ?: false
 
             if (!sample_dir.exists()) {
                 log.error "ERROR: Sample directory not found: ${sample.dir}"
                 exit 1
             }
 
-            tuple(sample_id, sample_dir, file_type, subdir)
+            tuple(sample_id, sample_dir, file_type, subdir, recursive)
         }
 
     // Check library and fasta files

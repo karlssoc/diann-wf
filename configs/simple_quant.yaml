@@ -9,15 +9,18 @@ fasta: 'idmapping_2025_11_20.fasta'
 
 # Sample definitions
 # file_type: 'd' (Bruker .d) | 'raw' (Thermo .raw) | 'mzML'
+# recursive: true to use --dir-all (search subfolders), false for --dir (default)
 # Note: .d files automatically get --mass-acc 15 --mass-acc-ms1 15
 samples:
   - id: 'mann'
     dir: 'input/mann'
     file_type: 'd'
+    # recursive: false  # Optional: default is false (use --dir)
 
   - id: 'p2'
     dir: 'input/p2'
     file_type: 'd'
+    # recursive: true   # Optional: set true to use --dir-all (recursive subfolder search)
 
   - id: 'std'
     dir: 'input/std'

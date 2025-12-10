@@ -14,7 +14,7 @@ process QUANTIFY {
     tag "${subdir ? subdir + '/' : ''}${sample_id}"
 
     input:
-    tuple val(sample_id), path(ms_dir), val(file_type), val(subdir)
+    tuple val(sample_id), path(ms_dir), val(file_type), val(subdir), val(recursive)
     path library
     path fasta
 
@@ -25,6 +25,9 @@ process QUANTIFY {
     path "diann.log", emit: log
 
     script:
+    // Directory parameter: use --dir-all for recursive, --dir for non-recursive
+    def dir_param = recursive ? "--dir-all" : "--dir"
+
     // File-type specific parameters
     def mass_acc_params = ""
     if (file_type == 'd') {
@@ -46,7 +49,7 @@ process QUANTIFY {
     """
     diann \\
         --fasta ${fasta} \\
-        --dir ${ms_dir} \\
+        ${dir_param} ${ms_dir} \\
         --lib ${library} \\
         --threads ${params.threads} \\
         --verbose 1 \\

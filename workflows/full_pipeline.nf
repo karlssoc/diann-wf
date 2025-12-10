@@ -220,7 +220,8 @@ workflow {
                     sample.id,
                     file(sample.dir),
                     sample.file_type ?: 'raw',
-                    quant_subdir
+                    quant_subdir,
+                    sample.recursive ?: false
                 )
             }
 

@@ -22,6 +22,10 @@ nextflow.enable.dsl = 2
 include { GENERATE_LIBRARY } from './modules/library'
 include { QUANTIFY } from './modules/quantify'
 
+// Import utility libraries
+import WorkflowValidation
+import SampleParser
+
 // Create Library Workflow
 workflow create_library {
     // Validate required parameters

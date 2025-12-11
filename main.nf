@@ -18,8 +18,9 @@
 
 nextflow.enable.dsl = 2
 
-// Import workflows
+// Import modules
 include { GENERATE_LIBRARY } from './modules/library'
+include { QUANTIFY } from './modules/quantify'
 
 // Create Library Workflow
 workflow create_library {
@@ -73,6 +74,91 @@ workflow create_library {
     )
 }
 
+// Quantify Workflow
+workflow quantify_only {
+    // Validate required parameters
+    if (!params.library) {
+        log.error "ERROR: --library parameter is required"
+        exit 1
+    }
+    if (!params.fasta) {
+        log.error "ERROR: --fasta parameter is required"
+        exit 1
+    }
+    if (!params.samples) {
+        log.error "ERROR: --samples parameter is required"
+        exit 1
+    }
+
+    // Parse samples
+    def samples_list
+    if (params.samples instanceof List) {
+        samples_list = params.samples
+    } else if (params.samples instanceof String && params.samples.startsWith('[')) {
+        samples_list = new groovy.json.JsonSlurper().parseText(params.samples)
+    } else if (params.samples instanceof String) {
+        def samples_file = file(params.samples)
+        if (!samples_file.exists()) {
+            log.error "ERROR: Samples file not found: ${params.samples}"
+            exit 1
+        }
+        if (samples_file.name.endsWith('.yaml') || samples_file.name.endsWith('.yml')) {
+            samples_list = new org.yaml.snakeyaml.Yaml().load(samples_file.text).samples
+        } else {
+            samples_list = new groovy.json.JsonSlurper().parseText(samples_file.text)
+        }
+    }
+
+    // Create channel from samples
+    def subdir = params.subdir ?: ''
+    samples_ch = Channel.fromList(samples_list)
+        .map { sample ->
+            def sample_id = sample.id
+            def sample_dir = file(sample.dir)
+            def file_type = sample.file_type ?: 'raw'
+            def recursive = sample.recursive ?: false
+
+            if (!sample_dir.exists()) {
+                log.error "ERROR: Sample directory not found: ${sample.dir}"
+                exit 1
+            }
+
+            tuple(sample_id, sample_dir, file_type, subdir, recursive)
+        }
+
+    // Check library and fasta files
+    library_file = file(params.library)
+    fasta_file = file(params.fasta)
+
+    if (!library_file.exists()) {
+        log.error "ERROR: Library file not found: ${params.library}"
+        exit 1
+    }
+    if (!fasta_file.exists()) {
+        log.error "ERROR: FASTA file not found: ${params.fasta}"
+        exit 1
+    }
+
+    // Log workflow info
+    log.info ""
+    log.info "DIANN Quantification Workflow"
+    log.info "=============================="
+    log.info "Library      : ${params.library}"
+    log.info "FASTA        : ${params.fasta}"
+    log.info "DIANN version: ${params.diann_version}"
+    log.info "Threads      : ${params.threads}"
+    log.info "Output dir   : ${params.outdir}"
+    log.info "Samples      : ${samples_list.size()}"
+    log.info ""
+
+    // Run quantification
+    QUANTIFY(
+        samples_ch,
+        library_file,
+        fasta_file
+    )
+}
+
 // Default workflow (points to the manifest main script)
 workflow {
     log.error """
@@ -80,11 +166,12 @@ workflow {
 
     Please use the -entry flag to select a workflow:
       -entry create_library  : Create spectral library from FASTA
-      -entry quantify        : Quantify samples (TBD)
+      -entry quantify_only   : Quantify samples using existing library
       -entry full_pipeline   : Run complete pipeline (TBD)
 
     Example:
       nextflow run karlssoc/diann-wf -entry create_library -params-file configs/library.yaml -profile slurm
+      nextflow run karlssoc/diann-wf -entry quantify_only -params-file configs/quant.yaml -profile slurm
     """
     exit 1
 }

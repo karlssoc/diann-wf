@@ -108,6 +108,21 @@ nextflow run karlssoc/diann-wf -entry quantify_only \
   -params-file configs/simple_quant.yaml -profile docker_slurm
 ```
 
+### ⚠️ Important: ARM/Apple Silicon Warning
+
+**The DIANN container is x86-64 only.** When running on ARM Macs (Apple Silicon) with Docker or Podman, the container runs via Rosetta 2 emulation.
+
+**Rosetta 2 emulation can produce different scientific results:**
+- Lower identification rates
+- Altered quantification values
+- Differences in floating-point precision
+- Changes in numeric calculations
+
+**Recommendations:**
+- **Testing/Development:** Docker/Podman on ARM Macs is acceptable for workflow development and testing
+- **Production/Publication:** Use native x86-64 hardware or SLURM cluster with Singularity for reproducible results
+- The workflow automatically displays a warning when running on ARM with Docker/Podman
+
 ## Project Structure
 
 ```

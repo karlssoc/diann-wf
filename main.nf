@@ -22,8 +22,37 @@ nextflow.enable.dsl = 2
 include { GENERATE_LIBRARY } from './modules/library'
 include { QUANTIFY } from './modules/quantify'
 
+// Check for non-native execution (ARM Mac with Docker/Podman)
+def checkPlatformWarning() {
+    def osArch = System.getProperty("os.arch")
+    def isDocker = workflow.containerEngine == 'docker'
+    def isPodman = workflow.containerEngine == 'podman'
+
+    if ((isDocker || isPodman) && osArch.contains("aarch64")) {
+        log.warn ""
+        log.warn "=" * 80
+        log.warn "WARNING: Running x86-64 container on ARM architecture via emulation"
+        log.warn ""
+        log.warn "Rosetta 2 emulation can introduce differences in:"
+        log.warn "  - Floating-point precision"
+        log.warn "  - CPU instruction handling"
+        log.warn "  - Numeric calculations"
+        log.warn ""
+        log.warn "This may result in DIFFERENT SCIENTIFIC RESULTS compared to native execution,"
+        log.warn "including lower identification rates and altered quantification values."
+        log.warn ""
+        log.warn "For production/publication work, use native x86-64 hardware or Singularity"
+        log.warn "on an HPC cluster with SLURM."
+        log.warn "=" * 80
+        log.warn ""
+    }
+}
+
 // Create Library Workflow
 workflow create_library {
+    // Check for platform warnings
+    checkPlatformWarning()
+
     // Validate required parameters
     if (!params.fasta) {
         log.error "ERROR: --fasta parameter is required"
@@ -76,6 +105,9 @@ workflow create_library {
 
 // Quantify Workflow
 workflow quantify_only {
+    // Check for platform warnings
+    checkPlatformWarning()
+
     // Validate required parameters
     if (!params.library) {
         log.error "ERROR: --library parameter is required"

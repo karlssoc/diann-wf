@@ -22,24 +22,21 @@ nextflow.enable.dsl = 2
 include { GENERATE_LIBRARY } from './modules/library'
 include { QUANTIFY } from './modules/quantify'
 
+// Import utility libraries
+import WorkflowValidation
+import SampleParser
+
 // Create Library Workflow
 workflow create_library {
     // Validate required parameters
-    if (!params.fasta) {
-        log.error "ERROR: --fasta parameter is required"
-        exit 1
-    }
-    if (!params.library_name) {
-        log.error "ERROR: --library_name parameter is required"
-        exit 1
-    }
+    WorkflowValidation.validateRequired(params, [
+        'fasta': 'Path to FASTA file',
+        'library_name': 'Name for the output library'
+    ])
 
     // Check FASTA file
     fasta_file = file(params.fasta)
-    if (!fasta_file.exists()) {
-        log.error "ERROR: FASTA file not found: ${params.fasta}"
-        exit 1
-    }
+    WorkflowValidation.validateFileExists(fasta_file, 'FASTA')
 
     // Handle tuned model files (use placeholder if not provided)
     tokens_file = params.tokens ? file(params.tokens) : file('NO_FILE')
@@ -77,37 +74,15 @@ workflow create_library {
 // Quantify Workflow
 workflow quantify_only {
     // Validate required parameters
-    if (!params.library) {
-        log.error "ERROR: --library parameter is required"
-        exit 1
-    }
-    if (!params.fasta) {
-        log.error "ERROR: --fasta parameter is required"
-        exit 1
-    }
-    if (!params.samples) {
-        log.error "ERROR: --samples parameter is required"
-        exit 1
-    }
+    WorkflowValidation.validateRequired(params, [
+        'library': 'Path to spectral library file',
+        'fasta': 'Path to FASTA file',
+        'samples': 'Sample definitions (YAML file, JSON file, or inline JSON)'
+    ])
 
     // Parse samples
-    def samples_list
-    if (params.samples instanceof List) {
-        samples_list = params.samples
-    } else if (params.samples instanceof String && params.samples.startsWith('[')) {
-        samples_list = new groovy.json.JsonSlurper().parseText(params.samples)
-    } else if (params.samples instanceof String) {
-        def samples_file = file(params.samples)
-        if (!samples_file.exists()) {
-            log.error "ERROR: Samples file not found: ${params.samples}"
-            exit 1
-        }
-        if (samples_file.name.endsWith('.yaml') || samples_file.name.endsWith('.yml')) {
-            samples_list = new org.yaml.snakeyaml.Yaml().load(samples_file.text).samples
-        } else {
-            samples_list = new groovy.json.JsonSlurper().parseText(samples_file.text)
-        }
-    }
+    def samples_list = SampleParser.parseSamples(params.samples)
+    SampleParser.validateSamples(samples_list)
 
     // Create channel from samples
     def subdir = params.subdir ?: ''
@@ -130,14 +105,8 @@ workflow quantify_only {
     library_file = file(params.library)
     fasta_file = file(params.fasta)
 
-    if (!library_file.exists()) {
-        log.error "ERROR: Library file not found: ${params.library}"
-        exit 1
-    }
-    if (!fasta_file.exists()) {
-        log.error "ERROR: FASTA file not found: ${params.fasta}"
-        exit 1
-    }
+    WorkflowValidation.validateFileExists(library_file, 'Library')
+    WorkflowValidation.validateFileExists(fasta_file, 'FASTA')
 
     // Log workflow info
     log.info ""

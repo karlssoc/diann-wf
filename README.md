@@ -24,10 +24,12 @@ nextflow pull karlssoc/diann-wf
 nano configs/simple_quant.yaml
 
 # Run locally for testing
-nextflow run karlssoc/diann-wf -params-file configs/simple_quant.yaml
+nextflow run karlssoc/diann-wf -entry quantify_only \
+  -params-file configs/simple_quant.yaml
 
 # Submit to SLURM (recommended)
-nextflow run karlssoc/diann-wf -params-file configs/simple_quant.yaml -profile slurm
+nextflow run karlssoc/diann-wf -entry quantify_only \
+  -params-file configs/simple_quant.yaml -profile slurm
 ```
 
 ### 2. Create Library
@@ -38,8 +40,9 @@ Generate a spectral library from a FASTA file:
 # Edit the config file
 nano configs/library_creation.yaml
 
-# Run with SLURM (specify workflow explicitly for library creation)
-nextflow run karlssoc/diann-wf/workflows/create_library.nf -params-file configs/library_creation.yaml -profile slurm
+# Run with SLURM
+nextflow run karlssoc/diann-wf -entry create_library \
+  -params-file configs/library_creation.yaml -profile slurm
 ```
 
 ### 3. Full Pipeline

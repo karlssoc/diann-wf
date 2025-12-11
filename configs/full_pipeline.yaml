@@ -21,16 +21,18 @@ samples:
 # Which sample to use for model tuning
 tune_sample: 'p2'
 
-# Workflow control - which rounds to run
-run_r1: true      # Round 1: Default models
-run_tune: true    # Model tuning
-run_r2: true      # Round 2: RT+IM tuned models
-run_r3: true      # Round 3: RT+IM+FR tuned models (DIANN 2.3.1+)
+# Workflow control - which stages to run
+# stages: List of stages to execute [1, 2, 3]
+#   Stage 1: Default DIANN models
+#   Stage 2: RT+IM tuned models
+#   Stage 3: RT+IM+FR tuned models (requires DIANN 2.3.1+)
+stages: [1, 2, 3]
 
-# DIANN versions for each round
-r1_diann_version: '2.3.1'
-r2_diann_version: '2.2.0'
-r3_diann_version: '2.3.1'
+# When to perform model tuning (after which stage)
+tune_after_stage: 1
+
+# DIANN version (use 2.3.1+ for full FR tuning support)
+diann_version: '2.3.1'
 
 # Number of threads
 threads: 60

@@ -246,7 +246,7 @@ workflow {
                 .map { sample_id, lib -> lib }
 
             // Determine tuning output subdirectory
-            def tune_subdir = params.output_organization == 'by_stage' ? 'tuning' : 'tuning'
+            def tune_subdir = 'tuning'  // Tuning always goes to tuning/ directory
 
             // Tune models
             TUNE_MODELS(

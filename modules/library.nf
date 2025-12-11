@@ -31,12 +31,13 @@ process GENERATE_LIBRARY {
     // Use absolute path to DIANN binary (container ENTRYPOINT interferes with PATH)
     def diann_cmd = "/usr/bin/diann-${params.diann_version}/diann-linux"
 
-    // Tuned model parameters (only add if files exist)
-    def use_tuned = tokens.name != 'NO_FILE'
+    // Tuned model parameters (only add if files exist and are not NO_FILE placeholders)
+    // Check the original name before staging to avoid NO_FILE symlinks
+    def use_tuned = tokens.getName() != 'NO_FILE' && params.tokens
     def tokens_param = use_tuned ? "--tokens tokens.txt" : ""
-    def rt_param = (use_tuned && rt_model.name != 'NO_FILE') ? "--rt-model rt_model.pt" : ""
-    def im_param = (use_tuned && im_model.name != 'NO_FILE') ? "--im-model im_model.pt" : ""
-    def fr_param = (use_tuned && fr_model.name != 'NO_FILE') ? "--fr-model fr_model.pt" : ""
+    def rt_param = (use_tuned && rt_model.getName() != 'NO_FILE' && params.rt_model) ? "--rt-model rt_model.pt" : ""
+    def im_param = (use_tuned && im_model.getName() != 'NO_FILE' && params.im_model) ? "--im-model im_model.pt" : ""
+    def fr_param = (use_tuned && fr_model.getName() != 'NO_FILE' && params.fr_model) ? "--fr-model fr_model.pt" : ""
 
     // Library generation parameters
     def min_fr_mz = params.library?.min_fr_mz ?: 200

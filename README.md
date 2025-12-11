@@ -60,7 +60,10 @@ nextflow run karlssoc/diann-wf/workflows/full_pipeline.nf -params-file configs/f
 ## Requirements
 
 - Nextflow >= 21.04.0
-- Singularity/Apptainer
+- Container runtime (choose one):
+  - Singularity/Apptainer (recommended for HPC)
+  - Docker or OrbStack (for local development)
+  - Podman (alternative to Docker)
 - Access to DIANN containers: `quay.io/karlssoc/diann`
 
 Available DIANN versions:
@@ -68,6 +71,42 @@ Available DIANN versions:
 - `2.3.0-beta`
 - `2.2.0` (stable)
 - `1.8.1`
+
+## Execution Profiles
+
+The workflow supports multiple container runtimes and execution environments. Choose the profile that matches your setup:
+
+### Local Execution
+
+- **`-profile standard`** - Singularity with local executor (default)
+- **`-profile docker`** - Docker with local executor
+- **`-profile podman`** - Podman with local executor
+
+### SLURM Cluster Execution
+
+- **`-profile slurm`** - Singularity with SLURM executor (recommended for HPC)
+- **`-profile docker_slurm`** - Docker with SLURM executor
+- **`-profile podman_slurm`** - Podman with SLURM executor
+
+### Examples
+
+```bash
+# Local with Docker (macOS/OrbStack)
+nextflow run karlssoc/diann-wf -entry quantify_only \
+  -params-file configs/simple_quant.yaml -profile docker
+
+# Local with Podman
+nextflow run karlssoc/diann-wf -entry create_library \
+  -params-file configs/library_creation.yaml -profile podman
+
+# SLURM with Singularity (HPC)
+nextflow run karlssoc/diann-wf -entry quantify_only \
+  -params-file configs/simple_quant.yaml -profile slurm
+
+# SLURM with Docker
+nextflow run karlssoc/diann-wf -entry quantify_only \
+  -params-file configs/simple_quant.yaml -profile docker_slurm
+```
 
 ## Project Structure
 

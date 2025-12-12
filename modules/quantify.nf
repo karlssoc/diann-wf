@@ -36,6 +36,7 @@ process QUANTIFY {
     tuple val(sample_id), path(ms_dir), val(file_type), val(subdir), val(recursive), val(file_count)
     path library
     path fasta
+    path ref_library
 
     output:
     tuple val(sample_id), path("report.parquet"), emit: report
@@ -68,6 +69,12 @@ process QUANTIFY {
     def matrices = params.matrices != null ?
         "--matrices" : ""
 
+    // Batch correction parameters (for multi-batch data from same instrument)
+    def individual_windows = params.individual_windows ?
+        "--individual-windows" : ""
+    def ref_lib = ref_library.name != 'NO_FILE' ?
+        "--ref ${ref_library}" : ""
+
     // Ultrafast mode parameters (trades sensitivity for speed)
     // These parameters enable aggressive filtering and simplified algorithms
     def ultrafast_params = ""
@@ -97,6 +104,8 @@ process QUANTIFY {
         ${mass_acc_cal} \\
         ${smart_profiling} \\
         ${individual_mass_acc} \\
+        ${individual_windows} \\
+        ${ref_lib} \\
         ${matrices} \\
         ${ultrafast_params} \\
         2>&1 | tee diann.log

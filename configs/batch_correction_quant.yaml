@@ -1,0 +1,57 @@
+# Batch Correction Quantification Configuration
+# Use this when quantifying multiple batches of MS data from the same instrument type
+# Enables individual calibration per run using a reference library
+
+# Spectral library (must exist)
+library: '/srv/data1/karlssoc/libraries/idmapping_2025_11_20.predicted.speclib'
+
+# FASTA file (must exist)
+fasta: 'idmapping_2025_11_20.fasta'
+
+# Reference library for batch calibration (must exist)
+# This should be a small library generated from a reference sample
+# Used to calibrate retention times and mass accuracy across batches
+ref_library: '/srv/data1/karlssoc/libraries/reference_calibration.speclib'
+
+# Sample definitions
+# Each sample represents a different batch from the same instrument
+samples:
+  - id: 'batch1'
+    dir: 'input/batch1'
+    file_type: 'd'
+
+  - id: 'batch2'
+    dir: 'input/batch2'
+    file_type: 'd'
+
+  - id: 'batch3'
+    dir: 'input/batch3'
+    file_type: 'd'
+
+# DIANN version
+diann_version: '2.3.1'
+
+# Number of threads
+threads: 60
+
+# Output directory
+outdir: 'results/batch_correction_quantification'
+
+# SLURM settings
+slurm_account: 'my_username'
+
+# Batch correction parameters
+# individual_mass_acc: Enables individual mass accuracy calibration per run
+# individual_windows: Uses individual RT windows per run instead of global windows
+individual_mass_acc: true
+individual_windows: true
+
+# Standard quantification parameters
+pg_level: 1
+mass_acc_cal: 25
+smart_profiling: true
+matrices: true
+
+# Time allocation parameters
+time_base_hours: 2
+time_per_file_minutes: 10

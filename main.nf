@@ -189,7 +189,15 @@ workflow quantify_only {
         exit 1
     }
 
+    // Handle optional reference library for batch correction
+    ref_library_file = params.ref_library ? file(params.ref_library) : file('NO_FILE')
+    if (params.ref_library && !ref_library_file.exists()) {
+        log.error "ERROR: Reference library file not found: ${params.ref_library}"
+        exit 1
+    }
+
     // Log workflow info
+    def using_batch_correction = params.ref_library != null
     log.info ""
     log.info "DIANN Quantification Workflow"
     log.info "=============================="
@@ -199,13 +207,15 @@ workflow quantify_only {
     log.info "Threads      : ${params.threads}"
     log.info "Output dir   : ${params.outdir}"
     log.info "Samples      : ${samples_list.size()}"
+    log.info "Batch corr.  : ${using_batch_correction}"
     log.info ""
 
     // Run quantification
     QUANTIFY(
         samples_ch,
         library_file,
-        fasta_file
+        fasta_file,
+        ref_library_file
     )
 }
 

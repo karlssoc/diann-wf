@@ -155,7 +155,25 @@ workflow quantify_only {
                 exit 1
             }
 
-            tuple(sample_id, sample_dir, file_type, subdir, recursive)
+            // Count MS files in directory for dynamic time allocation
+            def file_extensions = ['*.mzML', '*.raw', '*.d', '*.wiff']
+            def file_count = 0
+            file_extensions.each { ext ->
+                if (recursive) {
+                    file_count += sample_dir.listFiles().findAll {
+                        it.isDirectory() || it.name.matches(ext.replace('*', '.*'))
+                    }.size()
+                } else {
+                    file_count += sample_dir.listFiles().findAll {
+                        it.name.matches(ext.replace('*', '.*'))
+                    }.size()
+                }
+            }
+
+            // Log file count for user awareness
+            log.info "Sample ${sample_id}: Found ${file_count} MS files"
+
+            tuple(sample_id, sample_dir, file_type, subdir, recursive, file_count)
         }
 
     // Check library and fasta files

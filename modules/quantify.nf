@@ -13,8 +13,19 @@ process QUANTIFY {
 
     tag "${subdir ? subdir + '/' : ''}${sample_id}"
 
+    // Dynamic time allocation based on file count
+    // Formula: base_hours + (file_count * minutes_per_file)
+    // Configurable via params.time_base_hours and params.time_per_file_minutes
+    time {
+        def base_hours = params.time_base_hours ?: 2
+        def minutes_per_file = params.time_per_file_minutes ?: 3
+        def total_minutes = (base_hours * 60) + (file_count.toInteger() * minutes_per_file)
+        def hours = Math.ceil(total_minutes / 60.0) as Integer
+        return "${hours}h"
+    }
+
     input:
-    tuple val(sample_id), path(ms_dir), val(file_type), val(subdir), val(recursive)
+    tuple val(sample_id), path(ms_dir), val(file_type), val(subdir), val(recursive), val(file_count)
     path library
     path fasta
 

@@ -27,8 +27,8 @@ nano configs/simple_quant.yaml
 nextflow run karlssoc/diann-wf -entry quantify_only \
   -params-file configs/simple_quant.yaml
 
-# Submit to SLURM (recommended)
-nextflow run karlssoc/diann-wf -entry quantify_only \
+# Submit to SLURM (recommended - runs in background)
+nextflow -bg run karlssoc/diann-wf -entry quantify_only \
   -params-file configs/simple_quant.yaml -profile slurm
 ```
 
@@ -40,8 +40,8 @@ Generate a spectral library from a FASTA file:
 # Edit the config file
 nano configs/library_creation.yaml
 
-# Run with SLURM
-nextflow run karlssoc/diann-wf -entry create_library \
+# Run with SLURM (in background)
+nextflow -bg run karlssoc/diann-wf -entry create_library \
   -params-file configs/library_creation.yaml -profile slurm
 ```
 
@@ -54,7 +54,7 @@ Complete multi-round analysis with model tuning (rare, for comprehensive studies
 nano configs/full_pipeline.yaml
 
 # Run with SLURM (specify workflow explicitly for full pipeline)
-nextflow run karlssoc/diann-wf/workflows/full_pipeline.nf -params-file configs/full_pipeline.yaml -profile slurm
+nextflow -bg run karlssoc/diann-wf/workflows/full_pipeline.nf -params-file configs/full_pipeline.yaml -profile slurm
 ```
 
 ## Requirements
@@ -214,7 +214,7 @@ slurm_account: 'my_username'
 ```
 
 ```bash
-nextflow run karlssoc/diann-wf -params-file configs/my_quant.yaml -profile slurm
+nextflow -bg run karlssoc/diann-wf -params-file configs/my_quant.yaml -profile slurm
 ```
 
 ### Workflow 2: Create Library
@@ -257,21 +257,21 @@ This workflow performs:
 4. **Round 3:** Generate library with RT+IM+FR models → Quantify all samples
 
 ```bash
-nextflow run karlssoc/diann-wf/workflows/full_pipeline.nf -params-file configs/full_pipeline.yaml -profile slurm
+nextflow -bg run karlssoc/diann-wf/workflows/full_pipeline.nf -params-file configs/full_pipeline.yaml -profile slurm
 ```
 
 #### Control Which Rounds to Run
 
 ```bash
 # Only R1 and tuning (skip R2/R3)
-nextflow run karlssoc/diann-wf/workflows/full_pipeline.nf \
+nextflow -bg run karlssoc/diann-wf/workflows/full_pipeline.nf \
   -params-file configs/full_pipeline.yaml \
   --run_r2 false \
   --run_r3 false \
   -profile slurm
 
 # Skip R1, only R2 and R3 (if you already have tuned models)
-nextflow run karlssoc/diann-wf/workflows/full_pipeline.nf \
+nextflow -bg run karlssoc/diann-wf/workflows/full_pipeline.nf \
   -params-file configs/full_pipeline.yaml \
   --run_r1 false \
   -profile slurm
@@ -279,19 +279,50 @@ nextflow run karlssoc/diann-wf/workflows/full_pipeline.nf \
 
 ## Advanced Features
 
+### Background Execution (`-bg` Flag)
+
+**Important for SLURM users:** Use the `-bg` flag to run Nextflow in the background. This ensures your workflow continues even if your terminal session disconnects (e.g., SSH timeout, network issues, or closing your laptop).
+
+```bash
+# Run in background - workflow persists even if you disconnect
+nextflow -bg run karlssoc/diann-wf \
+  -params-file configs/simple_quant.yaml \
+  -profile slurm
+```
+
+**What `-bg` does:**
+- Runs Nextflow in the background (similar to `nohup`)
+- Detaches from your terminal
+- Saves logs to `.nextflow.log` automatically
+- Perfect for long-running SLURM workflows
+
+**Monitor your background workflow:**
+```bash
+# Find the Nextflow process
+ps aux | grep nextflow
+
+# Monitor the log file
+tail -f .nextflow.log
+
+# Check SLURM jobs
+squeue -u $USER
+```
+
+**Alternative:** You can also use `tmux` or `screen` to create persistent terminal sessions, but `-bg` is simpler and built into Nextflow.
+
 ### Resume Failed Runs
 
 Nextflow can resume interrupted workflows:
 
 ```bash
-nextflow run karlssoc/diann-wf -params-file configs/simple_quant.yaml -resume
+nextflow -bg run karlssoc/diann-wf -params-file configs/simple_quant.yaml -resume
 ```
 
 ### Use Different DIANN Versions
 
 ```bash
 # Command line override
-nextflow run karlssoc/diann-wf \
+nextflow -bg run karlssoc/diann-wf \
   -params-file configs/simple_quant.yaml \
   --diann_version 2.2.0 \
   -profile slurm
@@ -395,7 +426,7 @@ slurm_account: 'my_username'
 ```
 
 ```bash
-nextflow run karlssoc/diann-wf -params-file configs/ttht_quant.yaml -profile slurm
+nextflow -bg run karlssoc/diann-wf -params-file configs/ttht_quant.yaml -profile slurm
 ```
 
 ### Example 2: Full Pipeline (like your run_diann3-r2a.sh and r3a.sh)
@@ -419,16 +450,17 @@ slurm_account: 'my_username'
 ```
 
 ```bash
-nextflow run karlssoc/diann-wf/workflows/full_pipeline.nf -params-file configs/ttht_full.yaml -profile slurm
+nextflow -bg run karlssoc/diann-wf/workflows/full_pipeline.nf -params-file configs/ttht_full.yaml -profile slurm
 ```
 
 ## Tips
 
-1. **Start simple:** Use `quantify_only.nf` for most tasks
-2. **Test locally first:** Use `-profile test` before SLURM submission
-3. **Use `-resume`:** Save time by resuming failed runs
-4. **Check reports:** Review execution reports to optimize resource usage
-5. **Version control configs:** Keep your YAML configs in git for reproducibility
+1. **Always use `-bg` for SLURM:** Persist through terminal disconnections
+2. **Start simple:** Use `quantify_only.nf` for most tasks
+3. **Test locally first:** Use `-profile test` before SLURM submission
+4. **Use `-resume`:** Save time by resuming failed runs
+5. **Check reports:** Review execution reports to optimize resource usage
+6. **Version control configs:** Keep your YAML configs in git for reproducibility
 
 ## Support
 

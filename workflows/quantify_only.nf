@@ -138,7 +138,42 @@ workflow {
                 exit 1
             }
 
-            tuple(sample_id, sample_dir, file_type, subdir, recursive)
+            // Count MS files in directory for dynamic time allocation
+            def file_extensions = ['.mzML', '.raw', '.d', '.wiff']
+            def file_count = 0
+
+            if (recursive) {
+                // Recursive counting: traverse all subdirectories
+                sample_dir.eachFileRecurse { file ->
+                    if (file.isFile()) {
+                        def extension = file.name.substring(file.name.lastIndexOf('.'))
+                        if (file_extensions.contains(extension)) {
+                            file_count++
+                        }
+                    } else if (file.isDirectory() && file.name.endsWith('.d')) {
+                        // Count Bruker .d directories as one file
+                        file_count++
+                    }
+                }
+            } else {
+                // Non-recursive: only immediate directory
+                sample_dir.listFiles().each { file ->
+                    if (file.isFile()) {
+                        def extension = file.name.substring(file.name.lastIndexOf('.'))
+                        if (file_extensions.contains(extension)) {
+                            file_count++
+                        }
+                    } else if (file.isDirectory() && file.name.endsWith('.d')) {
+                        // Count Bruker .d directories as one file
+                        file_count++
+                    }
+                }
+            }
+
+            // Log file count for user awareness
+            log.info "Sample ${sample_id}: Found ${file_count} MS files"
+
+            tuple(sample_id, sample_dir, file_type, subdir, recursive, file_count)
         }
 
     // Check library and fasta files
@@ -155,6 +190,13 @@ workflow {
         exit 1
     }
 
+    // Handle optional reference library for batch correction
+    ref_library_file = params.ref_library ? file(params.ref_library) : file('NO_FILE')
+    if (params.ref_library && !ref_library_file.exists()) {
+        log.error "ERROR: Reference library file not found: ${params.ref_library}"
+        exit 1
+    }
+
     // Log workflow info
     log.info ""
     log.info "DIANN Quantification Workflow"
@@ -165,13 +207,20 @@ workflow {
     log.info "Threads      : ${params.threads}"
     log.info "Output dir   : ${params.outdir}"
     log.info "Samples      : ${samples_list.size()}"
+    if (params.ref_library) {
+        log.info "Ref library  : ${params.ref_library}"
+    }
+    if (params.individual_mass_acc || params.individual_windows) {
+        log.info "Batch corr.  : true"
+    }
     log.info ""
 
     // Run quantification
     QUANTIFY(
         samples_ch,
         library_file,
-        fasta_file
+        fasta_file,
+        ref_library_file
     )
 }
 

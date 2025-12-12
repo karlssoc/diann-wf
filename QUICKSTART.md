@@ -74,12 +74,13 @@ Once testing works, submit to SLURM:
 
 ```bash
 # Run from GitHub (recommended - always gets latest version)
-nextflow run karlssoc/diann-wf \
+# Using -bg to run in background (persists if terminal disconnects)
+nextflow -bg run karlssoc/diann-wf \
   -params-file configs/my_experiment.yaml \
   -profile slurm
 
 # Or specify a workflow explicitly:
-nextflow run karlssoc/diann-wf/workflows/quantify_only.nf \
+nextflow -bg run karlssoc/diann-wf/workflows/quantify_only.nf \
   -params-file configs/my_experiment.yaml \
   -profile slurm
 ```
@@ -94,15 +95,20 @@ The workflow will:
 
 ## Step 5: Monitor Progress
 
+**Note:** All SLURM examples use the `-bg` flag, which runs Nextflow in the background so it persists even if your SSH session disconnects.
+
 ```bash
 # Check running jobs
 squeue -u $USER
 
-# View Nextflow log
+# View Nextflow log (background runs log here)
 tail -f .nextflow.log
 
 # List all runs
 nextflow log
+
+# Find the Nextflow background process
+ps aux | grep nextflow
 ```
 
 ## Step 6: Check Results
@@ -146,7 +152,7 @@ slurm_account: 'my_username'
 
 ```bash
 # Run from GitHub (recommended - always gets latest version)
-nextflow run karlssoc/diann-wf -params-file configs/batch_quant.yaml -profile slurm
+nextflow -bg run karlssoc/diann-wf -params-file configs/batch_quant.yaml -profile slurm
 ```
 
 ### Use Case 2: Create New Library from FASTA
@@ -161,7 +167,7 @@ slurm_account: 'my_username'
 
 ```bash
 # Run from GitHub (specify workflow explicitly for library creation)
-nextflow run karlssoc/diann-wf/workflows/create_library.nf -params-file configs/new_library.yaml -profile slurm
+nextflow -bg run karlssoc/diann-wf/workflows/create_library.nf -params-file configs/new_library.yaml -profile slurm
 ```
 
 ### Use Case 3: Full Pipeline with Model Tuning
@@ -182,7 +188,7 @@ slurm_account: 'my_username'
 
 ```bash
 # Run from GitHub (specify workflow explicitly for full pipeline)
-nextflow run karlssoc/diann-wf/workflows/full_pipeline.nf -params-file configs/tuned_pipeline.yaml -profile slurm
+nextflow -bg run karlssoc/diann-wf/workflows/full_pipeline.nf -params-file configs/tuned_pipeline.yaml -profile slurm
 ```
 
 ## Troubleshooting
@@ -219,7 +225,7 @@ withLabel: 'diann_quantify' {
 
 **Solution:** Use `-resume` flag:
 ```bash
-nextflow run karlssoc/diann-wf \
+nextflow -bg run karlssoc/diann-wf \
   -params-file configs/my_experiment.yaml \
   -profile slurm \
   -resume
@@ -227,12 +233,13 @@ nextflow run karlssoc/diann-wf \
 
 ## Tips for Success
 
-1. **Always test locally first** with `-profile test`
-2. **Use absolute paths** in your configs
-3. **Start with one sample** to test before running many
-4. **Check logs** in `results/pipeline_info/`
-5. **Use `-resume`** to restart failed runs without recomputing
-6. **Keep configs in version control** (git) for reproducibility
+1. **Always use `-bg` for SLURM runs** to persist through disconnections
+2. **Always test locally first** with `-profile test`
+3. **Use absolute paths** in your configs
+4. **Start with one sample** to test before running many
+5. **Check logs** in `results/pipeline_info/`
+6. **Use `-resume`** to restart failed runs without recomputing
+7. **Keep configs in version control** (git) for reproducibility
 
 ## Next Steps
 

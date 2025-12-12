@@ -216,20 +216,58 @@ workflow {
         // Create samples channel for this stage
         def samples_ch = Channel.fromList(samples_list)
             .map { sample ->
-                tuple(
-                    sample.id,
-                    file(sample.dir),
-                    sample.file_type ?: 'raw',
-                    quant_subdir,
-                    sample.recursive ?: false
-                )
+                def sample_id = sample.id
+                def sample_dir = file(sample.dir)
+                def file_type = sample.file_type ?: 'raw'
+                def recursive = sample.recursive ?: false
+
+                // Count MS files in directory for dynamic time allocation
+                def file_extensions = ['.mzML', '.raw', '.d', '.wiff']
+                def file_count = 0
+
+                if (recursive) {
+                    // Recursive counting: traverse all subdirectories
+                    sample_dir.eachFileRecurse { file ->
+                        if (file.isFile()) {
+                            def extension = file.name.substring(file.name.lastIndexOf('.'))
+                            if (file_extensions.contains(extension)) {
+                                file_count++
+                            }
+                        } else if (file.isDirectory() && file.name.endsWith('.d')) {
+                            // Count Bruker .d directories as one file
+                            file_count++
+                        }
+                    }
+                } else {
+                    // Non-recursive: only immediate directory
+                    sample_dir.listFiles().each { file ->
+                        if (file.isFile()) {
+                            def extension = file.name.substring(file.name.lastIndexOf('.'))
+                            if (file_extensions.contains(extension)) {
+                                file_count++
+                            }
+                        } else if (file.isDirectory() && file.name.endsWith('.d')) {
+                            // Count Bruker .d directories as one file
+                            file_count++
+                        }
+                    }
+                }
+
+                // Log file count for user awareness
+                log.info "Sample ${sample_id}: Found ${file_count} MS files"
+
+                tuple(sample_id, sample_dir, file_type, quant_subdir, recursive, file_count)
             }
+
+        // Handle optional reference library for batch correction
+        def ref_library_file = params.ref_library ? file(params.ref_library) : file('NO_FILE')
 
         // Quantify samples
         QUANTIFY(
             samples_ch,
             GENERATE_LIBRARY.out.library,
-            fasta_file
+            fasta_file,
+            ref_library_file
         )
 
         // Store out-lib results for tuning

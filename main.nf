@@ -156,17 +156,34 @@ workflow quantify_only {
             }
 
             // Count MS files in directory for dynamic time allocation
-            def file_extensions = ['*.mzML', '*.raw', '*.d', '*.wiff']
+            def file_extensions = ['.mzML', '.raw', '.d', '.wiff']
             def file_count = 0
-            file_extensions.each { ext ->
-                if (recursive) {
-                    file_count += sample_dir.listFiles().findAll {
-                        it.isDirectory() || it.name.matches(ext.replace('*', '.*'))
-                    }.size()
-                } else {
-                    file_count += sample_dir.listFiles().findAll {
-                        it.name.matches(ext.replace('*', '.*'))
-                    }.size()
+
+            if (recursive) {
+                // Recursive counting: traverse all subdirectories
+                sample_dir.eachFileRecurse { file ->
+                    if (file.isFile()) {
+                        def extension = file.name.substring(file.name.lastIndexOf('.'))
+                        if (file_extensions.contains(extension)) {
+                            file_count++
+                        }
+                    } else if (file.isDirectory() && file.name.endsWith('.d')) {
+                        // Count Bruker .d directories as one file
+                        file_count++
+                    }
+                }
+            } else {
+                // Non-recursive: only immediate directory
+                sample_dir.listFiles().each { file ->
+                    if (file.isFile()) {
+                        def extension = file.name.substring(file.name.lastIndexOf('.'))
+                        if (file_extensions.contains(extension)) {
+                            file_count++
+                        }
+                    } else if (file.isDirectory() && file.name.endsWith('.d')) {
+                        // Count Bruker .d directories as one file
+                        file_count++
+                    }
                 }
             }
 

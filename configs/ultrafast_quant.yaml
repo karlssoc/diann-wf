@@ -1,0 +1,51 @@
+# Ultrafast Quantification Configuration
+# Use this for rapid initial analysis or when speed is prioritized over sensitivity
+# Trade-off: ~50% faster processing but may lose some low-abundance identifications
+
+# Spectral library (must exist)
+library: '/srv/data1/karlssoc/libraries/idmapping_2025_11_20.predicted.speclib'
+
+# FASTA file (must exist)
+fasta: 'idmapping_2025_11_20.fasta'
+
+# Sample definitions
+samples:
+  - id: 'sample1'
+    dir: 'input/sample1'
+    file_type: 'd'
+
+# DIANN version
+diann_version: '2.3.1'
+
+# Number of threads
+threads: 60
+
+# Output directory
+outdir: 'results/ultrafast_quantification'
+
+# SLURM settings
+slurm_account: 'my_username'
+
+# Enable ultrafast mode
+# WARNING: Trades sensitivity for speed
+# - Uses more aggressive filtering (min-corr 2.0)
+# - Simplifies correlation calculations (time-corr-only)
+# - Uses extracted MS1 only
+# - Reduces calibration requirements (min-cal 500, min-class 1000)
+# - Applies pre-filtering before full analysis
+# - Widens RT windows (rt-window-mul 1.7, rt-window-factor 100)
+ultrafast: true
+
+# Standard quantification parameters (still applied in ultrafast mode)
+pg_level: 1
+mass_acc_cal: 25
+smart_profiling: true
+individual_mass_acc: true
+matrices: true
+
+# Time allocation (automatically reduced by 50% when ultrafast=true)
+# For 326 files:
+#   Normal: 2h + (326 × 10min) = 56h
+#   Ultrafast: (2h + 326 × 10min) × 0.5 = 28h
+time_base_hours: 2
+time_per_file_minutes: 10

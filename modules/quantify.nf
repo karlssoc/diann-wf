@@ -17,10 +17,17 @@ process QUANTIFY {
     // Formula: base_hours + (file_count * minutes_per_file)
     // Configurable via params.time_base_hours and params.time_per_file_minutes
     // Default: 2h + (file_count * 10 min) - generous buffer for file variability
+    // Ultrafast mode: reduces time by ~50% due to simplified algorithms
     time {
         def base_hours = params.time_base_hours ?: 2
         def minutes_per_file = params.time_per_file_minutes ?: 10
         def total_minutes = (base_hours * 60) + (file_count.toInteger() * minutes_per_file)
+
+        // Ultrafast mode is significantly faster - reduce time estimate by 50%
+        if (params.ultrafast) {
+            total_minutes = total_minutes * 0.5
+        }
+
         def hours = Math.ceil(total_minutes / 60.0) as Integer
         return "${hours}h"
     }
@@ -61,6 +68,20 @@ process QUANTIFY {
     def matrices = params.matrices != null ?
         "--matrices" : ""
 
+    // Ultrafast mode parameters (trades sensitivity for speed)
+    // These parameters enable aggressive filtering and simplified algorithms
+    def ultrafast_params = ""
+    if (params.ultrafast) {
+        ultrafast_params = """--min-corr 2.0 \\
+        --time-corr-only \\
+        --extracted-ms1 \\
+        --min-cal 500 \\
+        --min-class 1000 \\
+        --pre-filter \\
+        --rt-window-mul 1.7 \\
+        --rt-window-factor 100"""
+    }
+
     """
     ${diann_cmd} \\
         --fasta ${fasta} \\
@@ -77,6 +98,7 @@ process QUANTIFY {
         ${smart_profiling} \\
         ${individual_mass_acc} \\
         ${matrices} \\
+        ${ultrafast_params} \\
         2>&1 | tee diann.log
     """
 }

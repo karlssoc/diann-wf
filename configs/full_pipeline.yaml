@@ -18,8 +18,18 @@ samples:
     dir: 'input/std'
     file_type: 'd'
 
-# Which sample to use for model tuning
+# Model tuning configuration
+# Option 1: Use a sample from this pipeline run (default)
 tune_sample: 'p2'
+
+# Option 2: Use an external library file for tuning
+# Useful when:
+#   - You already have a good library from a previous run
+#   - You want to skip stage 1 and start directly with tuned models
+#   - You want to use a library from a different source
+# If tune_library is specified, it takes precedence over tune_sample
+# Example: tune_library: 'results/previous_run/full_proteome_std_lib/out-lib.parquet'
+# tune_library: ''
 
 # Workflow control - which stages to run
 # stages: List of stages to execute [1, 2, 3]

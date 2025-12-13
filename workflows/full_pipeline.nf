@@ -44,7 +44,8 @@ def helpMessage() {
     Workflow Control:
       --stages LIST             List of stages to run [default: [1,2,3]]
       --tune_after_stage INT    Which stage to tune after [default: 1]
-      --tune_sample ID          Sample to use for model tuning [required if tuning]
+      --tune_sample ID          Sample to use for model tuning [option 1]
+      --tune_library PATH       External library to use for tuning [option 2]
 
     Output Organization:
       --output_organization STR Organization strategy: 'by_stage', 'flat' [default: 'by_stage']
@@ -63,6 +64,13 @@ def helpMessage() {
       nextflow run workflows/full_pipeline.nf \\
         -params-file configs/full_pipeline.yaml \\
         --stages '[1,2]' \\
+        -profile slurm
+
+      # Use external library for tuning (skip stage 1)
+      nextflow run workflows/full_pipeline.nf \\
+        -params-file configs/full_pipeline.yaml \\
+        --stages '[2,3]' \\
+        --tune_library 'results/previous_run/out-lib.parquet' \\
         -profile slurm
 
       # Custom stage names
@@ -176,7 +184,11 @@ workflow {
     log.info "Stages to run        : ${params.stages}"
     log.info "Output organization  : ${params.output_organization}"
     log.info "Tune after stage     : ${params.tune_after_stage}"
-    log.info "Tune sample          : ${params.tune_sample ?: 'not specified'}"
+    if (params.tune_library) {
+        log.info "Tune library         : ${params.tune_library}"
+    } else {
+        log.info "Tune sample          : ${params.tune_sample ?: 'not specified'}"
+    }
     log.info ""
 
     // Initialize tuned model files
@@ -274,14 +286,29 @@ workflow {
         last_stage_out_libs = QUANTIFY.out.out_lib
 
         // Tune models after specified stage
-        if (stage_num == params.tune_after_stage && params.tune_sample) {
-            log.info "Starting Model Tuning after Stage ${stage_num}"
-            log.info "  Using sample: ${params.tune_sample}"
+        // Support two modes: external library or sample from pipeline
+        def should_tune = stage_num == params.tune_after_stage && (params.tune_library || params.tune_sample)
 
-            // Get the out-lib.parquet from the specified sample
-            def tune_lib = last_stage_out_libs
-                .filter { sample_id, lib -> sample_id == params.tune_sample }
-                .map { sample_id, lib -> lib }
+        if (should_tune) {
+            log.info "Starting Model Tuning after Stage ${stage_num}"
+
+            def tune_lib
+            if (params.tune_library) {
+                // Option 1: Use external library file
+                log.info "  Using external library: ${params.tune_library}"
+                def tune_library_file = file(params.tune_library)
+                if (!tune_library_file.exists()) {
+                    log.error "ERROR: Tune library file not found: ${params.tune_library}"
+                    exit 1
+                }
+                tune_lib = Channel.fromPath(params.tune_library)
+            } else {
+                // Option 2: Use out-lib.parquet from specified sample
+                log.info "  Using sample: ${params.tune_sample}"
+                tune_lib = last_stage_out_libs
+                    .filter { sample_id, lib -> sample_id == params.tune_sample }
+                    .map { sample_id, lib -> lib }
+            }
 
             // Determine tuning output subdirectory
             def tune_subdir = 'tuning'  // Tuning always goes to tuning/ directory

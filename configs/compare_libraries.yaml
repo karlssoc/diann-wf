@@ -1,0 +1,70 @@
+# Library Comparison Configuration
+# Compare quantification results using default vs tuned libraries
+
+# External library to use for model tuning
+# This should be an out-lib.parquet file from a previous run
+tune_library: 'results/previous_run/sample1/out-lib.parquet'
+
+# FASTA file
+fasta: 'mydata.fasta'
+
+# Sample definitions
+samples:
+  - id: 'sample1'
+    dir: 'input/sample1'
+    file_type: 'raw'
+    recursive: false
+
+  - id: 'sample2'
+    dir: 'input/sample2'
+    file_type: 'raw'
+    recursive: false
+
+# Base name for generated libraries
+library_name: 'comparison'
+
+# DIANN version
+diann_version: '2.3.1'
+
+# Number of threads
+threads: 60
+
+# Output directory
+outdir: 'results/library_comparison'
+
+# SLURM settings
+slurm_account: 'my_username'
+
+# Tuning configuration
+tuning:
+  tune_rt: true
+  tune_im: true
+  tune_fr: true   # Only works with DIANN 2.3.1+
+
+# Library generation parameters
+library:
+  min_fr_mz: 200
+  max_fr_mz: 1800
+  min_pep_len: 7
+  max_pep_len: 30
+  min_pr_mz: 350
+  max_pr_mz: 1650
+  min_pr_charge: 2
+  max_pr_charge: 3
+  cut: 'K*,R*'
+  missed_cleavages: 1
+  met_excision: true
+  unimod4: true
+
+# Quantification parameters
+pg_level: 1
+mass_acc_cal: 25
+smart_profiling: true
+individual_mass_acc: true
+matrices: true
+
+# Optional: Reference library for batch correction
+# ref_library: 'path/to/reference/library.predicted.speclib'
+
+# Optional: Batch correction parameters
+# individual_windows: true

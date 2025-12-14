@@ -4,11 +4,12 @@ Modular Nextflow workflows for DIA-NN mass spectrometry analysis with SLURM inte
 
 ## Overview
 
-This workflow system provides three flexible entry points for different use cases:
+This workflow system provides four flexible entry points for different use cases:
 
 1. **[quantify_only.nf](workflows/quantify_only.nf)** - Simple quantification with existing library (90% of use cases)
 2. **[create_library.nf](workflows/create_library.nf)** - Create spectral library from FASTA
 3. **[full_pipeline.nf](workflows/full_pipeline.nf)** - Complete multi-round pipeline with model tuning
+4. **[compare_libraries.nf](workflows/compare_libraries.nf)** - Compare default vs tuned library quantification
 
 ## Quick Start
 
@@ -56,6 +57,20 @@ nano configs/full_pipeline.yaml
 # Run with SLURM (specify workflow explicitly for full pipeline)
 nextflow -bg run karlssoc/diann-wf/workflows/full_pipeline.nf -params-file configs/full_pipeline.yaml -profile slurm
 ```
+
+### 4. Compare Libraries
+
+Compare quantification using default vs tuned libraries side-by-side:
+
+```bash
+# Edit the config file
+nano configs/compare_libraries.yaml
+
+# Run with SLURM (specify workflow explicitly)
+nextflow -bg run karlssoc/diann-wf/workflows/compare_libraries.nf -params-file configs/compare_libraries.yaml -profile slurm
+```
+
+**Use when:** You want to evaluate the impact of model tuning on quantification results.
 
 ## Requirements
 
@@ -276,6 +291,57 @@ nextflow -bg run karlssoc/diann-wf/workflows/full_pipeline.nf \
   --run_r1 false \
   -profile slurm
 ```
+
+### Workflow 4: Compare Libraries
+
+**Use when:** You want to evaluate the impact of model tuning by comparing quantification results side-by-side.
+
+This workflow performs:
+1. **Generate default library:** Create library with default DIANN models
+2. **Tune models:** Use external library to tune RT/IM/FR prediction models
+3. **Generate tuned library:** Create library with tuned models
+4. **Quantify with both:** Run quantification using both libraries for direct comparison
+
+```yaml
+# configs/compare_libraries.yaml
+tune_library: 'results/previous_run/sample1/out-lib.parquet'
+fasta: 'mydata.fasta'
+samples:
+  - id: 'exp01'
+    dir: 'input/exp01'
+    file_type: 'raw'
+library_name: 'comparison'
+diann_version: '2.3.1'
+threads: 60
+slurm_account: 'my_username'
+```
+
+```bash
+nextflow -bg run karlssoc/diann-wf/workflows/compare_libraries.nf \
+  -params-file configs/compare_libraries.yaml \
+  -profile slurm
+```
+
+**Output organization:**
+```
+results/library_comparison/
+├── default_library/         # Library with default models
+├── tuned_library/           # Library with tuned models
+├── tuning/                  # Tuned model files
+├── default/                 # Quantification using default library
+│   └── exp01/
+│       ├── report.parquet
+│       └── out-lib.parquet
+└── tuned/                   # Quantification using tuned library
+    └── exp01/
+        ├── report.parquet
+        └── out-lib.parquet
+```
+
+**Use cases:**
+- Benchmark the improvement from model tuning
+- Validate tuning effectiveness for your dataset
+- A/B testing of library generation strategies
 
 ## Advanced Features
 

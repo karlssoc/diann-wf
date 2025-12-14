@@ -30,10 +30,12 @@
 
 nextflow.enable.dsl = 2
 
-// Include modules
-include { GENERATE_LIBRARY } from '../modules/library'
+// Include modules with aliases to allow multiple invocations
+include { GENERATE_LIBRARY as GENERATE_LIBRARY_DEFAULT } from '../modules/library'
+include { GENERATE_LIBRARY as GENERATE_LIBRARY_TUNED } from '../modules/library'
 include { TUNE_MODELS } from '../modules/tune'
-include { QUANTIFY } from '../modules/quantify'
+include { QUANTIFY as QUANTIFY_DEFAULT } from '../modules/quantify'
+include { QUANTIFY as QUANTIFY_TUNED } from '../modules/quantify'
 
 // Help message
 def helpMessage() {
@@ -158,7 +160,7 @@ workflow {
     // Step 1: Generate library with default models
     log.info "Step 1: Generating library with default models"
     def library_name_default = "${params.library_name ?: 'library'}_default"
-    GENERATE_LIBRARY(
+    GENERATE_LIBRARY_DEFAULT(
         fasta_file,
         library_name_default,
         'default_library',
@@ -167,7 +169,7 @@ workflow {
         file('NO_FILE'),  // no im model
         file('NO_FILE')   // no fr model
     )
-    def default_library = GENERATE_LIBRARY.out.library
+    def default_library = GENERATE_LIBRARY_DEFAULT.out.library
 
     // Step 2: Tune models using external library
     log.info "Step 2: Tuning models using external library"
@@ -181,7 +183,7 @@ workflow {
     // Step 3: Generate library with tuned models
     log.info "Step 3: Generating library with tuned models"
     def library_name_tuned = "${params.library_name ?: 'library'}_tuned"
-    GENERATE_LIBRARY(
+    GENERATE_LIBRARY_TUNED(
         fasta_file,
         library_name_tuned,
         'tuned_library',
@@ -190,7 +192,7 @@ workflow {
         TUNE_MODELS.out.im_model,
         TUNE_MODELS.out.fr_model
     )
-    def tuned_library = GENERATE_LIBRARY.out.library
+    def tuned_library = GENERATE_LIBRARY_TUNED.out.library
 
     // Create samples channel with file counting
     def create_samples_channel = { subdir ->
@@ -247,7 +249,7 @@ workflow {
     // Step 4: Quantify with default library
     log.info "Step 4: Quantifying samples with default library"
     def samples_ch_default = create_samples_channel('default')
-    QUANTIFY(
+    QUANTIFY_DEFAULT(
         samples_ch_default,
         default_library,
         fasta_file,
@@ -257,7 +259,7 @@ workflow {
     // Step 5: Quantify with tuned library
     log.info "Step 5: Quantifying samples with tuned library"
     def samples_ch_tuned = create_samples_channel('tuned')
-    QUANTIFY(
+    QUANTIFY_TUNED(
         samples_ch_tuned,
         tuned_library,
         fasta_file,

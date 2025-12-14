@@ -40,14 +40,14 @@ process TUNE_MODELS {
     }
 
     """
-    # Create working directory and link library
+    # Create working directory and link library (preserve original extension)
     mkdir -p tune_work
-    ln -s \$(realpath ${library}) tune_work/out-lib.parquet
+    ln -s \$(realpath ${library}) tune_work/${library.name}
 
     # Run tuning
     ${diann_cmd} \\
         --threads ${task.cpus} \\
-        --tune-lib tune_work/out-lib.parquet \\
+        --tune-lib tune_work/${library.name} \\
         ${tune_rt} \\
         ${tune_im} \\
         ${tune_fr} \\
@@ -56,10 +56,12 @@ process TUNE_MODELS {
     # Filter warnings and save clean log
     grep -v 'Warning' tune_full.log > tune.log || true
 
-    # Move tuned model files to output
-    mv tune_work/out-lib.dict.txt . 2>/dev/null || echo "No tokens file generated"
-    mv tune_work/out-lib.tuned_rt.pt . 2>/dev/null || echo "No RT model generated"
-    mv tune_work/out-lib.tuned_im.pt . 2>/dev/null || echo "No IM model generated"
-    mv tune_work/out-lib.tuned_fr.pt . 2>/dev/null || echo "No FR model generated"
+    # Move tuned model files to output (using base name from input library)
+    # DIANN generates files based on the input library name (without extension)
+    BASENAME=\$(basename ${library.name} | sed 's/\\.[^.]*\$//')
+    mv tune_work/\${BASENAME}.dict.txt out-lib.dict.txt 2>/dev/null || echo "No tokens file generated"
+    mv tune_work/\${BASENAME}.tuned_rt.pt out-lib.tuned_rt.pt 2>/dev/null || echo "No RT model generated"
+    mv tune_work/\${BASENAME}.tuned_im.pt out-lib.tuned_im.pt 2>/dev/null || echo "No IM model generated"
+    mv tune_work/\${BASENAME}.tuned_fr.pt out-lib.tuned_fr.pt 2>/dev/null || echo "No FR model generated"
     """
 }

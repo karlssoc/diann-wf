@@ -1,0 +1,22 @@
+# Simple configuration for testing tuning module only
+# This helps verify SLURM configuration is working before running full workflows
+
+# Input library for tuning (must be an existing spectral library)
+tune_library: "/path/to/existing/library.tsv"
+
+# Output directory
+outdir: "results/tune_test"
+
+# Tuning parameters
+tuning:
+  tune_rt: true   # Tune retention time model
+  tune_im: true   # Tune ion mobility model
+  tune_fr: false  # Fragment retention time (requires DIANN 2.3.1+)
+
+# SLURM settings (required for slurm profile)
+slurm_account: null  # Set to your SLURM account if required
+slurm_queue: null    # Set to your SLURM queue if required
+
+# Container settings (should match your environment)
+container_registry: "quay.io/karlssoc/diann"
+diann_version: "2.3.1"

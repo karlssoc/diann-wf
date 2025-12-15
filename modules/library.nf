@@ -31,13 +31,8 @@ process GENERATE_LIBRARY {
     // Use absolute path to DIANN binary (container ENTRYPOINT interferes with PATH)
     def diann_cmd = "/usr/bin/diann-${params.diann_version}/diann-linux"
 
-    // Tuned model parameters (only add if files exist and are not NO_FILE placeholders)
-    // Check the original name before staging to avoid NO_FILE symlinks
+    // Check if using tuned models based on tokens file
     def use_tuned = tokens.getName() != 'NO_FILE' && params.tokens
-    def tokens_param = use_tuned ? "--tokens tokens.txt" : ""
-    def rt_param = (use_tuned && rt_model.getName() != 'NO_FILE' && params.rt_model) ? "--rt-model rt_model.pt" : ""
-    def im_param = (use_tuned && im_model.getName() != 'NO_FILE' && params.im_model) ? "--im-model im_model.pt" : ""
-    def fr_param = (use_tuned && fr_model.getName() != 'NO_FILE' && params.fr_model) ? "--fr-model fr_model.pt" : ""
 
     // Library generation parameters
     def min_fr_mz = params.library?.min_fr_mz ?: 200
@@ -55,6 +50,33 @@ process GENERATE_LIBRARY {
     def unimod4 = params.library?.unimod4 ? "--unimod4" : ""
 
     """
+    # Build model parameters - check for NO_FILE placeholders and empty files
+    TOKENS_PARAM=""
+    RT_PARAM=""
+    IM_PARAM=""
+    FR_PARAM=""
+
+    if [ "${use_tuned}" = "true" ] && [ -s "tokens.txt" ]; then
+        TOKENS_PARAM="--tokens tokens.txt"
+        echo "Using tuned tokens file"
+    fi
+
+    if [ "${use_tuned}" = "true" ] && [ -s "rt_model.pt" ]; then
+        RT_PARAM="--rt-model rt_model.pt"
+        echo "Using tuned RT model"
+    fi
+
+    if [ "${use_tuned}" = "true" ] && [ -s "im_model.pt" ]; then
+        IM_PARAM="--im-model im_model.pt"
+        echo "Using tuned IM model"
+    fi
+
+    if [ "${use_tuned}" = "true" ] && [ -s "fr_model.pt" ]; then
+        FR_PARAM="--fr-model fr_model.pt"
+        echo "Using tuned FR model"
+    fi
+
+    # Run library generation
     ${diann_cmd} \\
         --fasta ${fasta} \\
         --gen-spec-lib \\
@@ -75,10 +97,10 @@ process GENERATE_LIBRARY {
         --missed-cleavages ${missed_cleavages} \\
         ${met_excision} \\
         ${unimod4} \\
-        ${tokens_param} \\
-        ${rt_param} \\
-        ${im_param} \\
-        ${fr_param} \\
+        \$TOKENS_PARAM \\
+        \$RT_PARAM \\
+        \$IM_PARAM \\
+        \$FR_PARAM \\
         2>&1 | tee library_generation.log
     """
 }

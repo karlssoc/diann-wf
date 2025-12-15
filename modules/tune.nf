@@ -58,10 +58,35 @@ process TUNE_MODELS {
 
     # Move tuned model files to output (using base name from input library)
     # DIANN generates files based on the input library name (without extension)
+    # Create placeholder files for missing optional outputs to ensure downstream processes can run
     BASENAME=\$(basename ${library.name} | sed 's/\\.[^.]*\$//')
-    mv tune_work/\${BASENAME}.dict.txt out-lib.dict.txt 2>/dev/null || echo "No tokens file generated"
-    mv tune_work/\${BASENAME}.tuned_rt.pt out-lib.tuned_rt.pt 2>/dev/null || echo "No RT model generated"
-    mv tune_work/\${BASENAME}.tuned_im.pt out-lib.tuned_im.pt 2>/dev/null || echo "No IM model generated"
-    mv tune_work/\${BASENAME}.tuned_fr.pt out-lib.tuned_fr.pt 2>/dev/null || echo "No FR model generated"
+
+    # Required output: tokens file must exist
+    mv tune_work/\${BASENAME}.dict.txt out-lib.dict.txt 2>/dev/null || {
+        echo "ERROR: No tokens file generated" >&2
+        exit 1
+    }
+
+    # Optional outputs: create empty placeholders if not generated
+    if [ -f "tune_work/\${BASENAME}.tuned_rt.pt" ]; then
+        mv tune_work/\${BASENAME}.tuned_rt.pt out-lib.tuned_rt.pt
+    else
+        echo "No RT model generated - creating placeholder"
+        touch out-lib.tuned_rt.pt
+    fi
+
+    if [ -f "tune_work/\${BASENAME}.tuned_im.pt" ]; then
+        mv tune_work/\${BASENAME}.tuned_im.pt out-lib.tuned_im.pt
+    else
+        echo "No IM model generated - creating placeholder"
+        touch out-lib.tuned_im.pt
+    fi
+
+    if [ -f "tune_work/\${BASENAME}.tuned_fr.pt" ]; then
+        mv tune_work/\${BASENAME}.tuned_fr.pt out-lib.tuned_fr.pt
+    else
+        echo "No FR model generated - creating placeholder"
+        touch out-lib.tuned_fr.pt
+    fi
     """
 }

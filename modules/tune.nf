@@ -68,24 +68,34 @@ process TUNE_MODELS {
     }
 
     # Optional outputs: create empty placeholders if not generated
+    # Only create placeholders if tuning was requested (otherwise genuinely optional)
     if [ -f "tune_work/\${BASENAME}.tuned_rt.pt" ]; then
         mv tune_work/\${BASENAME}.tuned_rt.pt out-lib.tuned_rt.pt
+    elif [ "${tune_rt}" != "" ]; then
+        echo "WARNING: RT tuning was requested but no model generated" >&2
+        touch out-lib.tuned_rt.pt
     else
-        echo "No RT model generated - creating placeholder"
+        # RT tuning not requested - create placeholder for channel compatibility
         touch out-lib.tuned_rt.pt
     fi
 
     if [ -f "tune_work/\${BASENAME}.tuned_im.pt" ]; then
         mv tune_work/\${BASENAME}.tuned_im.pt out-lib.tuned_im.pt
+    elif [ "${tune_im}" != "" ]; then
+        echo "WARNING: IM tuning was requested but no model generated" >&2
+        touch out-lib.tuned_im.pt
     else
-        echo "No IM model generated - creating placeholder"
+        # IM tuning not requested - create placeholder for channel compatibility
         touch out-lib.tuned_im.pt
     fi
 
     if [ -f "tune_work/\${BASENAME}.tuned_fr.pt" ]; then
         mv tune_work/\${BASENAME}.tuned_fr.pt out-lib.tuned_fr.pt
+    elif [ "${tune_fr}" != "" ]; then
+        echo "WARNING: FR tuning was requested but no model generated" >&2
+        touch out-lib.tuned_fr.pt
     else
-        echo "No FR model generated - creating placeholder"
+        # FR tuning not requested - create placeholder for channel compatibility
         touch out-lib.tuned_fr.pt
     fi
     """

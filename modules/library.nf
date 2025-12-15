@@ -31,8 +31,8 @@ process GENERATE_LIBRARY {
     // Use absolute path to DIANN binary (container ENTRYPOINT interferes with PATH)
     def diann_cmd = "/usr/bin/diann-${params.diann_version}/diann-linux"
 
-    // Check if using tuned models based on tokens file
-    def use_tuned = tokens.getName() != 'NO_FILE' && params.tokens
+    // Check if using tuned models based on tokens file (must convert to string for bash)
+    def use_tuned = (tokens.getName() != 'NO_FILE') ? 'true' : 'false'
 
     // Library generation parameters
     def min_fr_mz = params.library?.min_fr_mz ?: 200

@@ -90,12 +90,16 @@ process QUANTIFY {
     }
 
     """
+    # Create temporary directory for DIA-NN temp files (prevents interference in parallel jobs)
+    mkdir -p temp_diann
+
     ${diann_cmd} \\
         --fasta ${fasta} \\
         ${dir_param} ${ms_dir} \\
         --lib ${library} \\
         --threads ${task.cpus} \\
         --verbose 1 \\
+        --temp temp_diann \\
         --out report.parquet \\
         --out-lib out-lib.parquet \\
         --reanalyse \\

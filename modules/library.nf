@@ -80,7 +80,7 @@ process GENERATE_LIBRARY {
     ${diann_cmd} \\
         --fasta ${fasta} \\
         --gen-spec-lib \\
-        --threads ${params.threads} \\
+        --threads ${task.cpus} \\
         --verbose 1 \\
         --out-lib ${library_name} \\
         --predictor \\

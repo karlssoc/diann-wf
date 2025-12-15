@@ -94,7 +94,7 @@ process QUANTIFY {
         --fasta ${fasta} \\
         ${dir_param} ${ms_dir} \\
         --lib ${library} \\
-        --threads ${params.threads} \\
+        --threads ${task.cpus} \\
         --verbose 1 \\
         --out report.parquet \\
         --out-lib out-lib.parquet \\

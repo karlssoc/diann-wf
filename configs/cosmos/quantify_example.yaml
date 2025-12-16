@@ -1,0 +1,52 @@
+# COSMOS HPC Cluster - Quantification Configuration
+# LUNARC COSMOS: AMD Milan nodes (48 cores, 256 GB RAM, 2 TB local disk)
+
+# Spectral library
+library: '/lunarc/nobackup/projects/YOUR_PROJECT/libraries/mylib.predicted.speclib'
+
+# FASTA file
+fasta: '/lunarc/nobackup/projects/YOUR_PROJECT/fasta/mydata.fasta'
+
+# Sample definitions
+# Note: Use /lunarc/nobackup/projects/ for data storage
+samples:
+  - id: 'sample1'
+    dir: '/lunarc/nobackup/projects/YOUR_PROJECT/data/sample1'
+    file_type: 'raw'
+    recursive: false
+
+  - id: 'sample2'
+    dir: '/lunarc/nobackup/projects/YOUR_PROJECT/data/sample2'
+    file_type: 'd'       # Bruker .d files benefit most from local disk
+    recursive: false
+
+# Output directory
+outdir: '/lunarc/nobackup/projects/YOUR_PROJECT/results/quantification'
+
+# DIANN version
+diann_version: '2.3.1'
+
+# Thread configuration (automatically set to 48 by cosmos profile)
+# threads: 48  # Optional - cosmos profile sets this by default
+
+# Parallel execution mode
+# true:  Run 2 samples at 24 cores each (better throughput)
+# false: Run 1 sample at 48 cores (faster per-sample)
+parallel_mode: false
+
+# SLURM settings for COSMOS
+slurm_account: 'YOUR_LUNARC_PROJECT'  # REQUIRED: Your LUNARC project allocation
+slurm_queue: 'lu'                     # Default COSMOS partition
+
+# Quantification parameters
+pg_level: 1                   # Protein group level
+mass_acc_cal: 25              # Mass accuracy calibration threshold
+smart_profiling: true         # Use smart profiling
+individual_mass_acc: true     # Individual mass accuracy per run
+matrices: true                # Generate result matrices
+
+# Optional: Reference library for batch correction
+# ref_library: '/lunarc/nobackup/projects/YOUR_PROJECT/libraries/reference.predicted.speclib'
+
+# Optional: Ultrafast mode (reduced accuracy, faster)
+# ultrafast: false

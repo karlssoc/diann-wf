@@ -101,9 +101,44 @@ The workflow supports multiple container runtimes and execution environments. Ch
 
 ### SLURM Cluster Execution
 
-- **`-profile slurm`** - Singularity with SLURM executor (recommended for HPC)
+- **`-profile slurm`** - Singularity with SLURM executor (generic HPC)
+- **`-profile cosmos`** - Optimized for LUNARC COSMOS HPC (48 cores, local disk staging)
 - **`-profile docker_slurm`** - Docker with SLURM executor
 - **`-profile podman_slurm`** - Podman with SLURM executor
+
+### COSMOS HPC Profile
+
+The `cosmos` profile is optimized for the [LUNARC COSMOS cluster](https://www.lunarc.lu.se/systems/cosmos):
+
+**Key optimizations:**
+- ✅ **48 cores** per node (AMD Milan) - automatically configured
+- ✅ **Local disk staging** - MS files copied to 2 TB node-local disk for 10-50x faster I/O
+- ✅ **Optimal parallel mode** - 2×24 core jobs for better throughput
+- ✅ **SLURM tuning** - Timeouts and poll intervals optimized for shared cluster
+
+**Usage:**
+```bash
+# Simple quantification on COSMOS
+nextflow -bg run karlssoc/diann-wf -entry quantify_only \
+  -params-file configs/cosmos/quantify_example.yaml \
+  -profile cosmos
+
+# Full pipeline on COSMOS
+nextflow -bg run karlssoc/diann-wf/workflows/full_pipeline.nf \
+  -params-file configs/cosmos/full_pipeline_example.yaml \
+  -profile cosmos
+```
+
+**Important:** Set your LUNARC project in the config:
+```yaml
+slurm_account: 'YOUR_LUNARC_PROJECT'  # Required for COSMOS
+slurm_queue: 'lu'                     # Default partition
+```
+
+**Local disk benefits:**
+- Bruker `.d` files (many small files): **Massive speedup**
+- Large RAW files (repeated reads): **10-50x faster**
+- Reduces network filesystem contention
 
 ### Examples
 

@@ -1,0 +1,79 @@
+# COSMOS HPC Cluster - Full Pipeline Configuration
+# Complete multi-round analysis with model tuning
+
+# FASTA file
+fasta: '/lunarc/nobackup/projects/YOUR_PROJECT/fasta/mydata.fasta'
+
+# Sample definitions
+# Note: Bruker .d files benefit most from local disk staging
+samples:
+  - id: 'sample1'
+    dir: '/lunarc/nobackup/projects/YOUR_PROJECT/data/sample1'
+    file_type: 'd'
+
+  - id: 'sample2'
+    dir: '/lunarc/nobackup/projects/YOUR_PROJECT/data/sample2'
+    file_type: 'd'
+
+  - id: 'sample3'
+    dir: '/lunarc/nobackup/projects/YOUR_PROJECT/data/sample3'
+    file_type: 'raw'
+
+# Model tuning configuration
+# Use one of your samples for model tuning
+tune_sample: 'sample2'
+
+# Workflow stages to run
+# Stage 1: Default DIANN models
+# Stage 2: RT+IM tuned models
+# Stage 3: RT+IM+FR tuned models (requires DIANN 2.3.1+)
+stages: [1, 2, 3]
+
+# When to perform model tuning (after which stage)
+tune_after_stage: 1
+
+# DIANN version (2.3.1+ required for FR tuning)
+diann_version: '2.3.1'
+
+# Thread configuration (automatically set to 48 by cosmos profile)
+# threads: 48  # Optional - cosmos profile sets this by default
+
+# Parallel execution mode for COSMOS
+# true:  Run 2 jobs at 24 cores each (48 total) - better for multiple samples
+# false: Run 1 job at 48 cores - faster per-job execution
+parallel_mode: true  # Recommended for multiple samples
+
+# Output directory
+outdir: '/lunarc/nobackup/projects/YOUR_PROJECT/results/full_pipeline'
+
+# SLURM settings for COSMOS
+slurm_account: 'YOUR_LUNARC_PROJECT'  # REQUIRED: Your LUNARC project allocation
+slurm_queue: 'lu'                     # Default COSMOS partition
+
+# Tuning configuration
+tuning:
+  tune_rt: true   # Tune retention time model
+  tune_im: true   # Tune ion mobility model
+  tune_fr: true   # Tune fragmentation model (requires DIANN 2.3.1+)
+
+# Library generation parameters
+library:
+  min_fr_mz: 200
+  max_fr_mz: 1800
+  min_pep_len: 7
+  max_pep_len: 30
+  min_pr_mz: 350
+  max_pr_mz: 1650
+  min_pr_charge: 2
+  max_pr_charge: 3
+  cut: 'K*,R*'
+  missed_cleavages: 1
+  met_excision: true
+  unimod4: true
+
+# Quantification parameters
+pg_level: 1
+mass_acc_cal: 25
+smart_profiling: true
+individual_mass_acc: true
+matrices: true

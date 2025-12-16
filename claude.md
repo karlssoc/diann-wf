@@ -227,7 +227,7 @@ nextflow lint .
 
 ## Environment-Specific Details
 
-**kraken (SLURM HPC):**
+**kraken (Lab Server):**
 - OS: Linux (Darwin 25.1.0)
 - SLURM MinJobAge: 5 minutes
 - Total cores: 192
@@ -235,6 +235,38 @@ nextflow lint .
 - Singularity cache: `/home/karlssoc/.singularity/cache/`
 - User account: `karlssoc`
 - Partition: `work` (default)
+- **Note:** This is a dedicated lab server, not a shared HPC cluster
+
+**COSMOS HPC (LUNARC):**
+- URL: https://www.lunarc.lu.se/systems/cosmos
+- Node config: AMD Milan (2×24 cores = 48 cores per node)
+- Memory: 256 GB per node (5.3 GB per core)
+- Local disk: 2 TB per node at `$SNIC_TMP`
+- Storage: `/lunarc/nobackup/projects/`
+- Interconnect: HDR InfiniBand (100 Gbit/node)
+- Queueing: SLURM
+- Container: Singularity/Apptainer
+- Default partition: `lu`
+- **Profile:** Use `-profile cosmos` for optimized execution
+
+**COSMOS Profile Optimizations:**
+- Automatic thread limit: 48 cores (matches node capacity)
+- Local disk staging via `scratch = '$SNIC_TMP'` for:
+  - QUANTIFY process (massive I/O improvement for MS files)
+  - TUNE_MODELS process (improves library reading)
+- Parallel mode: 2×24 cores (better throughput for multiple samples)
+- No node pinning (shared cluster environment)
+- SLURM timeout tuning for shared cluster
+
+## Execution Profiles Summary
+
+| Profile | Environment | Cores | Container | Local Disk | Use Case |
+|---------|------------|-------|-----------|------------|----------|
+| `standard` | Local | Variable | Singularity | No | Development/testing |
+| `slurm` | Generic HPC | 60 (default) | Singularity | No | Lab server (kraken) |
+| **`cosmos`** | LUNARC HPC | 48 (fixed) | Singularity | Yes ($SNIC_TMP) | **Production on COSMOS** |
+| `docker` | Local | Variable | Docker | No | macOS development |
+| `docker_slurm` | Generic HPC | Variable | Docker | No | HPC with Docker |
 
 ## Key Parameters Reference
 

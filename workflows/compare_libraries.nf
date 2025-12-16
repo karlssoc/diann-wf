@@ -194,61 +194,58 @@ workflow {
     )
     def tuned_library = GENERATE_LIBRARY_TUNED.out.library
 
-    // Create samples channel with file counting
-    def create_samples_channel = { subdir ->
-        Channel.fromList(samples_list)
-            .map { sample ->
-                def sample_id = sample.id
-                def sample_dir = file(sample.dir)
-                def file_type = sample.file_type ?: 'raw'
-                def recursive = sample.recursive ?: false
-
-                if (!sample_dir.exists()) {
-                    log.error "ERROR: Sample directory not found: ${sample.dir}"
-                    exit 1
-                }
-
-                // Count MS files in directory for dynamic time allocation
-                def file_extensions = ['.mzML', '.raw', '.d', '.wiff']
-                def file_count = 0
-
-                if (recursive) {
-                    // Recursive counting: traverse all subdirectories
-                    sample_dir.eachFileRecurse { file ->
-                        if (file.isFile()) {
-                            def extension = file.name.substring(file.name.lastIndexOf('.'))
-                            if (file_extensions.contains(extension)) {
-                                file_count++
-                            }
-                        } else if (file.isDirectory() && file.name.endsWith('.d')) {
-                            // Count Bruker .d directories as one file
-                            file_count++
-                        }
-                    }
-                } else {
-                    // Non-recursive: only immediate directory
-                    sample_dir.listFiles().each { file ->
-                        if (file.isFile()) {
-                            def extension = file.name.substring(file.name.lastIndexOf('.'))
-                            if (file_extensions.contains(extension)) {
-                                file_count++
-                            }
-                        } else if (file.isDirectory() && file.name.endsWith('.d')) {
-                            // Count Bruker .d directories as one file
-                            file_count++
-                        }
-                    }
-                }
-
-                log.info "Sample ${sample_id} (${subdir}): Found ${file_count} MS files"
-
-                tuple(sample_id, sample_dir, file_type, subdir, recursive, file_count)
-            }
-    }
-
     // Step 4: Quantify with default library
     log.info "Step 4: Quantifying samples with default library"
-    def samples_ch_default = create_samples_channel('default')
+    def samples_ch_default = Channel.fromList(samples_list)
+        .map { sample ->
+            def sample_id = sample.id
+            def sample_dir = file(sample.dir)
+            def file_type = sample.file_type ?: 'raw'
+            def recursive = sample.recursive ?: false
+            def subdir = 'default'
+
+            if (!sample_dir.exists()) {
+                log.error "ERROR: Sample directory not found: ${sample.dir}"
+                exit 1
+            }
+
+            // Count MS files in directory for dynamic time allocation
+            def file_extensions = ['.mzML', '.raw', '.d', '.wiff']
+            def file_count = 0
+
+            if (recursive) {
+                // Recursive counting: traverse all subdirectories
+                sample_dir.eachFileRecurse { file ->
+                    if (file.isFile()) {
+                        def extension = file.name.substring(file.name.lastIndexOf('.'))
+                        if (file_extensions.contains(extension)) {
+                            file_count++
+                        }
+                    } else if (file.isDirectory() && file.name.endsWith('.d')) {
+                        // Count Bruker .d directories as one file
+                        file_count++
+                    }
+                }
+            } else {
+                // Non-recursive: only immediate directory
+                sample_dir.listFiles().each { file ->
+                    if (file.isFile()) {
+                        def extension = file.name.substring(file.name.lastIndexOf('.'))
+                        if (file_extensions.contains(extension)) {
+                            file_count++
+                        }
+                    } else if (file.isDirectory() && file.name.endsWith('.d')) {
+                        // Count Bruker .d directories as one file
+                        file_count++
+                    }
+                }
+            }
+
+            log.info "Sample ${sample_id} (${subdir}): Found ${file_count} MS files"
+
+            tuple(sample_id, sample_dir, file_type, subdir, recursive, file_count)
+        }
+
     QUANTIFY_DEFAULT(
         samples_ch_default,
         default_library,
@@ -258,7 +255,56 @@ workflow {
 
     // Step 5: Quantify with tuned library
     log.info "Step 5: Quantifying samples with tuned library"
-    def samples_ch_tuned = create_samples_channel('tuned')
+    def samples_ch_tuned = Channel.fromList(samples_list)
+        .map { sample ->
+            def sample_id = sample.id
+            def sample_dir = file(sample.dir)
+            def file_type = sample.file_type ?: 'raw'
+            def recursive = sample.recursive ?: false
+            def subdir = 'tuned'
+
+            if (!sample_dir.exists()) {
+                log.error "ERROR: Sample directory not found: ${sample.dir}"
+                exit 1
+            }
+
+            // Count MS files in directory for dynamic time allocation
+            def file_extensions = ['.mzML', '.raw', '.d', '.wiff']
+            def file_count = 0
+
+            if (recursive) {
+                // Recursive counting: traverse all subdirectories
+                sample_dir.eachFileRecurse { file ->
+                    if (file.isFile()) {
+                        def extension = file.name.substring(file.name.lastIndexOf('.'))
+                        if (file_extensions.contains(extension)) {
+                            file_count++
+                        }
+                    } else if (file.isDirectory() && file.name.endsWith('.d')) {
+                        // Count Bruker .d directories as one file
+                        file_count++
+                    }
+                }
+            } else {
+                // Non-recursive: only immediate directory
+                sample_dir.listFiles().each { file ->
+                    if (file.isFile()) {
+                        def extension = file.name.substring(file.name.lastIndexOf('.'))
+                        if (file_extensions.contains(extension)) {
+                            file_count++
+                        }
+                    } else if (file.isDirectory() && file.name.endsWith('.d')) {
+                        // Count Bruker .d directories as one file
+                        file_count++
+                    }
+                }
+            }
+
+            log.info "Sample ${sample_id} (${subdir}): Found ${file_count} MS files"
+
+            tuple(sample_id, sample_dir, file_type, subdir, recursive, file_count)
+        }
+
     QUANTIFY_TUNED(
         samples_ch_tuned,
         tuned_library,

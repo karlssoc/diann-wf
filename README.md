@@ -22,15 +22,15 @@ When you have an existing library and just need to quantify samples:
 nextflow pull karlssoc/diann-wf
 
 # Edit the config file with your paths
-nano configs/simple_quant.yaml
+nano configs/quantify/basic.yaml
 
 # Run locally for testing
 nextflow run karlssoc/diann-wf -entry quantify_only \
-  -params-file configs/simple_quant.yaml
+  -params-file configs/quantify/basic.yaml
 
 # Submit to SLURM (recommended - runs in background)
 nextflow -bg run karlssoc/diann-wf -entry quantify_only \
-  -params-file configs/simple_quant.yaml -profile slurm
+  -params-file configs/quantify/basic.yaml -profile slurm
 ```
 
 ### 2. Create Library
@@ -39,11 +39,11 @@ Generate a spectral library from a FASTA file:
 
 ```bash
 # Edit the config file
-nano configs/library_creation.yaml
+nano configs/library/standard.yaml
 
 # Run with SLURM (in background)
 nextflow -bg run karlssoc/diann-wf -entry create_library \
-  -params-file configs/library_creation.yaml -profile slurm
+  -params-file configs/library/standard.yaml -profile slurm
 ```
 
 ### 3. Full Pipeline
@@ -52,10 +52,11 @@ Complete multi-round analysis with model tuning (rare, for comprehensive studies
 
 ```bash
 # Edit the config file
-nano configs/full_pipeline.yaml
+nano configs/workflows/full_pipeline.yaml
 
 # Run with SLURM (specify workflow explicitly for full pipeline)
-nextflow -bg run karlssoc/diann-wf/workflows/full_pipeline.nf -params-file configs/full_pipeline.yaml -profile slurm
+nextflow -bg run karlssoc/diann-wf/workflows/full_pipeline.nf \
+  -params-file configs/workflows/full_pipeline.yaml -profile slurm
 ```
 
 ### 4. Compare Libraries
@@ -64,10 +65,11 @@ Compare quantification using default vs tuned libraries side-by-side:
 
 ```bash
 # Edit the config file
-nano configs/compare_libraries.yaml
+nano configs/workflows/compare_libraries.yaml
 
 # Run with SLURM (specify workflow explicitly)
-nextflow -bg run karlssoc/diann-wf/workflows/compare_libraries.nf -params-file configs/compare_libraries.yaml -profile slurm
+nextflow -bg run karlssoc/diann-wf/workflows/compare_libraries.nf \
+  -params-file configs/workflows/compare_libraries.yaml -profile slurm
 ```
 
 **Use when:** You want to evaluate the impact of model tuning on quantification results.

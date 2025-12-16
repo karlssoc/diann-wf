@@ -305,9 +305,10 @@ workflow {
             tuple(sample_id, sample_dir, file_type, subdir, recursive, file_count)
         }
 
+    // Use .first() to ensure library is a value channel that broadcasts to all samples
     QUANTIFY_TUNED(
         samples_ch_tuned,
-        tuned_library,
+        tuned_library.first(),
         fasta_file,
         ref_library_file
     )

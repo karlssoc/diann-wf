@@ -202,7 +202,7 @@ workflow {
             def sample_dir = file(sample.dir)
             def file_type = sample.file_type ?: 'raw'
             def recursive = sample.recursive ?: false
-            def subdir = 'default'
+            def subdir = 'quant/default'
 
             if (!sample_dir.exists()) {
                 log.error "ERROR: Sample directory not found: ${sample.dir}"
@@ -261,7 +261,7 @@ workflow {
             def sample_dir = file(sample.dir)
             def file_type = sample.file_type ?: 'raw'
             def recursive = sample.recursive ?: false
-            def subdir = 'tuned'
+            def subdir = 'quant/tuned'
 
             if (!sample_dir.exists()) {
                 log.error "ERROR: Sample directory not found: ${sample.dir}"
@@ -321,8 +321,8 @@ workflow.onComplete {
     log.info "Duration: ${workflow.duration}"
     log.info ""
     log.info "Results organized by library type:"
-    log.info "  Default library quantification: ${params.outdir}/default/"
-    log.info "  Tuned library quantification:   ${params.outdir}/tuned/"
+    log.info "  Default library quantification: ${params.outdir}/quant/default/"
+    log.info "  Tuned library quantification:   ${params.outdir}/quant/tuned/"
     log.info "  Default library:                ${params.outdir}/default_library/"
     log.info "  Tuned library:                  ${params.outdir}/tuned_library/"
     log.info "  Tuned models:                   ${params.outdir}/tuning/"

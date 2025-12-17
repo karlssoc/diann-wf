@@ -652,6 +652,7 @@ nextflow run YOUR_USERNAME/diann-wf \
 ## TODO
 
 - [ ] Test `-profile cosmos` on COSMOS cluster with real data
+- [ ] Check if all quantify output files are included
 
 ## Support
 

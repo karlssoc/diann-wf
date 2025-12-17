@@ -304,14 +304,67 @@ nextflow lint .
 - `tune_im`: Tune ion mobility model (default: false)
 - `tune_fr`: Tune fragmentation model (default: true, requires 2.3.1+)
 
+## Design Patterns
+
+### Generic Output Organization with `subdir` Parameter
+
+All modules support flexible output organization via an optional `subdir` parameter:
+
+```groovy
+publishDir "${params.outdir}${subdir ? '/' + subdir : ''}/${sample_id}"
+```
+
+**Examples:**
+- `subdir = ''` → `outdir/sample_id/`
+- `subdir = 'stage1'` → `outdir/stage1/sample_id/`
+- `subdir = 'quant/default'` → `outdir/quant/default/sample_id/`
+
+**Module signatures with subdir:**
+
+```groovy
+// QUANTIFY
+input:
+tuple val(sample_id), path(ms_dir), val(file_type), val(subdir)
+
+// GENERATE_LIBRARY
+input:
+val subdir
+
+// TUNE_MODELS
+input:
+val subdir
+```
+
+**Benefits:**
+- Not use-case specific (modules don't know about "rounds", "stages", "batches")
+- Fully flexible organization (by stage, experiment, date, condition, nested paths)
+- Backward compatible (empty string = flat structure)
+- Future-proof (new organization patterns don't require module changes)
+
+**Usage patterns:**
+```groovy
+// Simple workflow - no subdirectories
+def subdir = ''
+
+// Organize by stage
+def subdir = 'stage1'
+
+// Custom organization
+def subdir = "${params.experiment}/${sample.condition}"
+
+// Compare libraries workflow
+def subdir_default = 'quant/default'
+def subdir_tuned = 'quant/tuned'
+```
+
 ## Contact & Resources
 
-- **Primary user:** karlssoc (kraken HPC)
+- **Primary user:** karlssoc
 - **Repository:** https://github.com/karlssoc/diann-wf
 - **DIA-NN docs:** https://github.com/vdemichev/DiaNN
 - **Nextflow docs:** https://nextflow.io/docs/latest/
 
 ---
 
-*Last updated: 2025-12-16*
+*Last updated: 2025-12-17*
 *This file is specifically for AI assistants working on the project*

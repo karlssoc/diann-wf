@@ -556,6 +556,89 @@ slurm_account: 'my_username'
 nextflow -bg run karlssoc/diann-wf/workflows/full_pipeline.nf -params-file configs/ttht_full.yaml -profile slurm
 ```
 
+## Output Structure
+
+### Quantify Only Workflow
+
+```
+results/
+├── sample1/
+│   ├── report.parquet          # Main quantification results
+│   ├── out-lib.parquet          # Output library
+│   ├── *.tsv                    # Matrix files (if matrices: true)
+│   └── diann.log                # DIANN log
+├── sample2/
+│   └── ...
+└── pipeline_info/               # Nextflow execution reports
+    ├── execution_report.html
+    ├── execution_timeline.html
+    └── execution_trace.txt
+```
+
+### Full Pipeline Workflow
+
+```
+results/
+├── stage1/                      # Round 1: Default models
+│   ├── library/
+│   │   └── library.predicted.speclib
+│   ├── sample1/
+│   ├── sample2/
+│   └── sample3/
+├── tuning/                      # Tuned models
+│   ├── out-lib.dict.txt
+│   ├── out-lib.tuned_rt.pt
+│   ├── out-lib.tuned_im.pt
+│   └── out-lib.tuned_fr.pt
+├── stage2/                      # Round 2: RT+IM tuned
+│   ├── library/
+│   ├── sample1/
+│   ├── sample2/
+│   └── sample3/
+└── stage3/                      # Round 3: RT+IM+FR tuned
+    ├── library/
+    ├── sample1/
+    ├── sample2/
+    └── sample3/
+```
+
+## Deployment
+
+### Push to GitHub
+
+```bash
+# 1. Create repository on GitHub: https://github.com/new
+#    Name: diann-wf
+#    Visibility: Public or Private
+#    Don't initialize with README
+
+# 2. Push to GitHub
+git remote add origin git@github.com:YOUR_USERNAME/diann-wf.git
+git push -u origin main
+
+# 3. (Optional) Create release tag
+git tag -a v1.0.0 -m "Release v1.0.0"
+git push origin v1.0.0
+```
+
+### Use from GitHub on HPC
+
+```bash
+# Pull workflow (first time or to update)
+nextflow pull YOUR_USERNAME/diann-wf
+
+# Run from GitHub
+nextflow -bg run YOUR_USERNAME/diann-wf \
+  -params-file configs/my_config.yaml \
+  -profile cosmos  # or slurm
+
+# Use specific version (for reproducibility)
+nextflow run YOUR_USERNAME/diann-wf \
+  -r v1.0.0 \
+  -params-file configs/my_config.yaml \
+  -profile cosmos
+```
+
 ## Tips
 
 1. **Always use `-bg` for SLURM:** Persist through terminal disconnections
@@ -564,6 +647,7 @@ nextflow -bg run karlssoc/diann-wf/workflows/full_pipeline.nf -params-file confi
 4. **Use `-resume`:** Save time by resuming failed runs
 5. **Check reports:** Review execution reports to optimize resource usage
 6. **Version control configs:** Keep your YAML configs in git for reproducibility
+7. **Pin versions for publications:** Use `-r v1.0.0` for reproducibility
 
 ## Support
 

@@ -1,0 +1,36 @@
+# Library Reprediction Configuration
+# Generate a new spectral library using DIA-NN predictor based on peptides
+# from an existing library
+
+# Input files
+fasta: '/path/to/protein.fasta'
+input_library: '/path/to/existing/library.predicted.speclib'  # or .parquet or .tsv
+
+# Output library name
+library_name: 'repredicted_lib'
+
+# Output directory
+outdir: 'results/repredicted_library'
+
+# Optional: Subdirectory organization (default: 'library')
+# subdir: 'library'
+
+# DIANN version
+diann_version: '2.3.1'
+
+# Thread configuration
+threads: 48  # Adjust for your system
+
+# SLURM settings (if using -profile slurm or cosmos)
+slurm_account: 'YOUR_PROJECT'
+slurm_queue: 'lu'  # For COSMOS, or 'work' for other clusters
+
+# Optional: Use tuned models for prediction
+# If you have tuned models from a previous run, specify them here
+# tokens: 'results/tuning/out-lib.dict.txt'
+# rt_model: 'results/tuning/out-lib.tuned_rt.pt'
+# im_model: 'results/tuning/out-lib.tuned_im.pt'
+# fr_model: 'results/tuning/out-lib.tuned_fr.pt'
+
+# Parallel execution mode (for SLURM/COSMOS)
+parallel_mode: false

@@ -4,12 +4,13 @@ Modular Nextflow workflows for DIA-NN mass spectrometry analysis with SLURM inte
 
 ## Overview
 
-This workflow system provides four flexible entry points for different use cases:
+This workflow system provides five flexible entry points for different use cases:
 
 1. **[quantify_only.nf](workflows/quantify_only.nf)** - Simple quantification with existing library (90% of use cases)
 2. **[create_library.nf](workflows/create_library.nf)** - Create spectral library from FASTA
-3. **[full_pipeline.nf](workflows/full_pipeline.nf)** - Complete multi-round pipeline with model tuning
-4. **[compare_libraries.nf](workflows/compare_libraries.nf)** - Compare default vs tuned library quantification
+3. **[repredict_library.nf](workflows/repredict_library.nf)** - Generate new spectral library using DIA-NN predictor based on peptides from existing library
+4. **[full_pipeline.nf](workflows/full_pipeline.nf)** - Complete multi-round pipeline with model tuning
+5. **[compare_libraries.nf](workflows/compare_libraries.nf)** - Compare default vs tuned library quantification
 
 ## Quick Start
 
@@ -298,7 +299,50 @@ nextflow run karlssoc/diann-wf/workflows/create_library.nf \
   -profile slurm
 ```
 
-### Workflow 3: Full Pipeline
+### Workflow 3: Repredict Library
+
+**Use when:** You have an existing spectral library (e.g., from a previous search or run) and want to generate a new predicted library using DIA-NN's predictor, optionally with tuned models, while keeping the same peptide identifications.
+
+**What it does:**
+- Takes an existing spectral library as input (e.g., `.predicted.speclib`, `.parquet`, `.tsv`)
+- Generates new spectral library predictions for those peptides using current/tuned models
+- Useful for transferring a library to a different instrument or updating predictions with better models
+
+```bash
+nextflow run karlssoc/diann-wf/workflows/repredict_library.nf \
+  --fasta mydata.fasta \
+  --input_library results/previous_run/sample1/out-lib.parquet \
+  --library_name repredicted_lib \
+  --outdir results/repredicted_library \
+  -profile slurm
+```
+
+Or use a config file:
+
+```yaml
+# configs/library/repredict.yaml
+fasta: '/path/to/protein.fasta'
+input_library: '/path/to/existing/library.predicted.speclib'
+library_name: 'repredicted_lib'
+outdir: 'results/repredicted_library'
+diann_version: '2.3.1'
+threads: 48
+slurm_account: 'my_username'
+
+# Optional: Use tuned models
+# tokens: 'results/tuning/out-lib.dict.txt'
+# rt_model: 'results/tuning/out-lib.tuned_rt.pt'
+# im_model: 'results/tuning/out-lib.tuned_im.pt'
+# fr_model: 'results/tuning/out-lib.tuned_fr.pt'
+```
+
+```bash
+nextflow -bg run karlssoc/diann-wf/workflows/repredict_library.nf \
+  -params-file configs/library/repredict.yaml \
+  -profile slurm
+```
+
+### Workflow 4: Full Pipeline
 
 **Use when:** You need comprehensive analysis with model optimization across multiple rounds.
 
@@ -329,7 +373,7 @@ nextflow -bg run karlssoc/diann-wf/workflows/full_pipeline.nf \
   -profile slurm
 ```
 
-### Workflow 4: Compare Libraries
+### Workflow 5: Compare Libraries
 
 **Use when:** You want to evaluate the impact of model tuning by comparing quantification results side-by-side.
 
@@ -653,6 +697,18 @@ nextflow run YOUR_USERNAME/diann-wf \
 
 - [ ] Test `-profile cosmos` on COSMOS cluster with real data
 - [ ] Check if all quantify output files are included
+- [ ] Integration with storage (SMB, Swestore, OpenBIS, seqera)
+- [ ] `.speclib` to `.parquet`?
+```
+    lib="library.predicted.speclib"
+    outlib="${lib%.speclib}.parquet"
+
+    diann-linux \
+        --lib "$lib" \
+        --gen-spec-lib \
+        --out-lib "$outlib" 
+```        
+- [ ] MS profiles (ttht-evosep-30SPD, hfx-vneo-24SPD) using sets of tuned parameters
 
 ## Support
 
@@ -660,6 +716,7 @@ For issues or questions:
 - Check Nextflow docs: https://www.nextflow.io/docs/latest/
 - Check DIANN docs: https://github.com/vdemichev/DiaNN
 - Review execution logs in `results/pipeline_info/`
+
 
 ## License
 

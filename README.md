@@ -649,6 +649,10 @@ nextflow run YOUR_USERNAME/diann-wf \
 6. **Version control configs:** Keep your YAML configs in git for reproducibility
 7. **Pin versions for publications:** Use `-r v1.0.0` for reproducibility
 
+## TODO
+
+- [ ] Test `-profile cosmos` on COSMOS cluster with real data
+
 ## Support
 
 For issues or questions:

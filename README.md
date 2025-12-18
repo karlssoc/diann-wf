@@ -4,13 +4,14 @@ Modular Nextflow workflows for DIA-NN mass spectrometry analysis with SLURM inte
 
 ## Overview
 
-This workflow system provides five flexible entry points for different use cases:
+This workflow system provides six flexible entry points for different use cases:
 
 1. **[quantify_only.nf](workflows/quantify_only.nf)** - Simple quantification with existing library (90% of use cases)
 2. **[create_library.nf](workflows/create_library.nf)** - Create spectral library from FASTA
 3. **[repredict_library.nf](workflows/repredict_library.nf)** - Generate new spectral library using DIA-NN predictor based on peptides from existing library
-4. **[full_pipeline.nf](workflows/full_pipeline.nf)** - Complete multi-round pipeline with model tuning
-5. **[compare_libraries.nf](workflows/compare_libraries.nf)** - Compare default vs tuned library quantification
+4. **[library_and_quantify.nf](workflows/library_and_quantify.nf)** - Generate library from FASTA, then quantify samples (all-in-one)
+5. **[full_pipeline.nf](workflows/full_pipeline.nf)** - Complete multi-round pipeline with model tuning
+6. **[compare_libraries.nf](workflows/compare_libraries.nf)** - Compare default vs tuned library quantification
 
 ## Quick Start
 
@@ -342,7 +343,85 @@ nextflow -bg run karlssoc/diann-wf/workflows/repredict_library.nf \
   -profile slurm
 ```
 
-### Workflow 4: Full Pipeline
+### Workflow 4: Library Generation + Quantification
+
+**Use when:** You only have a FASTA file and MS data - need both library and quantification in one simple workflow.
+
+**What it does:**
+- Generates spectral library from FASTA file
+- Quantifies all samples using the newly generated library
+- Single workflow, no tuning or multiple rounds
+
+**Perfect for:**
+- Initial analysis of new datasets
+- When you don't have an existing library
+- Simpler alternative to full_pipeline when you don't need model tuning
+
+```bash
+nextflow run karlssoc/diann-wf/workflows/library_and_quantify.nf \
+  --fasta mydata.fasta \
+  --samples '[{"id":"sample1","dir":"input/sample1","file_type":"d"}]' \
+  --library_name generated_lib \
+  --outdir results/analysis \
+  -profile slurm
+```
+
+Or use a config file:
+
+```yaml
+# configs/workflows/library_and_quantify.yaml
+fasta: '/path/to/protein.fasta'
+library_name: 'my_library'
+
+samples:
+  - id: 'sample1'
+    dir: '/path/to/ms_data/sample1'
+    file_type: 'd'
+  - id: 'sample2'
+    dir: '/path/to/ms_data/sample2'
+    file_type: 'raw'
+
+outdir: 'results/analysis'
+diann_version: '2.3.1'
+threads: 48
+slurm_account: 'my_username'
+
+# Library generation parameters (optional)
+library:
+  min_fr_mz: 200
+  max_fr_mz: 1800
+  min_pep_len: 7
+  max_pep_len: 30
+  cut: 'K*,R*'
+  missed_cleavages: 1
+
+# Quantification parameters
+pg_level: 1
+mass_acc_cal: 25
+smart_profiling: true
+matrices: true
+```
+
+```bash
+nextflow -bg run karlssoc/diann-wf/workflows/library_and_quantify.nf \
+  -params-file configs/workflows/library_and_quantify.yaml \
+  -profile slurm
+```
+
+**Output structure:**
+```
+results/analysis/
+├── library/
+│   └── my_library.predicted.speclib   # Generated library
+├── sample1/
+│   ├── report.parquet                 # Quantification results
+│   └── out-lib.parquet
+└── sample2/
+    ├── report.parquet
+    └── out-lib.parquet
+```
+
+### Workflow 5: Full Pipeline
 
 **Use when:** You need comprehensive analysis with model optimization across multiple rounds.
 
@@ -373,7 +452,7 @@ nextflow -bg run karlssoc/diann-wf/workflows/full_pipeline.nf \
   -profile slurm
 ```
 
-### Workflow 5: Compare Libraries
+### Workflow 6: Compare Libraries
 
 **Use when:** You want to evaluate the impact of model tuning by comparing quantification results side-by-side.
 

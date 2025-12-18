@@ -1,0 +1,80 @@
+# Library Generation + Quantification Configuration
+# Simple workflow: Generate library from FASTA, then quantify samples
+
+# FASTA file
+fasta: '/path/to/protein.fasta'
+
+# Sample definitions
+samples:
+  - id: 'sample1'
+    dir: '/path/to/ms_data/sample1'
+    file_type: 'd'        # or 'raw' or 'mzML'
+    recursive: false
+
+  - id: 'sample2'
+    dir: '/path/to/ms_data/sample2'
+    file_type: 'd'
+    recursive: false
+
+  - id: 'sample3'
+    dir: '/path/to/ms_data/sample3'
+    file_type: 'raw'
+    recursive: false
+
+# Library name
+library_name: 'generated_lib'
+
+# Output directory
+outdir: 'results/library_and_quantify'
+
+# Optional: Subdirectory organization
+# library_subdir: 'library'        # Default: 'library'
+# quantify_subdir: ''               # Default: '' (flat in outdir)
+
+# DIANN version
+diann_version: '2.3.1'
+
+# Thread configuration
+threads: 48  # Adjust for your system
+
+# Parallel execution mode (for SLURM/COSMOS)
+parallel_mode: false
+
+# SLURM settings
+slurm_account: 'YOUR_PROJECT'
+slurm_queue: 'lu'  # For COSMOS, or 'work' for other clusters
+
+# Library generation parameters
+library:
+  min_fr_mz: 200
+  max_fr_mz: 1800
+  min_pep_len: 7
+  max_pep_len: 30
+  min_pr_mz: 350
+  max_pr_mz: 1650
+  min_pr_charge: 2
+  max_pr_charge: 3
+  cut: 'K*,R*'
+  missed_cleavages: 1
+  met_excision: true
+  unimod4: true
+
+# Quantification parameters
+pg_level: 1
+mass_acc_cal: 25
+smart_profiling: true
+individual_mass_acc: true
+matrices: true
+
+# Optional: Use pre-tuned models for library generation
+# If you have tuned models from a previous run, you can use them:
+# tokens: 'results/previous_tuning/out-lib.dict.txt'
+# rt_model: 'results/previous_tuning/out-lib.tuned_rt.pt'
+# im_model: 'results/previous_tuning/out-lib.tuned_im.pt'
+# fr_model: 'results/previous_tuning/out-lib.tuned_fr.pt'
+
+# Optional: Reference library for batch correction
+# ref_library: '/path/to/reference/library.predicted.speclib'
+
+# Optional: Batch correction parameters
+# individual_windows: true

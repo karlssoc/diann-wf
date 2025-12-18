@@ -1,0 +1,60 @@
+# Quantification with input data from SMB/CIFS network storage
+# Example: kraken with /mnt/imp_arch SMB mount
+
+# Spectral library (can be on SMB or local)
+library: '/mnt/imp_arch/libraries/mylib.predicted.speclib'
+
+# FASTA file
+fasta: '/mnt/imp_arch/fasta/proteome.fasta'
+
+# Sample definitions - specify SMB paths directly
+samples:
+  - id: 'sample1'
+    dir: '/mnt/imp_arch/raw_data/experiment1/sample1'  # SMB path
+    file_type: 'd'
+    recursive: false
+
+  - id: 'sample2'
+    dir: '/mnt/imp_arch/raw_data/experiment1/sample2'  # SMB path
+    file_type: 'raw'
+    recursive: false
+
+# Output directory (recommend local fast storage, not SMB)
+outdir: '/scratch/results/quantification'  # Use local/fast storage for output
+
+# DIANN version
+diann_version: '2.3.1'
+
+# Thread configuration
+threads: 48
+
+# Parallel execution mode
+parallel_mode: false
+
+# SLURM settings
+slurm_account: 'YOUR_PROJECT'
+slurm_queue: 'work'
+
+# Quantification parameters
+pg_level: 1
+mass_acc_cal: 25
+smart_profiling: true
+individual_mass_acc: true
+matrices: true
+
+# Performance notes for SMB/network storage:
+#
+# When using -profile cosmos (or any profile with scratch):
+# - Nextflow automatically stages input files from SMB to $SNIC_TMP (local disk)
+# - DIA-NN reads from fast local disk instead of slow network
+# - Only the initial copy is over SMB - analysis is all local I/O
+#
+# Without scratch (e.g., -profile slurm on kraken):
+# - DIA-NN reads directly from SMB mount
+# - Slower due to network latency on random access
+# - Still works, just not optimal
+#
+# Recommendation:
+# - Use -profile cosmos on COSMOS (automatic local disk staging)
+# - Consider copying data to local storage on kraken before processing
+# - Or use rsync to pre-stage large datasets

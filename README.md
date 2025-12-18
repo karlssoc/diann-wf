@@ -517,6 +517,104 @@ Nextflow automatically generates execution reports in `results/pipeline_info/`:
 - `execution_trace.txt` - Detailed execution trace
 - `pipeline_dag.svg` - Visual workflow diagram
 
+## Working with Remote Storage (SMB/CIFS, Network Mounts)
+
+The workflow **already supports** reading input data from SMB shares and network mounts. Simply specify the mounted path in your config.
+
+### Example: Using SMB Mount on kraken
+
+```yaml
+# configs/quantify/smb_example.yaml
+library: '/mnt/imp_arch/libraries/mylib.predicted.speclib'
+fasta: '/mnt/imp_arch/fasta/proteome.fasta'
+
+samples:
+  - id: 'sample1'
+    dir: '/mnt/imp_arch/raw_data/experiment1/sample1'  # SMB path
+    file_type: 'd'
+
+# Output to local storage (faster than SMB)
+outdir: '/scratch/results/quantification'
+```
+
+```bash
+nextflow -bg run karlssoc/diann-wf \
+  -params-file configs/quantify/smb_example.yaml \
+  -profile slurm
+```
+
+### How Nextflow Handles Remote Storage
+
+**Automatic staging:**
+1. Nextflow reads your input paths (can be SMB, NFS, any mounted filesystem)
+2. Stages files to the work directory before processing
+3. **With `-profile cosmos`:** Stages to `$SNIC_TMP` (2 TB local disk) for maximum I/O performance
+4. DIA-NN processes from fast local disk
+5. Results written back to `outdir` (can be SMB or local)
+
+### Performance Considerations
+
+#### ✅ Best Performance (COSMOS with local disk staging)
+
+```bash
+nextflow -bg run karlssoc/diann-wf \
+  -params-file configs/quantify/smb_example.yaml \
+  -profile cosmos  # Automatic local disk staging
+```
+
+**What happens:**
+- Input MS files copied from SMB → `$SNIC_TMP` (local disk)
+- DIA-NN reads from local disk (10-50x faster than SMB)
+- Only initial copy is over network
+
+#### ⚠️ Slower but Still Works (Direct SMB access)
+
+```bash
+nextflow -bg run karlssoc/diann-wf \
+  -params-file configs/quantify/smb_example.yaml \
+  -profile slurm  # No local disk staging on kraken
+```
+
+**What happens:**
+- Nextflow stages files to work directory (still on network FS)
+- DIA-NN reads directly from SMB mount
+- Slower due to network latency on random access
+
+### Recommendations
+
+| Scenario | Recommendation |
+|----------|---------------|
+| **COSMOS HPC** | Use `-profile cosmos` (automatic local disk staging) |
+| **kraken server** | Consider pre-copying large datasets to local storage |
+| **Small datasets** | Direct SMB access is fine |
+| **Bruker .d files** | **Always** use local disk staging (many small files) |
+
+### Pre-staging Data (Optional)
+
+For very large datasets on kraken without local disk staging:
+
+```bash
+# Option 1: rsync to local storage before running
+rsync -avP /mnt/imp_arch/raw_data/experiment1/ /scratch/staged_data/
+
+# Then use local path in config
+dir: '/scratch/staged_data/sample1'
+
+# Option 2: Let Nextflow handle it (automatic with scratch)
+```
+
+### Supported Storage Types
+
+The workflow works with any filesystem mounted on your system:
+
+- ✅ **SMB/CIFS** (Windows shares, e.g., `/mnt/imp_arch`)
+- ✅ **NFS** (Unix/Linux network shares)
+- ✅ **Local filesystems** (ext4, xfs, etc.)
+- ✅ **Lustre/GPFS** (HPC parallel filesystems)
+- ✅ **Object storage with FUSE** (if mounted)
+
+**Note:** Path must be accessible from all compute nodes. On SLURM clusters, ensure SMB mount is available on all nodes, or use COSMOS with local disk staging.
+
 ## Troubleshooting
 
 ### Check Workflow Status

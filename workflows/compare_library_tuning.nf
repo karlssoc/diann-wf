@@ -23,6 +23,10 @@ include { QUANTIFY as QUANTIFY_DEFAULT } from '../modules/quantify'
 include { QUANTIFY as QUANTIFY_TUNED } from '../modules/quantify'
 include { TUNE_MODELS } from '../modules/tune'
 
+// Default parameters for this workflow
+params.library_name_default = 'library_default'
+params.library_name_tuned = 'library_tuned'
+
 /*
 ========================================================================================
     WORKFLOW
@@ -206,11 +210,13 @@ workflow {
         ref_library_file
     )
 
-    // Emit outputs for potential use in combined workflows
     emit:
     default_library = GENERATE_LIBRARY_DEFAULT.out.library
     tuned_library = GENERATE_LIBRARY_TUNED.out.library
-    tuned_models = TUNE_MODELS.out
+    tuned_tokens = TUNE_MODELS.out.tokens
+    tuned_rt_model = TUNE_MODELS.out.rt_model
+    tuned_im_model = TUNE_MODELS.out.im_model
+    tuned_fr_model = TUNE_MODELS.out.fr_model
     default_reports = QUANTIFY_DEFAULT.out.report
     tuned_reports = QUANTIFY_TUNED.out.report
 }
@@ -228,8 +234,8 @@ workflow.onComplete {
     ========================================================================================
     Workflow completed!
     ========================================================================================
-    Default library:  ${params.outdir}/default/library/${params.library_name_default ?: 'library_default'}.predicted.speclib
-    Tuned library:    ${params.outdir}/tuned/library/${params.library_name_tuned ?: 'library_tuned'}.predicted.speclib
+    Default library:  ${params.outdir}/default/library/${params.library_name_default}.predicted.speclib
+    Tuned library:    ${params.outdir}/tuned/library/${params.library_name_tuned}.predicted.speclib
     Tuned models:     ${params.outdir}/tuning/
 
     Default results:  ${params.outdir}/default/quantify/

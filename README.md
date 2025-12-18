@@ -4,14 +4,15 @@ Modular Nextflow workflows for DIA-NN mass spectrometry analysis with SLURM inte
 
 ## Overview
 
-This workflow system provides six flexible entry points for different use cases:
+This workflow system provides seven flexible entry points for different use cases:
 
 1. **[quantify_only.nf](workflows/quantify_only.nf)** - Simple quantification with existing library (90% of use cases)
 2. **[create_library.nf](workflows/create_library.nf)** - Create spectral library from FASTA
 3. **[repredict_library.nf](workflows/repredict_library.nf)** - Generate new spectral library using DIA-NN predictor based on peptides from existing library
 4. **[library_and_quantify.nf](workflows/library_and_quantify.nf)** - Generate library from FASTA, then quantify samples (all-in-one)
 5. **[full_pipeline.nf](workflows/full_pipeline.nf)** - Complete multi-round pipeline with model tuning
-6. **[compare_libraries.nf](workflows/compare_libraries.nf)** - Compare default vs tuned library quantification
+6. **[compare_libraries.nf](workflows/compare_libraries.nf)** - Compare default vs tuned library quantification (requires external library for tuning)
+7. **[compare_library_tuning.nf](workflows/compare_library_tuning.nf)** - Self-contained tuning comparison: default → tune → tuned (no external library needed)
 
 ## Quick Start
 
@@ -502,6 +503,102 @@ results/library_comparison/
 - Benchmark the improvement from model tuning
 - Validate tuning effectiveness for your dataset
 - A/B testing of library generation strategies
+
+### Workflow 7: Compare Library Tuning (Self-Contained)
+
+**Use when:** You want to evaluate tuning impact but don't have an external library - this workflow generates everything from just FASTA + MS files.
+
+**What it does:**
+1. **Generate default library + quantify:** Create library from FASTA with default models, quantify all samples
+2. **Tune models:** Use out-lib.parquet from one of your samples to train models
+3. **Generate tuned library + quantify:** Create library from same FASTA with tuned models, quantify all samples
+
+**Difference from compare_libraries:**
+- `compare_libraries`: Requires external library for tuning
+- `compare_library_tuning`: Self-contained - uses your own data for tuning
+
+**Perfect for:**
+- Evaluating whether tuning helps your specific dataset
+- Don't have an external library for tuning
+- Want fully automated comparison
+
+```yaml
+# configs/workflows/compare_library_tuning.yaml
+fasta: '/path/to/protein.fasta'
+
+samples:
+  - id: 'sample1'
+    dir: '/path/to/ms_data/sample1'
+    file_type: 'd'
+  - id: 'sample2'
+    dir: '/path/to/ms_data/sample2'
+    file_type: 'd'
+  - id: 'sample3'
+    dir: '/path/to/ms_data/sample3'
+    file_type: 'raw'
+
+# Which sample to use for tuning (default: first sample)
+tune_sample: 'sample1'
+
+library_name_default: 'library_default'
+library_name_tuned: 'library_tuned'
+outdir: 'results/tuning_comparison'
+
+diann_version: '2.3.1'
+threads: 48
+slurm_account: 'YOUR_PROJECT'
+
+tuning:
+  tune_rt: true
+  tune_im: true
+  tune_fr: true
+
+# Library and quantification parameters...
+```
+
+```bash
+nextflow -bg run karlssoc/diann-wf/workflows/compare_library_tuning.nf \
+  -params-file configs/workflows/compare_library_tuning.yaml \
+  -profile cosmos
+```
+
+**Output structure:**
+```
+results/tuning_comparison/
+├── default/
+│   ├── library/
+│   │   └── library_default.predicted.speclib
+│   └── quantify/
+│       ├── sample1/
+│       │   ├── report.parquet
+│       │   └── out-lib.parquet      # Used for tuning
+│       ├── sample2/
+│       └── sample3/
+├── tuning/
+│   ├── out-lib.dict.txt
+│   ├── out-lib.tuned_rt.pt
+│   ├── out-lib.tuned_im.pt
+│   └── out-lib.tuned_fr.pt
+└── tuned/
+    ├── library/
+    │   └── library_tuned.predicted.speclib
+    └── quantify/
+        ├── sample1/
+        │   └── report.parquet
+        ├── sample2/
+        └── sample3/
+```
+
+**Comparison workflow:**
+```bash
+# After workflow completes, compare results:
+# 1. Compare identifications
+ls -lh results/tuning_comparison/default/quantify/sample1/report.parquet
+ls -lh results/tuning_comparison/tuned/quantify/sample1/report.parquet
+
+# 2. Analyze if tuning improved results (more IDs, better CVs, etc.)
+# 3. Decide whether to use tuned models for future runs
+```
 
 ## Advanced Features
 

@@ -1,0 +1,105 @@
+# Compare Library Tuning Configuration
+# Three-step workflow: default library+quantify → tune → tuned library+quantify
+
+# FASTA file
+fasta: '/path/to/protein.fasta'
+
+# Sample definitions
+samples:
+  - id: 'sample1'
+    dir: '/path/to/ms_data/sample1'
+    file_type: 'd'
+    recursive: false
+
+  - id: 'sample2'
+    dir: '/path/to/ms_data/sample2'
+    file_type: 'd'
+    recursive: false
+
+  - id: 'sample3'
+    dir: '/path/to/ms_data/sample3'
+    file_type: 'raw'
+    recursive: false
+
+# Which sample to use for model tuning (default: first sample)
+# The out-lib.parquet from this sample will be used for tuning
+tune_sample: 'sample1'
+
+# Library names
+library_name_default: 'library_default'
+library_name_tuned: 'library_tuned'
+
+# Output directory
+outdir: 'results/tuning_comparison'
+
+# DIANN version
+diann_version: '2.3.1'
+
+# Thread configuration
+threads: 48  # Adjust for your system
+
+# Parallel execution mode (for SLURM/COSMOS)
+parallel_mode: false
+
+# SLURM settings
+slurm_account: 'YOUR_PROJECT'
+slurm_queue: 'lu'  # For COSMOS, or 'work' for other clusters
+
+# Tuning configuration
+tuning:
+  tune_rt: true
+  tune_im: true
+  tune_fr: true   # Only works with DIANN 2.3.1+
+
+# Library generation parameters
+library:
+  min_fr_mz: 200
+  max_fr_mz: 1800
+  min_pep_len: 7
+  max_pep_len: 30
+  min_pr_mz: 350
+  max_pr_mz: 1650
+  min_pr_charge: 2
+  max_pr_charge: 3
+  cut: 'K*,R*'
+  missed_cleavages: 1
+  met_excision: true
+  unimod4: true
+
+# Quantification parameters
+pg_level: 1
+mass_acc_cal: 25
+smart_profiling: true
+individual_mass_acc: true
+matrices: true
+
+# Optional: Reference library for batch correction
+# ref_library: '/path/to/reference/library.predicted.speclib'
+
+# Optional: Batch correction parameters
+# individual_windows: true
+
+# Expected output structure:
+# results/tuning_comparison/
+# ├── default/
+# │   ├── library/
+# │   │   └── library_default.predicted.speclib
+# │   └── quantify/
+# │       ├── sample1/
+# │       │   ├── report.parquet
+# │       │   └── out-lib.parquet          # Used for tuning
+# │       ├── sample2/
+# │       └── sample3/
+# ├── tuning/
+# │   ├── out-lib.dict.txt
+# │   ├── out-lib.tuned_rt.pt
+# │   ├── out-lib.tuned_im.pt
+# │   └── out-lib.tuned_fr.pt
+# └── tuned/
+#     ├── library/
+#     │   └── library_tuned.predicted.speclib
+#     └── quantify/
+#         ├── sample1/
+#         │   └── report.parquet
+#         ├── sample2/
+#         └── sample3/

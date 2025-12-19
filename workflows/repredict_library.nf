@@ -70,7 +70,7 @@ workflow {
     // Emit outputs for use in combined workflows
     emit:
     library = REPREDICT_LIBRARY.out.library
-    log = REPREDICT_LIBRARY.out.log
+    library_log = REPREDICT_LIBRARY.out.library_log
 }
 
 /*

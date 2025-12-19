@@ -25,7 +25,7 @@ process REPREDICT_LIBRARY {
     path "${library_name}.predicted.speclib", emit: library
     path "${library_name}.tsv", emit: tsv, optional: true
     path "${library_name}.parquet", emit: parquet, optional: true
-    path "library_reprediction.log", emit: log
+    path "library_reprediction.log", emit: library_log
 
     script:
     // Use absolute path to DIANN binary

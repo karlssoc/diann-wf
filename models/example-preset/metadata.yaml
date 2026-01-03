@@ -79,6 +79,7 @@ models_present:
   rt_model: false      # tuned_rt.pt (retention time predictions)
   im_model: false      # tuned_im.pt (ion mobility predictions)
   fr_model: false      # tuned_fr.pt (fragmentation predictions, requires DIA-NN 2.3.1+)
+  tune_log: false      # tune.log (tuning log file with training details)
 
 # ============================================================================
 # VALIDATION & NOTES

@@ -88,6 +88,7 @@ Each preset directory contains:
 - **`tuned_rt.pt`** - Retention time model (optional)
 - **`tuned_im.pt`** - Ion mobility model (optional)
 - **`tuned_fr.pt`** - Fragmentation model (optional, requires DIA-NN 2.3.1+)
+- **`tune.log`** - Tuning log file with training details (optional, recommended)
 - **`metadata.yaml`** - Provenance tracking (required)
 
 ## Contributing New Models

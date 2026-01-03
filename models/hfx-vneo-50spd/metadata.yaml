@@ -1,0 +1,88 @@
+# Metadata for hfx-vneo-50spd pre-trained models
+# Please fill in the details below
+
+# ============================================================================
+# INSTRUMENT CONFIGURATION
+# ============================================================================
+
+instrument: "Thermo HFX"
+# Full name of the mass spectrometer
+# Examples: "Bruker timsTOF HT", "Thermo Orbitrap Astral", "Thermo HFX"
+
+lc_system: "Vanquish Neo"
+# Liquid chromatography system
+# Examples: "Evosep One", "Vanquish Neo", "UltiMate 3000"
+
+method: "METHOD_DESCRIPTION"
+# LC method details
+# Examples: "30 SPD (samples per day)", "60 min gradient", "15 min µPAC"
+
+gradient_length_min: 0.0
+# Total gradient length in minutes
+
+# ============================================================================
+# TRAINING DETAILS
+# ============================================================================
+
+diann_version_trained: "2.3.1"
+training_date: "2026-01-03"
+training_library: "LIBRARY_NAME"
+# Example: "UniProt Human 2025-11"
+
+training_samples: 0
+training_sample_ids: []
+# Example:
+# - "sample_01"
+# - "sample_02"
+
+# ============================================================================
+# LIBRARY GENERATION PARAMETERS
+# ============================================================================
+
+library_params:
+  min_fr_mz: 200
+  max_fr_mz: 1800
+  min_pep_len: 7
+  max_pep_len: 30
+  min_pr_mz: 350
+  max_pr_mz: 1650
+  min_pr_charge: 2
+  max_pr_charge: 3
+  cut: "K*,R*"
+  missed_cleavages: 1
+  met_excision: true
+  unimod4: true
+
+# ============================================================================
+# MODEL FILES
+# ============================================================================
+
+models_present:
+  tokens: true
+  rt_model: true
+  im_model: false
+  fr_model: true
+
+# ============================================================================
+# VALIDATION & NOTES
+# ============================================================================
+
+validated: false
+# Set to true after testing on independent samples
+
+validation_notes: ""
+# Document validation results here
+
+notes: |
+  Add detailed notes about:
+  - OpenBIS source data https://bioms.med.lu.se/openbis/index.html?viewMode=SIMPLE#entity=DATA_SET&permId=20260102154718565-1341405.
+
+
+# ============================================================================
+# METADATA
+# ============================================================================
+
+created_by: "karlssoc"
+created_date: "2026-01-03"
+last_updated: "2026-01-03"
+version: "1.0"

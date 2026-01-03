@@ -44,6 +44,7 @@ Model files searched for:
 - *tuned_rt.pt or tuned_rt.pt     → tuned_rt.pt (retention time model)
 - *tuned_im.pt or tuned_im.pt     → tuned_im.pt (ion mobility model)
 - *tuned_fr.pt or tuned_fr.pt     → tuned_fr.pt (fragmentation model)
+- *tune*.log or tune.log          → tune.log (tuning log file, optional)
 
 Naming convention for presets:
 Use lowercase with hyphens: {instrument}-{lc}-{method}
@@ -142,6 +143,7 @@ found_tokens=false
 found_rt=false
 found_im=false
 found_fr=false
+found_log=false
 
 # Function to find and copy file (supports both local and remote sources)
 copy_model_file() {
@@ -195,7 +197,7 @@ copy_model_file() {
 
 # Search and copy model files
 # Tokens file (required)
-echo "[1/4] Searching for tokens/dictionary file..."
+echo "[1/5] Searching for tokens/dictionary file..."
 if copy_model_file "*.dict.txt" "dict.txt" false || copy_model_file "dict.txt" "dict.txt" false; then
     found_tokens=true
 else
@@ -210,7 +212,7 @@ fi
 echo ""
 
 # RT model (optional)
-echo "[2/4] Searching for retention time model..."
+echo "[2/5] Searching for retention time model..."
 if copy_model_file "*tuned_rt.pt" "tuned_rt.pt" true || copy_model_file "tuned_rt.pt" "tuned_rt.pt" true; then
     found_rt=true
 fi
@@ -218,7 +220,7 @@ fi
 echo ""
 
 # IM model (optional)
-echo "[3/4] Searching for ion mobility model..."
+echo "[3/5] Searching for ion mobility model..."
 if copy_model_file "*tuned_im.pt" "tuned_im.pt" true || copy_model_file "tuned_im.pt" "tuned_im.pt" true; then
     found_im=true
 fi
@@ -226,9 +228,17 @@ fi
 echo ""
 
 # FR model (optional)
-echo "[4/4] Searching for fragmentation model..."
+echo "[4/5] Searching for fragmentation model..."
 if copy_model_file "*tuned_fr.pt" "tuned_fr.pt" true || copy_model_file "tuned_fr.pt" "tuned_fr.pt" true; then
     found_fr=true
+fi
+
+echo ""
+
+# Tuning log (optional but recommended)
+echo "[5/5] Searching for tuning log file..."
+if copy_model_file "*tune*.log" "tune.log" true || copy_model_file "tune.log" "tune.log" true; then
+    found_log=true
 fi
 
 echo ""
@@ -240,6 +250,7 @@ echo "  Tokens (dict.txt):  $([ "$found_tokens" = true ] && echo "✓" || echo "
 echo "  RT model:           $([ "$found_rt" = true ] && echo "✓" || echo "✗")"
 echo "  IM model:           $([ "$found_im" = true ] && echo "✓" || echo "✗")"
 echo "  FR model:           $([ "$found_fr" = true ] && echo "✓" || echo "✗")"
+echo "  Tuning log:         $([ "$found_log" = true ] && echo "✓" || echo "✗")"
 echo ""
 
 # Create metadata template
@@ -311,6 +322,7 @@ models_present:
   rt_model: ${found_rt}
   im_model: ${found_im}
   fr_model: ${found_fr}
+  tune_log: ${found_log}
 
 # ============================================================================
 # VALIDATION & NOTES

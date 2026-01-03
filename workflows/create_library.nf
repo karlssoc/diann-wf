@@ -46,11 +46,15 @@ def helpMessage() {
       --fasta PATH          FASTA file
       --library_name NAME   Name for output library
 
-    Optional Parameters (Tuned Models):
-      --tokens PATH         Tokens file (out-lib.dict.txt)
-      --rt_model PATH       RT model (out-lib.tuned_rt.pt)
-      --im_model PATH       IM model (out-lib.tuned_im.pt)
-      --fr_model PATH       FR model (out-lib.tuned_fr.pt) [requires DIANN 2.3.1+]
+    Optional Parameters (Pre-Trained Models):
+      --model_preset NAME   Use pre-trained models from models/ directory
+                            Example: 'ttht-evos-30spd'
+      --tokens PATH         Tokens file (out-lib.dict.txt) [overrides preset]
+      --rt_model PATH       RT model (out-lib.tuned_rt.pt) [overrides preset]
+      --im_model PATH       IM model (out-lib.tuned_im.pt) [overrides preset]
+      --fr_model PATH       FR model (out-lib.tuned_fr.pt) [overrides preset, requires DIANN 2.3.1+]
+
+      Note: Explicit file paths take priority over model_preset
 
     Library Parameters (with defaults):
       --library.min_fr_mz 200
@@ -73,10 +77,17 @@ def helpMessage() {
         --library_name mylib \\
         -profile slurm
 
-      # Create library with tuned models
+      # Create library with pre-trained model preset
       nextflow run workflows/create_library.nf \\
         --fasta mydata.fasta \\
-        --library_name mylib_tuned \\
+        --library_name mylib_preset \\
+        --model_preset ttht-evos-30spd \\
+        -profile slurm
+
+      # Create library with explicit model files (overrides preset)
+      nextflow run workflows/create_library.nf \\
+        --fasta mydata.fasta \\
+        --library_name mylib_custom \\
         --tokens results/tuning/out-lib.dict.txt \\
         --rt_model results/tuning/out-lib.tuned_rt.pt \\
         --im_model results/tuning/out-lib.tuned_im.pt \\
@@ -112,13 +123,57 @@ workflow {
         exit 1
     }
 
-    // Handle tuned model files (use placeholder if not provided)
-    tokens_file = params.tokens ? file(params.tokens) : file('NO_FILE')
-    rt_model_file = params.rt_model ? file(params.rt_model) : file('NO_FILE')
-    im_model_file = params.im_model ? file(params.im_model) : file('NO_FILE')
-    fr_model_file = params.fr_model ? file(params.fr_model) : file('NO_FILE')
+    // Resolve model files from preset or explicit paths
+    // Priority: Explicit paths > Model preset > NO_FILE (default)
+    def tokens_file = file('NO_FILE')
+    def rt_model_file = file('NO_FILE')
+    def im_model_file = file('NO_FILE')
+    def fr_model_file = file('NO_FILE')
 
-    // Validate tuned model files if provided
+    // Tokens file
+    if (params.tokens) {
+        tokens_file = file(params.tokens)
+    } else if (params.model_preset) {
+        def tokens_path = "${projectDir}/models/${params.model_preset}/dict.txt"
+        if (file(tokens_path).exists()) {
+            tokens_file = file(tokens_path)
+            log.info "Using model preset: ${params.model_preset}"
+        } else {
+            log.warn "Model preset '${params.model_preset}' tokens not found at ${tokens_path}"
+        }
+    }
+
+    // RT model
+    if (params.rt_model) {
+        rt_model_file = file(params.rt_model)
+    } else if (params.model_preset) {
+        def rt_path = "${projectDir}/models/${params.model_preset}/tuned_rt.pt"
+        if (file(rt_path).exists()) {
+            rt_model_file = file(rt_path)
+        }
+    }
+
+    // IM model
+    if (params.im_model) {
+        im_model_file = file(params.im_model)
+    } else if (params.model_preset) {
+        def im_path = "${projectDir}/models/${params.model_preset}/tuned_im.pt"
+        if (file(im_path).exists()) {
+            im_model_file = file(im_path)
+        }
+    }
+
+    // FR model
+    if (params.fr_model) {
+        fr_model_file = file(params.fr_model)
+    } else if (params.model_preset) {
+        def fr_path = "${projectDir}/models/${params.model_preset}/tuned_fr.pt"
+        if (file(fr_path).exists()) {
+            fr_model_file = file(fr_path)
+        }
+    }
+
+    // Validate explicit paths exist
     if (params.tokens && !tokens_file.exists()) {
         log.error "ERROR: Tokens file not found: ${params.tokens}"
         exit 1
@@ -137,7 +192,7 @@ workflow {
     }
 
     // Log workflow info
-    def using_tuned = params.tokens != null
+    def using_models = (tokens_file.name != 'NO_FILE')
     log.info ""
     log.info "DIANN Library Creation Workflow"
     log.info "================================"
@@ -146,12 +201,15 @@ workflow {
     log.info "DIANN version: ${params.diann_version}"
     log.info "Threads      : ${params.threads}"
     log.info "Output dir   : ${params.outdir}"
-    log.info "Using tuned  : ${using_tuned}"
-    if (using_tuned) {
-        log.info "  Tokens     : ${params.tokens}"
-        log.info "  RT model   : ${params.rt_model ?: 'not provided'}"
-        log.info "  IM model   : ${params.im_model ?: 'not provided'}"
-        log.info "  FR model   : ${params.fr_model ?: 'not provided'}"
+    log.info "Using models : ${using_models}"
+    if (using_models) {
+        if (params.model_preset) {
+            log.info "  Preset     : ${params.model_preset}"
+        }
+        log.info "  Tokens     : ${tokens_file.name != 'NO_FILE' ? (params.tokens ?: 'from preset') : 'not provided'}"
+        log.info "  RT model   : ${rt_model_file.name != 'NO_FILE' ? (params.rt_model ?: 'from preset') : 'not provided'}"
+        log.info "  IM model   : ${im_model_file.name != 'NO_FILE' ? (params.im_model ?: 'from preset') : 'not provided'}"
+        log.info "  FR model   : ${fr_model_file.name != 'NO_FILE' ? (params.fr_model ?: 'from preset') : 'not provided'}"
     }
     log.info ""
 

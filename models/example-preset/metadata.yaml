@@ -1,0 +1,150 @@
+# Metadata for Pre-Trained DIA-NN Models
+# This template shows the required and optional fields for documenting model provenance
+
+# ============================================================================
+# INSTRUMENT CONFIGURATION
+# ============================================================================
+
+instrument: "INSTRUMENT_NAME"
+# Full name of the mass spectrometer
+# Examples: "Bruker timsTOF HT", "Thermo Orbitrap Astral", "Thermo HFX"
+
+lc_system: "LC_SYSTEM_NAME"
+# Liquid chromatography system
+# Examples: "Evosep One", "Vanquish Neo", "UltiMate 3000"
+
+method: "METHOD_DESCRIPTION"
+# LC method details
+# Examples: "30 SPD (samples per day)", "60 min gradient", "15 min µPAC"
+
+gradient_length_min: 0.0
+# Total gradient length in minutes
+# Example: 11.5 for Evosep 30 SPD
+
+# ============================================================================
+# TRAINING DETAILS
+# ============================================================================
+
+diann_version_trained: "2.3.1"
+# DIA-NN version used to train these models
+# Models work best with same version but are generally compatible across minor versions
+
+training_date: "YYYY-MM-DD"
+# Date when models were trained
+# Example: "2025-12-15"
+
+training_library: "PROTEIN_DATABASE"
+# Protein sequence database used for training
+# Examples: "UniProt Human 2025-11", "UniProt Yeast 2025-10", "Custom database"
+
+training_samples: 0
+# Number of samples used for model training
+# More samples generally produce more robust models
+# Recommended: 5-20 samples
+
+training_sample_ids: []
+# List of sample identifiers used for training
+# Example:
+# - "HeLa_rep1"
+# - "HeLa_rep2"
+# - "HeLa_rep3"
+
+# ============================================================================
+# LIBRARY GENERATION PARAMETERS
+# ============================================================================
+# Document the parameters used during training for reproducibility
+# Users should match these for best results
+
+library_params:
+  min_fr_mz: 200
+  max_fr_mz: 1800
+  min_pep_len: 7
+  max_pep_len: 30
+  min_pr_mz: 350
+  max_pr_mz: 1650
+  min_pr_charge: 2
+  max_pr_charge: 3
+  cut: "K*,R*"
+  missed_cleavages: 1
+  met_excision: true
+  unimod4: true
+
+# ============================================================================
+# MODEL FILES
+# ============================================================================
+# Which model files are present in this preset
+
+models_present:
+  tokens: false        # dict.txt (token dictionary)
+  rt_model: false      # tuned_rt.pt (retention time predictions)
+  im_model: false      # tuned_im.pt (ion mobility predictions)
+  fr_model: false      # tuned_fr.pt (fragmentation predictions, requires DIA-NN 2.3.1+)
+
+# ============================================================================
+# VALIDATION & NOTES
+# ============================================================================
+
+validated: false
+# Has this preset been tested and validated on independent samples?
+# Set to true only after proper validation
+
+validation_notes: ""
+# Results of validation testing
+# Example: "Tested on 5 independent samples. 15% improvement in protein IDs compared to default models. RT prediction R² = 0.95"
+
+notes: |
+  Add detailed notes about:
+  - Training conditions (sample types, preparation)
+  - Expected performance improvements
+  - Recommended use cases
+  - Any known limitations or special considerations
+
+  Example:
+  Models trained on HeLa digest samples using 30 SPD method.
+  Optimized for high-throughput proteomics applications.
+  Best suited for mammalian proteomes with similar complexity.
+
+  Performance metrics:
+  - Average precursor IDs: +12% vs default
+  - RT prediction accuracy: R² = 0.94
+  - Library size: ~2.5M precursors (human proteome)
+
+# ============================================================================
+# METADATA
+# ============================================================================
+
+created_by: "USERNAME"
+# Person or group who trained and validated these models
+# Example: "karlssoc", "proteomics_core", "smith_lab"
+
+created_date: "YYYY-MM-DD"
+# When this metadata file was created
+
+last_updated: "YYYY-MM-DD"
+# Last time this metadata was updated
+
+version: "1.0"
+# Version number for this preset (increment if you retrain/update models)
+
+# ============================================================================
+# ADDITIONAL INFORMATION (OPTIONAL)
+# ============================================================================
+
+# publication:
+#   doi: "10.xxxx/xxxxx"
+#   citation: "Author et al. (2025) Journal Name"
+#   # If models are associated with a publication
+
+# contact:
+#   email: "user@institution.edu"
+#   # Contact for questions about this preset
+
+# recommended_for:
+#   - "Human cell line proteomics"
+#   - "High-throughput screening"
+#   # List of recommended use cases
+
+# not_recommended_for:
+#   - "Plasma proteomics"
+#   - "Different gradient lengths"
+#   # List of cases where this preset may not perform well

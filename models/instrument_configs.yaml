@@ -1,0 +1,39 @@
+# Index of Available Pre-Trained Model Presets
+# This file provides a quick reference for all available instrument/LC/method configurations
+# See individual preset directories for detailed metadata
+
+presets:
+  example-preset:
+    instrument: "Template Instrument"
+    lc_system: "Template LC System"
+    method: "Template Method"
+    validated: false
+    description: "Example preset structure for documentation purposes"
+
+  # Add your instrument presets below:
+  # ttht-evos-30spd:
+  #   instrument: "Bruker timsTOF HT"
+  #   lc_system: "Evosep One"
+  #   method: "30 SPD (samples per day)"
+  #   gradient_length_min: 11.5
+  #   validated: true
+  #   description: "Optimized for high-throughput proteomics on timsTOF HT"
+
+  # hfx-vneo-30spd:
+  #   instrument: "Thermo HFX"
+  #   lc_system: "Vanquish Neo µPAC"
+  #   method: "30 min gradient"
+  #   gradient_length_min: 30
+  #   validated: true
+  #   description: "Standard configuration for HFX with µPAC column"
+
+# Preset naming convention:
+# {instrument}-{lc}-{method}
+# - lowercase
+# - hyphen-separated
+# - concise but descriptive
+#
+# Examples:
+# - ttht-evos-30spd (timsTOF HT + Evosep + 30 SPD)
+# - hfx-vneo-30spd (HFX + Vanquish Neo + 30 min)
+# - astral-evos-60spd (Astral + Evosep + 60 SPD)

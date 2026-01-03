@@ -1,0 +1,105 @@
+# Library Generation Configuration
+# Optimized for: Bruker timsTOF HT + Evosep One 30 SPD
+#
+# This configuration uses pre-trained models from the models/ directory.
+# The models are optimized for this specific instrument/LC/method combination.
+
+# ============================================================================
+# REQUIRED PARAMETERS
+# ============================================================================
+
+# FASTA file
+fasta: 'path/to/protein.fasta'
+
+# Output library name (without extension)
+library_name: 'library_ttht_evos_30spd'
+
+# ============================================================================
+# PRE-TRAINED MODELS
+# ============================================================================
+
+# Use pre-trained model preset for timsTOF HT + Evosep 30 SPD
+# This will automatically use models from: models/ttht-evos-30spd/
+model_preset: 'ttht-evos-30spd'
+
+# Alternative: Specify individual model files (overrides preset)
+# Uncomment these to use custom models instead of the preset
+# tokens: 'path/to/dict.txt'
+# rt_model: 'path/to/tuned_rt.pt'
+# im_model: 'path/to/tuned_im.pt'
+# fr_model: 'path/to/tuned_fr.pt'
+
+# ============================================================================
+# SYSTEM CONFIGURATION
+# ============================================================================
+
+# DIA-NN version (should match model training version for best results)
+diann_version: '2.3.1'
+
+# Number of threads
+threads: 60
+
+# Output directory
+outdir: 'results/library_generation'
+
+# ============================================================================
+# SLURM SETTINGS (for -profile slurm)
+# ============================================================================
+
+slurm_account: 'your_account'
+slurm_queue: 'work'
+
+# Optional: Pin to specific node (only if needed)
+# slurm_nodelist: 'node_name'
+
+# ============================================================================
+# LIBRARY GENERATION PARAMETERS
+# ============================================================================
+# These parameters should match the training conditions for best results
+# See models/ttht-evos-30spd/metadata.yaml for recommended values
+
+library:
+  # Fragment m/z range (timsTOF HT typical range)
+  min_fr_mz: 200
+  max_fr_mz: 1800
+
+  # Peptide length range
+  min_pep_len: 7
+  max_pep_len: 30
+
+  # Precursor m/z range (timsTOF HT)
+  min_pr_mz: 350
+  max_pr_mz: 1650
+
+  # Precursor charge range (typical for tryptic peptides)
+  min_pr_charge: 2
+  max_pr_charge: 3
+
+  # Enzyme specificity (trypsin: cleaves after K and R)
+  cut: 'K*,R*'
+
+  # Allowed missed cleavages
+  missed_cleavages: 1
+
+  # Methionine excision (common post-translational modification)
+  met_excision: true
+
+  # Enable Unimod4 modifications
+  unimod4: true
+
+# ============================================================================
+# NOTES
+# ============================================================================
+# This configuration is optimized for:
+# - Bruker timsTOF HT mass spectrometer
+# - Evosep One LC system with 30 SPD method (~11.5 min gradient)
+# - Tryptic digestion
+# - Standard DIA acquisition
+#
+# Expected performance:
+# - Library generation: ~1-2 hours for human proteome
+# - Improved prediction accuracy compared to default models
+# - Better suited for this specific instrument combination
+#
+# For different instruments or methods, create a new configuration
+# or use a different model preset (see models/README.md)

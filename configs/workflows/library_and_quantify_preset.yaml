@@ -1,0 +1,156 @@
+# Library Generation + Quantification Workflow with Pre-Trained Models
+#
+# This configuration demonstrates using pre-trained model presets
+# for a complete analysis workflow (library generation + quantification)
+
+# ============================================================================
+# REQUIRED PARAMETERS
+# ============================================================================
+
+# FASTA file
+fasta: 'path/to/protein.fasta'
+
+# Sample definitions
+samples:
+  - id: 'sample1'
+    dir: 'path/to/ms_data/sample1'
+    file_type: 'd'        # 'd' for .d folders (Bruker), 'raw' for Thermo
+    recursive: false
+
+  - id: 'sample2'
+    dir: 'path/to/ms_data/sample2'
+    file_type: 'd'
+    recursive: false
+
+  # Add more samples as needed
+  # - id: 'sample3'
+  #   dir: 'path/to/ms_data/sample3'
+  #   file_type: 'd'
+  #   recursive: false
+
+# ============================================================================
+# PRE-TRAINED MODELS
+# ============================================================================
+
+# Use pre-trained model preset
+# This will use models from models/ttht-evos-30spd/ directory
+model_preset: 'ttht-evos-30spd'
+
+# Model tuning mode (future feature - currently only 'skip' and 'from_scratch' work)
+# - 'skip': Use preset models directly (recommended when preset matches your setup)
+# - 'from_scratch': Ignore preset, train from defaults (slower but more customized)
+tuning_mode: 'skip'
+
+# ============================================================================
+# LIBRARY CONFIGURATION
+# ============================================================================
+
+# Output library name
+library_name: 'library_preset'
+
+# Output subdirectory for library
+library_subdir: 'library'
+
+# Library generation parameters (should match model training conditions)
+library:
+  min_fr_mz: 200
+  max_fr_mz: 1800
+  min_pep_len: 7
+  max_pep_len: 30
+  min_pr_mz: 350
+  max_pr_mz: 1650
+  min_pr_charge: 2
+  max_pr_charge: 3
+  cut: 'K*,R*'
+  missed_cleavages: 1
+  met_excision: true
+  unimod4: true
+
+# ============================================================================
+# QUANTIFICATION CONFIGURATION
+# ============================================================================
+
+# Output subdirectory for quantification results
+quantify_subdir: 'quantify'
+
+# Quantification parameters
+pg_level: 1                  # 1 = proteins, 0 = genes
+mass_acc_cal: 0              # Mass accuracy calibration threshold
+smart_profiling: true        # Use smart profiling (recommended)
+matrices: true               # Generate result matrices
+
+# Ultrafast mode (trades sensitivity for speed)
+ultrafast: false
+
+# Optional: Reference library for batch correction
+# ref_library: 'path/to/reference.predicted.speclib'
+
+# ============================================================================
+# SYSTEM CONFIGURATION
+# ============================================================================
+
+# DIA-NN version
+diann_version: '2.3.1'
+
+# Thread allocation
+threads: 60
+
+# Parallel execution mode
+# true: Run 2x30 cores for better multi-sample throughput
+# false: Run 1x60 cores for maximum per-job speed
+parallel_mode: true
+
+# Output directory
+outdir: 'results/library_and_quantify'
+
+# ============================================================================
+# SLURM SETTINGS
+# ============================================================================
+
+slurm_account: 'your_account'
+slurm_queue: 'work'
+
+# Optional: Pin to specific node
+# slurm_nodelist: 'node_name'
+
+# Dynamic time allocation for quantification
+time_base_hours: 2
+time_per_file_minutes: 10
+
+# ============================================================================
+# USAGE EXAMPLES
+# ============================================================================
+#
+# Run the complete workflow:
+#   nextflow run workflows/library_and_quantify.nf \
+#     -params-file configs/workflows/library_and_quantify_preset.yaml \
+#     -profile slurm
+#
+# Run locally for testing:
+#   nextflow run workflows/library_and_quantify.nf \
+#     -params-file configs/workflows/library_and_quantify_preset.yaml \
+#     -profile standard
+#
+# Override specific parameters:
+#   nextflow run workflows/library_and_quantify.nf \
+#     -params-file configs/workflows/library_and_quantify_preset.yaml \
+#     --model_preset hfx-vneo-30spd \
+#     -profile slurm
+#
+# ============================================================================
+# NOTES
+# ============================================================================
+#
+# Model Presets:
+# - See models/README.md for available presets
+# - Use preset that matches your instrument/LC/method
+# - Models improve library quality and reduce need for tuning
+#
+# Tuning Mode:
+# - 'skip': Fastest, uses preset models directly
+# - 'from_scratch': Slower, trains custom models for your data
+#
+# Performance Considerations:
+# - Pre-trained models can reduce workflow time by skipping tuning
+# - Best results when your setup matches the preset's training conditions
+# - For very different setups, consider using 'from_scratch' mode

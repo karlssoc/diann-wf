@@ -357,6 +357,99 @@ def subdir_default = 'quant/default'
 def subdir_tuned = 'quant/tuned'
 ```
 
+### Pre-Trained Model Resolution
+
+Pre-trained models are stored in `models/` and organized by instrument/LC/method combinations. The workflow supports flexible model resolution with a priority system.
+
+**Directory structure:**
+```
+models/
+├── README.md                    # User documentation
+├── instrument_configs.yaml      # Index of available presets
+├── ttht-evos-30spd/            # Example preset
+│   ├── dict.txt                # Token dictionary
+│   ├── tuned_rt.pt            # RT model
+│   ├── tuned_im.pt            # IM model
+│   ├── tuned_fr.pt            # FR model
+│   └── metadata.yaml          # Provenance tracking
+└── example-preset/             # Template for new presets
+```
+
+**Parameter resolution priority:**
+1. **Explicit file paths** (`params.tokens`, `params.rt_model`, etc.) - highest priority
+2. **Model preset** (`params.model_preset`) - if no explicit paths provided
+3. **NO_FILE placeholder** - if neither preset nor paths provided (default models)
+
+**Implementation pattern in workflows:**
+```groovy
+// Resolve model files from preset or explicit paths
+def tokens_file = file('NO_FILE')
+def rt_model_file = file('NO_FILE')
+def im_model_file = file('NO_FILE')
+def fr_model_file = file('NO_FILE')
+
+// Tokens file - Priority 1: Explicit path
+if (params.tokens) {
+    tokens_file = file(params.tokens)
+} else if (params.model_preset) {
+    // Priority 2: Model preset
+    def tokens_path = "${projectDir}/models/${params.model_preset}/dict.txt"
+    if (file(tokens_path).exists()) {
+        tokens_file = file(tokens_path)
+        log.info "Using model preset: ${params.model_preset}"
+    } else {
+        log.warn "Model preset '${params.model_preset}' tokens not found at ${tokens_path}"
+    }
+}
+
+// Repeat for rt_model, im_model, fr_model...
+
+// Validate explicit paths exist
+if (params.tokens && !tokens_file.exists()) {
+    log.error "ERROR: Tokens file not found: ${params.tokens}"
+    exit 1
+}
+```
+
+**Usage in configs:**
+```yaml
+# Option 1: Use preset (recommended)
+model_preset: 'ttht-evos-30spd'
+
+# Option 2: Explicit paths (overrides preset)
+tokens: 'path/to/dict.txt'
+rt_model: 'path/to/tuned_rt.pt'
+im_model: 'path/to/tuned_im.pt'
+fr_model: 'path/to/tuned_fr.pt'
+```
+
+**Tuning modes:**
+- `skip`: Use preset models directly (no TUNE_MODELS step) - fastest
+- `from_preset`: Use preset as starting point for TUNE_MODELS (not yet implemented)
+- `from_scratch`: Ignore preset, tune from DIA-NN defaults (current behavior, default)
+
+**Collection script:**
+Use `bin/collect_models.sh` to organize tuning outputs into repository structure:
+```bash
+./bin/collect_models.sh -s /path/to/tuning/output -n preset-name
+```
+
+**Model file handling:**
+- Models are optional - use if available, fallback to defaults if missing
+- Bash checks file existence: `if [ -s "rt_model.pt" ]; then RT_PARAM="--rt-model rt_model.pt"`
+- Module signature unchanged (still accepts optional model files)
+
+**Benefits:**
+- Easy model reuse across projects (just specify preset name)
+- Backward compatible (existing explicit paths still work)
+- Self-documenting (metadata.yaml tracks provenance)
+- Reproducible (models committed to Git)
+- Flexible (can mix preset and explicit paths)
+
+**Storage:**
+- Models stored directly in Git (~9 MB per preset, <100 MB total for 10 presets)
+- Will migrate to Git LFS if total size exceeds 100-150 MB
+
 ## Contact & Resources
 
 - **Primary user:** karlssoc

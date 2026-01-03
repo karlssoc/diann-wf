@@ -77,6 +77,74 @@ nextflow -bg run karlssoc/diann-wf/workflows/compare_libraries.nf \
 
 **Use when:** You want to evaluate the impact of model tuning on quantification results.
 
+## Using Pre-Trained Models
+
+Pre-trained DIA-NN models for common instrument/LC/method combinations are available in the [models/](models/) directory. These models can improve library quality without extensive tuning on your own data.
+
+### Available Presets
+
+See [models/README.md](models/README.md) for the current list of available presets and detailed usage instructions.
+
+Example presets:
+- `ttht-evos-30spd` - Bruker timsTOF HT + Evosep 30 SPD
+- `hfx-vneo-30spd` - Thermo HFX + Vanquish Neo µPAC
+- More presets added as they become available
+
+### Quick Example
+
+Generate a library using pre-trained models:
+
+```bash
+# Option 1: Use model preset (recommended)
+nextflow run karlssoc/diann-wf -entry create_library \
+  --fasta protein.fasta \
+  --library_name mylib \
+  --model_preset ttht-evos-30spd \
+  -profile slurm
+
+# Option 2: Use config file with preset
+nano configs/library/ttht-evos-30spd.yaml  # Edit with your paths
+nextflow run karlssoc/diann-wf -entry create_library \
+  -params-file configs/library/ttht-evos-30spd.yaml \
+  -profile slurm
+```
+
+### When to Use Pre-Trained Models
+
+**Use pre-trained models when:**
+- Your instrument/LC/method matches an available preset
+- You want faster library generation (skip tuning step)
+- You need consistent models across multiple projects
+
+**Train from scratch when:**
+- No preset matches your setup
+- You want maximum customization for your specific data
+- Your samples are significantly different from typical proteomics
+
+### Adding Your Own Models
+
+Have models for a new instrument combination? Add them to the repository:
+
+```bash
+# Collect models from DIA-NN tuning output
+./bin/collect_models.sh -s results/tuning -n my-instrument-method
+
+# Edit metadata
+nano models/my-instrument-method/metadata.yaml
+
+# Test and validate
+nextflow run workflows/create_library.nf \
+  --model_preset my-instrument-method \
+  --fasta test.fasta --library_name test \
+  -profile standard
+
+# Commit to repository
+git add models/my-instrument-method
+git commit -m "Add models for my-instrument-method"
+```
+
+See [models/README.md](models/README.md) for detailed contribution guidelines.
+
 ## Requirements
 
 - Nextflow >= 21.04.0

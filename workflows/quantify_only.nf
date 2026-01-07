@@ -21,6 +21,9 @@ nextflow.enable.dsl = 2
 // Include modules
 include { QUANTIFY } from '../modules/quantify'
 
+// Include shared utilities
+include { parseSamples; createSamplesChannel } from '../lib/samples'
+
 // Help message
 def helpMessage() {
     log.info"""
@@ -96,85 +99,17 @@ if (!params.samples) {
 
 // Main workflow
 workflow {
-    // Parse samples
+    // Parse samples using shared utility
     // Samples can be provided as:
     // 1. YAML/JSON file path
     // 2. Inline JSON string
     // 3. Already parsed list from params file
+    def samples_list = parseSamples(params.samples)
 
-    def samples_list
-    if (params.samples instanceof List) {
-        samples_list = params.samples
-    } else if (params.samples instanceof String && params.samples.startsWith('[')) {
-        // Inline JSON
-        samples_list = new groovy.json.JsonSlurper().parseText(params.samples)
-    } else if (params.samples instanceof String) {
-        // File path
-        def samples_file = file(params.samples)
-        if (!samples_file.exists()) {
-            log.error "ERROR: Samples file not found: ${params.samples}"
-            exit 1
-        }
-        if (samples_file.name.endsWith('.yaml') || samples_file.name.endsWith('.yml')) {
-            samples_list = new org.yaml.snakeyaml.Yaml().load(samples_file.text).samples
-        } else {
-            samples_list = new groovy.json.JsonSlurper().parseText(samples_file.text)
-        }
-    }
-
-    // Create channel from samples
+    // Create channel from samples with file counting
     // Optional: params.subdir can be used to organize outputs into subdirectories
     def subdir = params.subdir ?: ''
-
-    samples_ch = Channel.fromList(samples_list)
-        .map { sample ->
-            def sample_id = sample.id
-            def sample_dir = file(sample.dir)
-            def file_type = sample.file_type ?: 'raw'
-            def recursive = sample.recursive ?: false
-
-            if (!sample_dir.exists()) {
-                log.error "ERROR: Sample directory not found: ${sample.dir}"
-                exit 1
-            }
-
-            // Count MS files in directory for dynamic time allocation
-            def file_extensions = ['.mzML', '.raw', '.d', '.wiff']
-            def file_count = 0
-
-            if (recursive) {
-                // Recursive counting: traverse all subdirectories
-                sample_dir.eachFileRecurse { file ->
-                    if (file.isFile()) {
-                        def extension = file.name.substring(file.name.lastIndexOf('.'))
-                        if (file_extensions.contains(extension)) {
-                            file_count++
-                        }
-                    } else if (file.isDirectory() && file.name.endsWith('.d')) {
-                        // Count Bruker .d directories as one file
-                        file_count++
-                    }
-                }
-            } else {
-                // Non-recursive: only immediate directory
-                sample_dir.listFiles().each { file ->
-                    if (file.isFile()) {
-                        def extension = file.name.substring(file.name.lastIndexOf('.'))
-                        if (file_extensions.contains(extension)) {
-                            file_count++
-                        }
-                    } else if (file.isDirectory() && file.name.endsWith('.d')) {
-                        // Count Bruker .d directories as one file
-                        file_count++
-                    }
-                }
-            }
-
-            // Log file count for user awareness
-            log.info "Sample ${sample_id}: Found ${file_count} MS files"
-
-            tuple(sample_id, sample_dir, file_type, subdir, recursive, file_count)
-        }
+    samples_ch = createSamplesChannel(samples_list, subdir)
 
     // Check library and fasta files
     library_file = file(params.library)

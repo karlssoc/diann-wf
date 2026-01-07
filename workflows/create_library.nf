@@ -34,6 +34,9 @@ nextflow.enable.dsl = 2
 // Include modules
 include { GENERATE_LIBRARY } from '../modules/library'
 
+// Include shared utilities
+include { resolveModelFiles; logModelInfo } from '../lib/models'
+
 // Help message
 def helpMessage() {
     log.info"""
@@ -123,76 +126,10 @@ workflow {
         exit 1
     }
 
-    // Resolve model files from preset or explicit paths
-    // Priority: Explicit paths > Model preset > NO_FILE (default)
-    def tokens_file = file('NO_FILE')
-    def rt_model_file = file('NO_FILE')
-    def im_model_file = file('NO_FILE')
-    def fr_model_file = file('NO_FILE')
-
-    // Tokens file
-    if (params.tokens) {
-        tokens_file = file(params.tokens)
-    } else if (params.model_preset) {
-        def tokens_path = "${projectDir}/models/${params.model_preset}/dict.txt"
-        if (file(tokens_path).exists()) {
-            tokens_file = file(tokens_path)
-            log.info "Using model preset: ${params.model_preset}"
-        } else {
-            log.warn "Model preset '${params.model_preset}' tokens not found at ${tokens_path}"
-        }
-    }
-
-    // RT model
-    if (params.rt_model) {
-        rt_model_file = file(params.rt_model)
-    } else if (params.model_preset) {
-        def rt_path = "${projectDir}/models/${params.model_preset}/tuned_rt.pt"
-        if (file(rt_path).exists()) {
-            rt_model_file = file(rt_path)
-        }
-    }
-
-    // IM model
-    if (params.im_model) {
-        im_model_file = file(params.im_model)
-    } else if (params.model_preset) {
-        def im_path = "${projectDir}/models/${params.model_preset}/tuned_im.pt"
-        if (file(im_path).exists()) {
-            im_model_file = file(im_path)
-        }
-    }
-
-    // FR model
-    if (params.fr_model) {
-        fr_model_file = file(params.fr_model)
-    } else if (params.model_preset) {
-        def fr_path = "${projectDir}/models/${params.model_preset}/tuned_fr.pt"
-        if (file(fr_path).exists()) {
-            fr_model_file = file(fr_path)
-        }
-    }
-
-    // Validate explicit paths exist
-    if (params.tokens && !tokens_file.exists()) {
-        log.error "ERROR: Tokens file not found: ${params.tokens}"
-        exit 1
-    }
-    if (params.rt_model && !rt_model_file.exists()) {
-        log.error "ERROR: RT model file not found: ${params.rt_model}"
-        exit 1
-    }
-    if (params.im_model && !im_model_file.exists()) {
-        log.error "ERROR: IM model file not found: ${params.im_model}"
-        exit 1
-    }
-    if (params.fr_model && !fr_model_file.exists()) {
-        log.error "ERROR: FR model file not found: ${params.fr_model}"
-        exit 1
-    }
+    // Resolve model files using shared utility
+    def models = resolveModelFiles(params, projectDir)
 
     // Log workflow info
-    def using_models = (tokens_file.name != 'NO_FILE')
     log.info ""
     log.info "DIANN Library Creation Workflow"
     log.info "================================"
@@ -201,16 +138,7 @@ workflow {
     log.info "DIANN version: ${params.diann_version}"
     log.info "Threads      : ${params.threads}"
     log.info "Output dir   : ${params.outdir}"
-    log.info "Using models : ${using_models}"
-    if (using_models) {
-        if (params.model_preset) {
-            log.info "  Preset     : ${params.model_preset}"
-        }
-        log.info "  Tokens     : ${tokens_file.name != 'NO_FILE' ? (params.tokens ?: 'from preset') : 'not provided'}"
-        log.info "  RT model   : ${rt_model_file.name != 'NO_FILE' ? (params.rt_model ?: 'from preset') : 'not provided'}"
-        log.info "  IM model   : ${im_model_file.name != 'NO_FILE' ? (params.im_model ?: 'from preset') : 'not provided'}"
-        log.info "  FR model   : ${fr_model_file.name != 'NO_FILE' ? (params.fr_model ?: 'from preset') : 'not provided'}"
-    }
+    logModelInfo(models, params)
     log.info ""
 
     // Optional: params.subdir can be used to organize outputs into subdirectories
@@ -221,10 +149,10 @@ workflow {
         fasta_file,
         params.library_name,
         subdir,
-        tokens_file,
-        rt_model_file,
-        im_model_file,
-        fr_model_file
+        models.tokens,
+        models.rt_model,
+        models.im_model,
+        models.fr_model
     )
 }
 

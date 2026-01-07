@@ -8,6 +8,7 @@ results/
 output/
 
 # Data files (usually too large for git)
+# BUT allow test data files!
 *.d/
 *.raw
 *.mzML
@@ -15,6 +16,14 @@ output/
 *.speclib
 *.parquet
 *.tsv
+
+# Exception: Allow test data
+!test_data/**/*.dia
+!test_data/**/*.mzML
+!test_data/**/*.fasta
+!test_data/**/*.speclib
+!test_data/**/*.parquet
+!test_data/**/*.tsv
 
 # Tuned models
 *.pt
@@ -44,3 +53,14 @@ __pycache__/
 # User-specific configs (keep examples)
 configs/*_local.yaml
 configs/*_production.yaml
+
+
+# Example data generation files (too large for git)
+generate_example_data/*.dia
+generate_example_data/*.mzML
+generate_example_data/*.raw
+generate_example_data/diann/
+# But keep the scripts
+!generate_example_data/*.sh
+!generate_example_data/*.py
+!generate_example_data/*.md

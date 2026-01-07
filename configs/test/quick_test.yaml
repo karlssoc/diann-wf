@@ -1,0 +1,51 @@
+# Quick Test Configuration
+# Minimal test with 2 samples for validating workflow functionality
+#
+# This configuration is designed for:
+# - Automated testing and CI/CD
+# - Validating refactored code
+# - Testing multi-sample workflows
+# - Quick sanity checks after changes
+#
+# Expected runtime: 5-10 minutes total (2 samples, ~14 MB each)
+
+# Test library (generate this first or use existing)
+# library: 'test_data/expected_outputs/test_library.predicted.speclib'
+
+# FASTA file (minimal proteome)
+fasta: 'test_data/fasta/UP000002311_506-entries_2026_01_07.fasta'
+
+# Test samples (2 files for multi-sample testing)
+samples:
+  - id: 'test_sample1'
+    dir: 'test_data/raw/sample1'
+    file_type: 'd'  # .dia files (DIA-NN native format)
+    recursive: false
+
+  - id: 'test_sample2'
+    dir: 'test_data/raw/sample2'
+    file_type: 'd'  # .dia files (DIA-NN native format)
+    recursive: false
+
+# Minimal resources for testing
+diann_version: '2.3.1'
+threads: 4  # Low thread count for local testing
+outdir: 'test_results'
+
+# Test-specific parameters (faster processing)
+pg_level: 1
+mass_acc_cal: 25
+smart_profiling: true
+matrices: false  # Skip matrix generation for faster tests
+
+# Time allocation for small test files
+time_base_hours: 1
+time_per_file_minutes: 5
+
+# SLURM settings (only used if -profile slurm)
+slurm_account: 'test_account'
+
+# Notes:
+# - Use with: nextflow run workflows/quantify_only.nf -params-file configs/test/quick_test.yaml -profile standard
+# - First generate library with: nextflow run workflows/create_library.nf -params-file configs/test/library_test.yaml
+# - Or use an existing library from your data

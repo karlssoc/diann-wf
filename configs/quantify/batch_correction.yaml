@@ -3,7 +3,8 @@
 # Enables individual calibration per run using a reference library
 
 # Spectral library (must exist)
-library: '/srv/data1/karlssoc/libraries/idmapping_2025_11_20.predicted.speclib'
+# EXAMPLE - UPDATE WITH YOUR PATH:
+library: 'path/to/your/library.predicted.speclib'
 
 # FASTA file (must exist)
 fasta: 'idmapping_2025_11_20.fasta'
@@ -11,7 +12,8 @@ fasta: 'idmapping_2025_11_20.fasta'
 # Reference library for batch calibration (must exist)
 # This should be a small library generated from a reference sample
 # Used to calibrate retention times and mass accuracy across batches
-ref_library: '/srv/data1/karlssoc/libraries/reference_calibration.speclib'
+# EXAMPLE - UPDATE WITH YOUR PATH:
+ref_library: 'path/to/your/reference_calibration.speclib'
 
 # Sample definitions
 # Each sample represents a different batch from the same instrument

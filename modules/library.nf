@@ -28,8 +28,8 @@ process GENERATE_LIBRARY {
     path "library_generation.log", emit: log
 
     script:
-    // Use absolute path to DIANN binary (container ENTRYPOINT interferes with PATH)
-    def diann_cmd = "/usr/bin/diann-${params.diann_version}/diann-linux"
+    // Use centralized DIA-NN binary path (container ENTRYPOINT interferes with PATH)
+    def diann_cmd = params.diann_binary
 
     // Check if using tuned models based on tokens file (must convert to string for bash)
     def use_tuned = (tokens.getName() != 'NO_FILE') ? 'true' : 'false'

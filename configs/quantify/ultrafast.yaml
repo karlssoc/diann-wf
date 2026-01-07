@@ -3,7 +3,8 @@
 # Trade-off: ~50% faster processing but may lose some low-abundance identifications
 
 # Spectral library (must exist)
-library: '/srv/data1/karlssoc/libraries/idmapping_2025_11_20.predicted.speclib'
+# EXAMPLE - UPDATE WITH YOUR PATH:
+library: 'path/to/your/library.predicted.speclib'
 
 # FASTA file (must exist)
 fasta: 'idmapping_2025_11_20.fasta'

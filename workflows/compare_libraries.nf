@@ -37,6 +37,9 @@ include { TUNE_MODELS } from '../modules/tune'
 include { QUANTIFY as QUANTIFY_DEFAULT } from '../modules/quantify'
 include { QUANTIFY as QUANTIFY_TUNED } from '../modules/quantify'
 
+// Include shared utilities
+include { parseSamples; createSamplesChannel } from '../lib/samples'
+
 // Help message
 def helpMessage() {
     log.info"""
@@ -103,24 +106,8 @@ if (!params.samples) {
 
 // Main workflow
 workflow {
-    // Parse samples
-    def samples_list
-    if (params.samples instanceof List) {
-        samples_list = params.samples
-    } else if (params.samples instanceof String && params.samples.startsWith('[')) {
-        samples_list = new groovy.json.JsonSlurper().parseText(params.samples)
-    } else if (params.samples instanceof String) {
-        def samples_file = file(params.samples)
-        if (!samples_file.exists()) {
-            log.error "ERROR: Samples file not found: ${params.samples}"
-            exit 1
-        }
-        if (samples_file.name.endsWith('.yaml') || samples_file.name.endsWith('.yml')) {
-            samples_list = new org.yaml.snakeyaml.Yaml().load(samples_file.text).samples
-        } else {
-            samples_list = new groovy.json.JsonSlurper().parseText(samples_file.text)
-        }
-    }
+    // Parse samples using shared utility
+    def samples_list = parseSamples(params.samples)
 
     // Check files
     fasta_file = file(params.fasta)
@@ -196,55 +183,7 @@ workflow {
 
     // Step 4: Quantify with default library
     log.info "Step 4: Quantifying samples with default library"
-    def samples_ch_default = Channel.fromList(samples_list)
-        .map { sample ->
-            def sample_id = sample.id
-            def sample_dir = file(sample.dir)
-            def file_type = sample.file_type ?: 'raw'
-            def recursive = sample.recursive ?: false
-            def subdir = 'quant/default'
-
-            if (!sample_dir.exists()) {
-                log.error "ERROR: Sample directory not found: ${sample.dir}"
-                exit 1
-            }
-
-            // Count MS files in directory for dynamic time allocation
-            def file_extensions = ['.mzML', '.raw', '.d', '.wiff']
-            def file_count = 0
-
-            if (recursive) {
-                // Recursive counting: traverse all subdirectories
-                sample_dir.eachFileRecurse { file ->
-                    if (file.isFile()) {
-                        def extension = file.name.substring(file.name.lastIndexOf('.'))
-                        if (file_extensions.contains(extension)) {
-                            file_count++
-                        }
-                    } else if (file.isDirectory() && file.name.endsWith('.d')) {
-                        // Count Bruker .d directories as one file
-                        file_count++
-                    }
-                }
-            } else {
-                // Non-recursive: only immediate directory
-                sample_dir.listFiles().each { file ->
-                    if (file.isFile()) {
-                        def extension = file.name.substring(file.name.lastIndexOf('.'))
-                        if (file_extensions.contains(extension)) {
-                            file_count++
-                        }
-                    } else if (file.isDirectory() && file.name.endsWith('.d')) {
-                        // Count Bruker .d directories as one file
-                        file_count++
-                    }
-                }
-            }
-
-            log.info "Sample ${sample_id} (${subdir}): Found ${file_count} MS files"
-
-            tuple(sample_id, sample_dir, file_type, subdir, recursive, file_count)
-        }
+    def samples_ch_default = createSamplesChannel(samples_list, 'quant/default')
 
     QUANTIFY_DEFAULT(
         samples_ch_default,
@@ -255,55 +194,7 @@ workflow {
 
     // Step 5: Quantify with tuned library
     log.info "Step 5: Quantifying samples with tuned library"
-    def samples_ch_tuned = Channel.fromList(samples_list)
-        .map { sample ->
-            def sample_id = sample.id
-            def sample_dir = file(sample.dir)
-            def file_type = sample.file_type ?: 'raw'
-            def recursive = sample.recursive ?: false
-            def subdir = 'quant/tuned'
-
-            if (!sample_dir.exists()) {
-                log.error "ERROR: Sample directory not found: ${sample.dir}"
-                exit 1
-            }
-
-            // Count MS files in directory for dynamic time allocation
-            def file_extensions = ['.mzML', '.raw', '.d', '.wiff']
-            def file_count = 0
-
-            if (recursive) {
-                // Recursive counting: traverse all subdirectories
-                sample_dir.eachFileRecurse { file ->
-                    if (file.isFile()) {
-                        def extension = file.name.substring(file.name.lastIndexOf('.'))
-                        if (file_extensions.contains(extension)) {
-                            file_count++
-                        }
-                    } else if (file.isDirectory() && file.name.endsWith('.d')) {
-                        // Count Bruker .d directories as one file
-                        file_count++
-                    }
-                }
-            } else {
-                // Non-recursive: only immediate directory
-                sample_dir.listFiles().each { file ->
-                    if (file.isFile()) {
-                        def extension = file.name.substring(file.name.lastIndexOf('.'))
-                        if (file_extensions.contains(extension)) {
-                            file_count++
-                        }
-                    } else if (file.isDirectory() && file.name.endsWith('.d')) {
-                        // Count Bruker .d directories as one file
-                        file_count++
-                    }
-                }
-            }
-
-            log.info "Sample ${sample_id} (${subdir}): Found ${file_count} MS files"
-
-            tuple(sample_id, sample_dir, file_type, subdir, recursive, file_count)
-        }
+    def samples_ch_tuned = createSamplesChannel(samples_list, 'quant/tuned')
 
     // Use .first() to ensure library is a value channel that broadcasts to all samples
     QUANTIFY_TUNED(

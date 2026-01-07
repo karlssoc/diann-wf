@@ -23,6 +23,9 @@ include { QUANTIFY as QUANTIFY_DEFAULT } from '../modules/quantify'
 include { QUANTIFY as QUANTIFY_TUNED } from '../modules/quantify'
 include { TUNE_MODELS } from '../modules/tune'
 
+// Include shared utilities
+include { parseSamples; createSamplesChannel } from '../lib/samples'
+
 // Default parameters for this workflow
 params.library_name_default = 'library_default'
 params.library_name_tuned = 'library_tuned'
@@ -42,11 +45,8 @@ workflow {
         error "ERROR: Missing required parameter --samples"
     }
 
-    // Parse samples
-    def samples_list = params.samples instanceof List ? params.samples : []
-    if (samples_list.isEmpty()) {
-        error "ERROR: No samples defined. Provide --samples parameter or samples in config file."
-    }
+    // Parse samples using shared utility
+    def samples_list = parseSamples(params.samples)
 
     // Determine which sample to use for tuning (default: first sample)
     def tune_sample = params.tune_sample ?: samples_list[0].id
@@ -82,46 +82,8 @@ workflow {
         file('NO_FILE')   // No FR model
     )
 
-    // Prepare samples channel for default quantification
-    def samples_ch_default = Channel.fromList(samples_list)
-        .map { sample ->
-            def sample_id = sample.id
-            def sample_dir = file(sample.dir)
-            def file_type = sample.file_type ?: 'raw'
-            def subdir = 'default/quantify'
-            def recursive = sample.recursive ?: false
-
-            if (!sample_dir.exists()) {
-                error "ERROR: Sample directory not found: ${sample.dir} for sample ${sample_id}"
-            }
-
-            // Count MS files for time estimation
-            def file_count = 0
-            if (recursive) {
-                if (file_type == 'd') {
-                    file_count = sample_dir.listFiles().findAll { it.isDirectory() && it.name.endsWith('.d') }.size()
-                } else if (file_type == 'raw') {
-                    file_count = sample_dir.listFiles().findAll { it.name.endsWith('.raw') }.size()
-                } else if (file_type == 'mzML') {
-                    file_count = sample_dir.listFiles().findAll { it.name.endsWith('.mzML') }.size()
-                }
-            } else {
-                if (file_type == 'd') {
-                    file_count = sample_dir.list().findAll { it.endsWith('.d') }.size()
-                } else if (file_type == 'raw') {
-                    file_count = sample_dir.list().findAll { it.endsWith('.raw') }.size()
-                } else if (file_type == 'mzML') {
-                    file_count = sample_dir.list().findAll { it.endsWith('.mzML') }.size()
-                }
-            }
-
-            if (file_count == 0) {
-                log.warn "WARNING: No ${file_type} files found in ${sample.dir} for sample ${sample_id}"
-                file_count = 1
-            }
-
-            tuple(sample_id, sample_dir, file_type, subdir, recursive, file_count)
-        }
+    // Prepare samples channel for default quantification using shared utility
+    def samples_ch_default = createSamplesChannel(samples_list, 'default/quantify')
 
     // Quantify with default library
     QUANTIFY_DEFAULT(
@@ -166,41 +128,8 @@ workflow {
         TUNE_MODELS.out.fr_model
     )
 
-    // Prepare samples channel for tuned quantification
-    def samples_ch_tuned = Channel.fromList(samples_list)
-        .map { sample ->
-            def sample_id = sample.id
-            def sample_dir = file(sample.dir)
-            def file_type = sample.file_type ?: 'raw'
-            def subdir = 'tuned/quantify'
-            def recursive = sample.recursive ?: false
-
-            // Count MS files (same as default)
-            def file_count = 0
-            if (recursive) {
-                if (file_type == 'd') {
-                    file_count = sample_dir.listFiles().findAll { it.isDirectory() && it.name.endsWith('.d') }.size()
-                } else if (file_type == 'raw') {
-                    file_count = sample_dir.listFiles().findAll { it.name.endsWith('.raw') }.size()
-                } else if (file_type == 'mzML') {
-                    file_count = sample_dir.listFiles().findAll { it.name.endsWith('.mzML') }.size()
-                }
-            } else {
-                if (file_type == 'd') {
-                    file_count = sample_dir.list().findAll { it.endsWith('.d') }.size()
-                } else if (file_type == 'raw') {
-                    file_count = sample_dir.list().findAll { it.endsWith('.raw') }.size()
-                } else if (file_type == 'mzML') {
-                    file_count = sample_dir.list().findAll { it.endsWith('.mzML') }.size()
-                }
-            }
-
-            if (file_count == 0) {
-                file_count = 1
-            }
-
-            tuple(sample_id, sample_dir, file_type, subdir, recursive, file_count)
-        }
+    // Prepare samples channel for tuned quantification using shared utility
+    def samples_ch_tuned = createSamplesChannel(samples_list, 'tuned/quantify')
 
     // Quantify with tuned library
     QUANTIFY_TUNED(

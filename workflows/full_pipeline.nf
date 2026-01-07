@@ -29,6 +29,9 @@ include { GENERATE_LIBRARY } from '../modules/library'
 include { TUNE_MODELS } from '../modules/tune'
 include { QUANTIFY } from '../modules/quantify'
 
+// Include shared utilities
+include { parseSamples; createSamplesChannel } from '../lib/samples'
+
 // Help message
 def helpMessage() {
     log.info"""
@@ -149,24 +152,8 @@ def stage_configs = params.stage_configs ?: default_stage_configs
 
 // Main workflow
 workflow {
-    // Parse samples (similar to quantify_only.nf)
-    def samples_list
-    if (params.samples instanceof List) {
-        samples_list = params.samples
-    } else if (params.samples instanceof String && params.samples.startsWith('[')) {
-        samples_list = new groovy.json.JsonSlurper().parseText(params.samples)
-    } else if (params.samples instanceof String) {
-        def samples_file = file(params.samples)
-        if (!samples_file.exists()) {
-            log.error "ERROR: Samples file not found: ${params.samples}"
-            exit 1
-        }
-        if (samples_file.name.endsWith('.yaml') || samples_file.name.endsWith('.yml')) {
-            samples_list = new org.yaml.snakeyaml.Yaml().load(samples_file.text).samples
-        } else {
-            samples_list = new groovy.json.JsonSlurper().parseText(samples_file.text)
-        }
-    }
+    // Parse samples using shared utility
+    def samples_list = parseSamples(params.samples)
 
     // Check FASTA file
     fasta_file = file(params.fasta)
@@ -225,51 +212,8 @@ workflow {
             fr_param
         )
 
-        // Create samples channel for this stage
-        def samples_ch = Channel.fromList(samples_list)
-            .map { sample ->
-                def sample_id = sample.id
-                def sample_dir = file(sample.dir)
-                def file_type = sample.file_type ?: 'raw'
-                def recursive = sample.recursive ?: false
-
-                // Count MS files in directory for dynamic time allocation
-                def file_extensions = ['.mzML', '.raw', '.d', '.wiff']
-                def file_count = 0
-
-                if (recursive) {
-                    // Recursive counting: traverse all subdirectories
-                    sample_dir.eachFileRecurse { file ->
-                        if (file.isFile()) {
-                            def extension = file.name.substring(file.name.lastIndexOf('.'))
-                            if (file_extensions.contains(extension)) {
-                                file_count++
-                            }
-                        } else if (file.isDirectory() && file.name.endsWith('.d')) {
-                            // Count Bruker .d directories as one file
-                            file_count++
-                        }
-                    }
-                } else {
-                    // Non-recursive: only immediate directory
-                    sample_dir.listFiles().each { file ->
-                        if (file.isFile()) {
-                            def extension = file.name.substring(file.name.lastIndexOf('.'))
-                            if (file_extensions.contains(extension)) {
-                                file_count++
-                            }
-                        } else if (file.isDirectory() && file.name.endsWith('.d')) {
-                            // Count Bruker .d directories as one file
-                            file_count++
-                        }
-                    }
-                }
-
-                // Log file count for user awareness
-                log.info "Sample ${sample_id}: Found ${file_count} MS files"
-
-                tuple(sample_id, sample_dir, file_type, quant_subdir, recursive, file_count)
-            }
+        // Create samples channel for this stage using shared utility
+        def samples_ch = createSamplesChannel(samples_list, quant_subdir)
 
         // Handle optional reference library for batch correction
         def ref_library_file = params.ref_library ? file(params.ref_library) : file('NO_FILE')

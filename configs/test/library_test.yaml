@@ -1,0 +1,35 @@
+# Test Library Generation Configuration
+# Creates a minimal spectral library for testing quantification workflows
+
+# FASTA file (minimal proteome for testing)
+fasta: 'test_data/fasta/UP000002311_506-entries_2026_01_07.fasta'
+
+# Output library name
+library_name: 'test_library'
+
+# Output directory
+outdir: 'test_data/expected_outputs'
+subdir: ''  # Put directly in outdir (no subdirectory)
+
+# Minimal resources
+diann_version: '2.3.1'
+threads: 10
+
+
+# Library generation parameters
+library:
+  min_fr_mz: 200
+  max_fr_mz: 1800
+  min_pep_len: 8
+  max_pep_len: 25
+  min_pr_mz: 350
+  max_pr_mz: 1200
+  min_pr_charge: 2
+  max_pr_charge: 3
+  cut: 'K*,R*'
+  missed_cleavages: 0
+  met_excision: true
+  unimod4: true
+
+# Expected runtime: 30-60 seconds
+# Usage: nextflow run workflows/create_library.nf -params-file configs/test/library_test.yaml -profile standard

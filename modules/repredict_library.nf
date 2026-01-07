@@ -28,8 +28,8 @@ process REPREDICT_LIBRARY {
     path "library_reprediction.log", emit: library_log
 
     script:
-    // Use absolute path to DIANN binary
-    def diann_cmd = "/usr/bin/diann-${params.diann_version}/diann-linux"
+    // Use centralized DIA-NN binary path
+    def diann_cmd = params.diann_binary
 
     // Check if using tuned models
     def use_tuned = (tokens.getName() != 'NO_FILE') ? 'true' : 'false'

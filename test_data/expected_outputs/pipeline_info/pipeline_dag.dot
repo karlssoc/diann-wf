@@ -1,0 +1,43 @@
+digraph "pipeline_dag" {
+rankdir=TB;
+v0 [shape=point,label="",fixedsize=true,width=0.1];
+v7 [label="GENERATE_LIBRARY"];
+v0 -> v7 [label="fasta"];
+
+v1 [shape=point,label="",fixedsize=true,width=0.1];
+v7 [label="GENERATE_LIBRARY"];
+v1 -> v7 [label="library_name"];
+
+v2 [shape=point,label="",fixedsize=true,width=0.1];
+v7 [label="GENERATE_LIBRARY"];
+v2 -> v7 [label="subdir"];
+
+v3 [shape=point,label="",fixedsize=true,width=0.1];
+v7 [label="GENERATE_LIBRARY"];
+v3 -> v7 [label="tokens"];
+
+v4 [shape=point,label="",fixedsize=true,width=0.1];
+v7 [label="GENERATE_LIBRARY"];
+v4 -> v7 [label="rt_model"];
+
+v5 [shape=point,label="",fixedsize=true,width=0.1];
+v7 [label="GENERATE_LIBRARY"];
+v5 -> v7 [label="im_model"];
+
+v6 [shape=point,label="",fixedsize=true,width=0.1];
+v7 [label="GENERATE_LIBRARY"];
+v6 -> v7 [label="fr_model"];
+
+v7 [label="GENERATE_LIBRARY"];
+v10 [shape=point];
+v7 -> v10;
+
+v7 [label="GENERATE_LIBRARY"];
+v9 [shape=point];
+v7 -> v9;
+
+v7 [label="GENERATE_LIBRARY"];
+v8 [shape=point];
+v7 -> v8;
+
+}

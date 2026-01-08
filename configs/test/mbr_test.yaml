@@ -1,0 +1,39 @@
+# MBR Test Configuration
+# Tests Match-Between-Runs (--reanalyse) with multiple MS files
+# Uses --dir-all (recursive) to find all .dia files in test_data/raw
+
+# Test library
+library: 'test_data/expected_outputs/library/test_library.predicted.speclib'
+
+# FASTA file
+fasta: 'test_data/fasta/UP000002311_506-entries_2026_01_07.fasta'
+
+# Single sample with recursive search (finds both sample1 and sample2 .dia files)
+# This triggers MBR because ≥2 MS files are found in one run
+samples:
+  - id: 'test_mbr'
+    dir: 'test_data/raw'
+    file_type: 'd'
+    recursive: true  # Use --dir-all to find all .dia files
+
+# Resources
+diann_version: '2.3.1'
+threads: 4
+outdir: 'test_results_mbr'
+
+# Enable all output options
+pg_level: 1
+mass_acc_cal: 25
+smart_profiling: true
+matrices: true  # Generate all matrix files
+
+# Time allocation (2 files, longer processing with MBR)
+time_base_hours: 1
+time_per_file_minutes: 10
+
+# Expected behavior with --reanalyse and ≥2 files:
+# - report-first-pass.parquet
+# - report-first-pass.manifest.txt
+# - report-first-pass.pr_matrix.tsv (if --matrices)
+# - report-first-pass.stats.tsv
+# - All standard output files

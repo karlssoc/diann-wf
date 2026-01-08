@@ -10,7 +10,7 @@
 # Expected runtime: 5-10 minutes total (2 samples, ~14 MB each)
 
 # Test library (generate this first or use existing)
-# library: 'test_data/expected_outputs/test_library.predicted.speclib'
+# library: 'test_data/expected_outputs/library/test_library.predicted.speclib'
 
 # FASTA file (minimal proteome)
 fasta: 'test_data/fasta/UP000002311_506-entries_2026_01_07.fasta'

@@ -41,7 +41,12 @@ process QUANTIFY {
     output:
     tuple val(sample_id), path("report.parquet"), emit: report
     tuple val(sample_id), path("out-lib.parquet"), emit: out_lib
+    tuple val(sample_id), path("out-lib.parquet.skyline.speclib"), emit: skyline_lib, optional: true
     tuple val(sample_id), path("*.tsv"), emit: matrices, optional: true
+    tuple val(sample_id), path("report-first-pass.parquet"), emit: first_pass_report, optional: true
+    tuple val(sample_id), path("report-first-pass.manifest.txt"), emit: first_pass_manifest, optional: true
+    tuple val(sample_id), path("report.manifest.txt"), emit: manifest, optional: true
+    path "report.log.txt", emit: report_log, optional: true
     path "diann.log", emit: log
 
     script:

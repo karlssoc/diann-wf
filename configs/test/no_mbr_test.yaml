@@ -1,0 +1,34 @@
+# Test Configuration WITHOUT MBR (--reanalyse)
+# Verifies that first-pass files are NOT generated without MBR
+
+# Test library
+library: 'test_data/expected_outputs/library/test_library.predicted.speclib'
+
+# FASTA file
+fasta: 'test_data/fasta/UP000002311_506-entries_2026_01_07.fasta'
+
+# Single test sample
+samples:
+  - id: 'test_no_mbr'
+    dir: 'test_data/raw/sample1'
+    file_type: 'd'
+    recursive: false
+
+# Resources
+diann_version: '2.3.1'
+threads: 4
+outdir: 'test_results_no_mbr'
+
+# Parameters - NO reanalyse flag
+pg_level: 1
+mass_acc_cal: 25
+smart_profiling: true
+matrices: true  # Still generate matrices
+
+# Time allocation
+time_base_hours: 1
+time_per_file_minutes: 5
+
+# Expected behavior:
+# - NO report-first-pass.* files
+# - All other core files should be present

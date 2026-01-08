@@ -2,10 +2,15 @@
 work/
 .nextflow/
 .nextflow.log*
+timeline.html
+report.html
+trace.txt
+dag.dot
 
 # Results and outputs
 results/
 output/
+test_results/
 
 # Data files (usually too large for git)
 # BUT allow test data files!

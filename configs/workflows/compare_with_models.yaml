@@ -1,0 +1,85 @@
+# Library Comparison with Pre-trained Models Configuration
+# Compare quantification results using default vs pre-trained model libraries
+# Unlike compare_libraries.yaml, this SKIPS the tuning step
+
+# ============================================================================
+# MODEL CONFIGURATION (choose one approach)
+# ============================================================================
+
+# Option 1: Use a model preset from models/ directory (recommended)
+model_preset: 'ttht-evos-30spd'
+
+# Option 2: Explicit model file paths (uncomment to use, overrides preset)
+# tokens: 'path/to/dict.txt'
+# rt_model: 'path/to/tuned_rt.pt'
+# im_model: 'path/to/tuned_im.pt'
+# fr_model: 'path/to/tuned_fr.pt'
+
+# ============================================================================
+# REQUIRED PARAMETERS
+# ============================================================================
+
+# FASTA file
+fasta: 'mydata.fasta'
+
+# Sample definitions
+samples:
+  - id: 'sample1'
+    dir: 'input/sample1'
+    file_type: 'raw'
+    recursive: false
+
+  - id: 'sample2'
+    dir: 'input/sample2'
+    file_type: 'raw'
+    recursive: false
+
+# ============================================================================
+# WORKFLOW SETTINGS
+# ============================================================================
+
+# Base name for generated libraries
+library_name: 'comparison'
+
+# DIANN version
+diann_version: '2.3.1'
+
+# Number of threads
+threads: 60
+
+# Output directory
+outdir: 'results/model_comparison'
+
+# SLURM settings
+slurm_account: 'my_username'
+
+# ============================================================================
+# LIBRARY GENERATION PARAMETERS
+# ============================================================================
+
+library:
+  min_fr_mz: 200
+  max_fr_mz: 1800
+  min_pep_len: 7
+  max_pep_len: 30
+  min_pr_mz: 350
+  max_pr_mz: 1650
+  min_pr_charge: 2
+  max_pr_charge: 3
+  cut: 'K*,R*'
+  missed_cleavages: 1
+  met_excision: true
+  unimod4: true
+
+# ============================================================================
+# QUANTIFICATION PARAMETERS
+# ============================================================================
+
+pg_level: 1
+mass_acc_cal: 25
+smart_profiling: true
+individual_mass_acc: true
+matrices: true
+
+# Optional: Reference library for batch correction
+# ref_library: 'path/to/reference/library.predicted.speclib'

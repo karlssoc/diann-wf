@@ -34,8 +34,15 @@ test_results/
 *.pt
 *.dict.txt
 
+# Exception: Allow model preset files
+!models/**/*.pt
+!models/**/*.dict.txt
+
 # Logs
 *.log
+
+# Exception: Allow model tuning logs
+!models/**/*.log
 slurm-*.out
 
 # Singularity cache

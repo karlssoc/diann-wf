@@ -1,0 +1,236 @@
+
+DIA-NN 2.3.1 Academia  (Data-Independent Acquisition by Neural Networks)
+Compiled on Dec  5 2025 05:02:42
+Current date and time: Fri Dec 19 14:37:23 2025
+Logical CPU cores: 192
+Thread number set to 10
+WARNING: protein inference is enabled but no FASTA provided - is this intended?
+
+0 files will be processed
+[0:00] Loading spectral library tune_work/out-lib.parquet
+[0:01] Spectral library loaded: 9791 protein isoforms, 9706 protein groups and 98451 precursors in 84516 elution groups.
+[0:01] Initialising library
+Dictionary saved to tune_work/out-lib.dict.txt
+[0:02] Encoding peptides for fine-tuning
+[0:02] Fine-tuning the fragmentation model
+1%: loss = 0.577302
+2%: loss = 0.557937
+3%: loss = 0.538574
+4%: loss = 0.559268
+5%: loss = 0.616419
+5%: loss = 0.548505
+7%: loss = 0.55389
+8%: loss = 0.599134
+9%: loss = 0.549133
+10%: loss = 0.54997
+10%: loss = 0.551347
+11%: loss = 0.555015
+13%: loss = 0.527968
+14%: loss = 0.491114
+14%: loss = 0.508903
+16%: loss = 0.556005
+17%: loss = 0.545626
+18%: loss = 0.618601
+18%: loss = 0.492351
+19%: loss = 0.482447
+20%: loss = 0.472602
+21%: loss = 0.518301
+23%: loss = 0.557241
+24%: loss = 0.487236
+24%: loss = 0.541734
+25%: loss = 0.50119
+26%: loss = 0.560668
+27%: loss = 0.551724
+28%: loss = 0.478575
+29%: loss = 0.552285
+30%: loss = 0.534683
+31%: loss = 0.558624
+33%: loss = 0.580215
+33%: loss = 0.518063
+34%: loss = 0.570412
+35%: loss = 0.5479
+36%: loss = 0.513628
+37%: loss = 0.502265
+38%: loss = 0.500445
+39%: loss = 0.486122
+40%: loss = 0.560054
+41%: loss = 0.548919
+42%: loss = 0.567266
+43%: loss = 0.534674
+44%: loss = 0.496182
+45%: loss = 0.533886
+46%: loss = 0.556529
+47%: loss = 0.520457
+48%: loss = 0.528038
+49%: loss = 0.463532
+50%: loss = 0.614607
+51%: loss = 0.526987
+52%: loss = 0.53651
+53%: loss = 0.491615
+54%: loss = 0.532941
+55%: loss = 0.558084
+56%: loss = 0.499824
+57%: loss = 0.544485
+58%: loss = 0.50434
+59%: loss = 0.57524
+60%: loss = 0.510401
+61%: loss = 0.542743
+62%: loss = 0.505102
+63%: loss = 0.526414
+64%: loss = 0.59644
+65%: loss = 0.518682
+66%: loss = 0.552687
+67%: loss = 0.503892
+68%: loss = 0.49438
+69%: loss = 0.52345
+70%: loss = 0.523147
+71%: loss = 0.559152
+72%: loss = 0.560513
+73%: loss = 0.601963
+74%: loss = 0.545088
+75%: loss = 0.523066
+76%: loss = 0.510428
+77%: loss = 0.465543
+78%: loss = 0.533965
+79%: loss = 0.493484
+80%: loss = 0.527266
+81%: loss = 0.448259
+82%: loss = 0.469058
+83%: loss = 0.489826
+84%: loss = 0.520068
+85%: loss = 0.569449
+86%: loss = 0.460849
+87%: loss = 0.535872
+88%: loss = 0.509209
+89%: loss = 0.515178
+90%: loss = 0.51825
+91%: loss = 0.518301
+92%: loss = 0.563037
+93%: loss = 0.535602
+94%: loss = 0.505137
+95%: loss = 0.453139
+96%: loss = 0.542709
+97%: loss = 0.517967
+98%: loss = 0.499575
+99%: loss = 0.572528
+[2:33] Trained on 31742 samples
+Tuned fragmentation model saved to tune_work/out-lib.tuned_fr.pt
+[2:33] Encoding peptides for fine-tuning
+[2:33] Fine-tuning the RT model
+1%: loss = 0.0129571
+2%: loss = 0.00990221
+3%: loss = 0.00982928
+4%: loss = 0.00826877
+5%: loss = 0.00948967
+6%: loss = 0.00960254
+6%: loss = 0.00907772
+8%: loss = 0.00860352
+9%: loss = 0.00906981
+10%: loss = 0.00861308
+11%: loss = 0.00883083
+11%: loss = 0.00861407
+13%: loss = 0.00882347
+14%: loss = 0.00866665
+15%: loss = 0.00853163
+16%: loss = 0.00838643
+17%: loss = 0.00958385
+18%: loss = 0.00848903
+18%: loss = 0.00865091
+20%: loss = 0.0084025
+21%: loss = 0.00900206
+22%: loss = 0.00863178
+23%: loss = 0.00905121
+23%: loss = 0.00820802
+25%: loss = 0.00895316
+26%: loss = 0.00866727
+27%: loss = 0.0091742
+28%: loss = 0.00871093
+29%: loss = 0.00789079
+30%: loss = 0.00952834
+31%: loss = 0.00881239
+31%: loss = 0.00828229
+33%: loss = 0.00851696
+34%: loss = 0.00834203
+35%: loss = 0.00835015
+35%: loss = 0.00833516
+36%: loss = 0.00972616
+38%: loss = 0.00874911
+38%: loss = 0.00940695
+40%: loss = 0.00848672
+41%: loss = 0.00794332
+42%: loss = 0.0088641
+42%: loss = 0.00798196
+43%: loss = 0.00834317
+44%: loss = 0.00822717
+45%: loss = 0.00860866
+47%: loss = 0.00840727
+47%: loss = 0.0086132
+48%: loss = 0.0091388
+49%: loss = 0.00771875
+51%: loss = 0.00883147
+52%: loss = 0.00784188
+53%: loss = 0.00747563
+53%: loss = 0.00893459
+54%: loss = 0.0080387
+55%: loss = 0.00768151
+57%: loss = 0.00837905
+58%: loss = 0.00753123
+58%: loss = 0.00791055
+60%: loss = 0.00833933
+60%: loss = 0.00755491
+61%: loss = 0.00752727
+62%: loss = 0.00809502
+64%: loss = 0.00777175
+64%: loss = 0.00798199
+65%: loss = 0.00818635
+66%: loss = 0.00898138
+67%: loss = 0.00855953
+68%: loss = 0.00861534
+69%: loss = 0.008436
+70%: loss = 0.0100006
+71%: loss = 0.0113311
+73%: loss = 0.00789632
+73%: loss = 0.00920152
+75%: loss = 0.00878482
+75%: loss = 0.00751571
+76%: loss = 0.00826315
+77%: loss = 0.00801266
+78%: loss = 0.00773424
+79%: loss = 0.00738044
+81%: loss = 0.00759869
+82%: loss = 0.00780859
+82%: loss = 0.00862799
+83%: loss = 0.00730885
+84%: loss = 0.00741184
+85%: loss = 0.0079005
+86%: loss = 0.0081125
+87%: loss = 0.00836873
+88%: loss = 0.00747063
+89%: loss = 0.00838919
+90%: loss = 0.0090815
+92%: loss = 0.00798531
+92%: loss = 0.00798742
+93%: loss = 0.00844609
+94%: loss = 0.0081993
+95%: loss = 0.00809064
+96%: loss = 0.00727215
+97%: loss = 0.00793715
+98%: loss = 0.00787187
+99%: loss = 0.0078641
+[5:17] Trained on 84516 samples
+Tuned RT model saved to tune_work/out-lib.tuned_rt.pt
+
+The following warnings or errors (in alphabetic order) were detected at least the indicated number of times:
+WARNING: protein inference is enabled but no FASTA provided - is this intended? : 1
+Finished
+
+
+How to cite:
+using DIA-NN: Demichev et al, Nature Methods, 2020, https://www.nature.com/articles/s41592-019-0638-x
+analysing Scanning SWATH: Messner et al, Nature Biotechnology, 2021, https://www.nature.com/articles/s41587-021-00860-4
+analysing PTMs: Steger et al, Nature Communications, 2021, https://www.nature.com/articles/s41467-021-25454-1
+analysing dia-PASEF: Demichev et al, Nature Communications, 2022, https://www.nature.com/articles/s41467-022-31492-0
+analysing Slice-PASEF: Szyrwiel et al, biorxiv, 2022, https://doi.org/10.1101/2022.10.31.514544
+plexDIA / multiplexed DIA: Derks et al, Nature Biotechnology, 2023, https://www.nature.com/articles/s41587-022-01389-w
+CysQuant: Huang et al, Redox Biology, 2023, https://doi.org/10.1016/j.redox.2023.102908
+using QuantUMS: Kistner at al, biorxiv, 2023, https://doi.org/10.1101/2023.06.20.545604

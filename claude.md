@@ -21,12 +21,14 @@ diann-wf/
 │   ├── full_pipeline.nf        # Complete analysis pipeline
 │   ├── quantify_only.nf        # Quantify with existing library
 │   ├── create_library.nf       # Generate spectral library
+│   ├── convert_library.nf      # Convert .speclib to .parquet
 │   └── tune_only.nf            # Tune prediction models
 │
 ├── modules/                # Reusable process modules
 │   ├── library.nf             # GENERATE_LIBRARY process
 │   ├── tune.nf                # TUNE_MODELS process
-│   └── quantify.nf            # QUANTIFY process
+│   ├── quantify.nf            # QUANTIFY process
+│   └── convert_library.nf    # CONVERT_LIBRARY process
 │
 ├── configs/                # Configuration files (reorganized!)
 │   ├── workflows/             # Multi-module workflows
@@ -59,6 +61,7 @@ Resources are allocated via labels in `nextflow.config`:
 - `diann_tune`: 10 CPUs, 10 GB RAM, 2h
 - `diann_library`: 30-60 CPUs (parallel mode dependent), 20-30 GB, 4h
 - `diann_quantify`: 30-60 CPUs (parallel mode dependent), dynamic RAM, dynamic time
+- `diann_convert`: 10 CPUs, 10 GB RAM, 1h
 
 ### 3. SLURM Configuration
 **Critical settings (nextflow.config):**

@@ -1038,19 +1038,10 @@ nextflow run YOUR_USERNAME/diann-wf \
 ## TODO
 
 - [ ] Test `-profile cosmos` on COSMOS cluster with real data
-- [ ] Check if all quantify output files are included
 - [ ] Integration with storage (SMB, Swestore, OpenBIS, seqera)
-- [ ] `.speclib` to `.parquet`?
-```
-    lib="library.predicted.speclib"
-    outlib="${lib%.speclib}.parquet"
-
-    diann-linux \
-        --lib "$lib" \
-        --gen-spec-lib \
-        --out-lib "$outlib" 
-```        
-- [ ] MS profiles (ttht-evosep-30SPD, hfx-vneo-24SPD) using sets of tuned parameters
+- [x] `.speclib` to `.parquet` — `workflows/convert_library.nf` (verified byte-identical quantification output)
+- [ ] Restructure MS profiles (ttht-evosep-30SPD, hfx-vneo-24SPD) using sets of tuned parameters
+-  [ ] Sematics batches `Sample` -> `Batch` 
 
 ## Support
 

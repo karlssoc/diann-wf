@@ -5,6 +5,31 @@
  */
 
 /**
+ * Find the models directory relative to projectDir
+ *
+ * Handles both cases:
+ *   - projectDir = repo root (models/ is a direct child)
+ *   - projectDir = workflows/ subdirectory (models/ is at ../models/)
+ *
+ * This is needed because projectDir resolves to the directory of the main
+ * script, which varies depending on how the workflow is launched
+ * (e.g., -main-script workflows/foo.nf sets projectDir to workflows/).
+ *
+ * @param projectDir Project directory
+ * @return          Absolute path to models/ directory
+ */
+def findModelsDir(projectDir) {
+    if (file("${projectDir}/models").exists()) {
+        return "${projectDir}/models"
+    }
+    if (file("${projectDir}/../models").exists()) {
+        return file("${projectDir}/../models").toRealPath().toString()
+    }
+    // Fallback - return default path (will fail with clear error)
+    return "${projectDir}/models"
+}
+
+/**
  * Resolve model files from preset or explicit paths
  *
  * Implements a 3-tier priority system:
@@ -26,6 +51,8 @@ def resolveModelFiles(params, projectDir) {
     def im_model_file = file('NO_FILE')
     def fr_model_file = file('NO_FILE')
 
+    def models_dir = findModelsDir(projectDir)
+
     // Tokens file - Priority 1: Explicit path
     if (params.tokens) {
         tokens_file = file(params.tokens)
@@ -35,7 +62,7 @@ def resolveModelFiles(params, projectDir) {
         }
     } else if (params.model_preset) {
         // Priority 2: Model preset
-        def tokens_path = "${projectDir}/models/${params.model_preset}/dict.txt"
+        def tokens_path = "${models_dir}/${params.model_preset}/dict.txt"
         if (file(tokens_path).exists()) {
             tokens_file = file(tokens_path)
             log.info "Using model preset: ${params.model_preset}"
@@ -52,7 +79,7 @@ def resolveModelFiles(params, projectDir) {
             System.exit(1)
         }
     } else if (params.model_preset) {
-        def rt_path = "${projectDir}/models/${params.model_preset}/tuned_rt.pt"
+        def rt_path = "${models_dir}/${params.model_preset}/tuned_rt.pt"
         if (file(rt_path).exists()) {
             rt_model_file = file(rt_path)
         }
@@ -66,7 +93,7 @@ def resolveModelFiles(params, projectDir) {
             System.exit(1)
         }
     } else if (params.model_preset) {
-        def im_path = "${projectDir}/models/${params.model_preset}/tuned_im.pt"
+        def im_path = "${models_dir}/${params.model_preset}/tuned_im.pt"
         if (file(im_path).exists()) {
             im_model_file = file(im_path)
         }
@@ -80,7 +107,7 @@ def resolveModelFiles(params, projectDir) {
             System.exit(1)
         }
     } else if (params.model_preset) {
-        def fr_path = "${projectDir}/models/${params.model_preset}/tuned_fr.pt"
+        def fr_path = "${models_dir}/${params.model_preset}/tuned_fr.pt"
         if (file(fr_path).exists()) {
             fr_model_file = file(fr_path)
         }
@@ -127,7 +154,8 @@ def logModelInfo(models, params) {
  * @return           True if preset exists and is valid
  */
 def validateModelPreset(preset_name, projectDir) {
-    def preset_dir = file("${projectDir}/models/${preset_name}")
+    def models_dir = findModelsDir(projectDir)
+    def preset_dir = file("${models_dir}/${preset_name}")
 
     if (!preset_dir.exists() || !preset_dir.isDirectory()) {
         log.error "ERROR: Model preset directory not found: ${preset_dir}"
@@ -159,7 +187,7 @@ def validateModelPreset(preset_name, projectDir) {
  * @return          List of preset names
  */
 def listAvailablePresets(projectDir) {
-    def models_dir = file("${projectDir}/models")
+    def models_dir = file(findModelsDir(projectDir))
 
     if (!models_dir.exists()) {
         return []

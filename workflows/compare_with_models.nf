@@ -50,6 +50,7 @@ include { QUANTIFY as QUANTIFY_TUNED } from '../modules/quantify'
 
 // Include shared utilities
 include { parseSamples; createSamplesChannel } from '../lib/samples'
+include { findModelsDir } from '../lib/models'
 
 // Help message
 def helpMessage() {
@@ -186,7 +187,7 @@ workflow {
 
     // If no explicit paths, try model preset
     if (model_source == "none" && params.model_preset) {
-        def preset_dir = "${projectDir}/models/${params.model_preset}"
+        def preset_dir = "${findModelsDir(projectDir)}/${params.model_preset}"
 
         // Check tokens
         def tokens_path = "${preset_dir}/dict.txt"

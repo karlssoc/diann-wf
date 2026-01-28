@@ -1,0 +1,92 @@
+# Metadata for hfx-nlc-120min-260128 pre-trained models
+# RT-only model derived from hfx-nlc-120min-260127
+
+# ============================================================================
+# INSTRUMENT CONFIGURATION
+# ============================================================================
+
+instrument: "Thermo HFX"
+# Full name of the mass spectrometer
+
+lc_system: "nanoLC"
+# Liquid chromatography system
+
+method: "120 min gradient"
+# LC method details
+
+gradient_length_min: 120.0
+# Total gradient length in minutes
+
+# ============================================================================
+# TRAINING DETAILS
+# ============================================================================
+
+diann_version_trained: "2.3.1"
+training_date: "2026-01-27"
+training_library: "LIBRARY_NAME"
+# Example: "UniProt Human 2025-11"
+
+training_samples: 0
+training_sample_ids: []
+# Example:
+# - "sample_01"
+# - "sample_02"
+
+# ============================================================================
+# LIBRARY GENERATION PARAMETERS
+# ============================================================================
+
+library_params:
+  min_fr_mz: 200
+  max_fr_mz: 1800
+  min_pep_len: 7
+  max_pep_len: 30
+  min_pr_mz: 350
+  max_pr_mz: 1650
+  min_pr_charge: 2
+  max_pr_charge: 3
+  cut: "K*,R*"
+  missed_cleavages: 1
+  met_excision: true
+  unimod4: true
+
+# ============================================================================
+# MODEL FILES
+# ============================================================================
+
+models_present:
+  tokens: true
+  rt_model: true
+  im_model: false
+  fr_model: false
+  tune_log: false
+
+# ============================================================================
+# VALIDATION & NOTES
+# ============================================================================
+
+validated: true
+# Set to true after testing on independent samples
+
+validation_notes: "RT model shows benefits on validation samples. FR model did not improve results."
+# Document validation results here
+
+notes: |
+  RT-only model derived from hfx-nlc-120min-260127-with-fr.
+
+  Validation testing showed:
+  - RT tuning: beneficial on independent samples
+  - FR tuning: no improvement on independent samples
+
+  FR model was removed based on validation results.
+  Original model with FR archived at: models/archived/hfx-nlc-120min-260127-with-fr/
+
+# ============================================================================
+# METADATA
+# ============================================================================
+
+created_by: "karlssoc"
+created_date: "2026-01-28"
+last_updated: "2026-01-28"
+version: "1.0"
+derived_from: "hfx-nlc-120min-260127-with-fr"

@@ -1,0 +1,67 @@
+0	0
+<	1
+>	2
+G	3
+A	4
+V	5
+I	6
+L	7
+P	8
+F	9
+W	10
+M	11
+X	11
+S	13
+T	14
+Y	15
+Q	16
+E	17
+Q(UniMod:7)	17
+Q(de)	17
+Q[Deamidation (NQ)]	17
+N	18
+D	19
+N(UniMod:7)	19
+N(de)	19
+N[Deamidation (NQ)]	19
+K	20
+O	20
+R	21
+H	22
+C	24
+U	24
+C(160)	25
+C(Carbamidomethyl (C))	25
+C(Carbamidomethyl)	25
+C(UniMod:4)	25
+C(unimod:4)	25
+M(147)	26
+M(Oxidation (M))	26
+M(Oxidation)	26
+M(UniMod:35)	26
+M(unimod:35)	26
+K(GlyGly (K))	27
+K(UniMod:121)	27
+K(UniMod:888)	28
+K(mTRAQ)	28
+K(mTRAQ-Lys0)	28
+<(UniMod:1)	29
+<(unimod:1)	29
+<(UniMod:888)	30
+<(mTRAQ)	30
+<(mTRAQ-Nter0)	30
+S(Phospho (STY))	31
+S(UniMod:21)	31
+S(ph)	31
+T(Phospho (STY))	32
+T(UniMod:21)	32
+T(ph)	32
+Y(Phospho (STY))	33
+Y(UniMod:21)	33
+Y(ph)	33
+<(TMT)	36
+K(TMT)	37
+<(Dimethyl)	38
+<(UniMod:255)	38
+K(Dimethyl)	39
+K(UniMod:255)	39

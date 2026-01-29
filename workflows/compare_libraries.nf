@@ -184,12 +184,14 @@ workflow {
     // Step 4: Quantify with default library
     log.info "Step 4: Quantifying samples with default library"
     def samples_ch_default = createSamplesChannel(samples_list, 'quant/default')
+    def mbr = params.mbr != null ? params.mbr : true
 
     QUANTIFY_DEFAULT(
         samples_ch_default,
         default_library,
         fasta_file,
-        ref_library_file
+        ref_library_file,
+        mbr
     )
 
     // Step 5: Quantify with tuned library
@@ -201,7 +203,8 @@ workflow {
         samples_ch_tuned,
         tuned_library.first(),
         fasta_file,
-        ref_library_file
+        ref_library_file,
+        mbr
     )
 }
 

@@ -1,0 +1,74 @@
+# Iterative Quantification Workflow Configuration
+#
+# This workflow performs:
+# 1. Identification stage: Quantify with full proteome library WITHOUT MBR
+# 2. Library subsetting based on identified Protein.Groups
+# 3. Final stage: Quantify with subset library WITH MBR
+#
+# Usage:
+#   nextflow run workflows/iterative_quant.nf \
+#     -params-file configs/workflows/iterative_quant.yaml \
+#     -profile docker
+
+# === Required Parameters ===
+
+# Full spectral library (parquet or speclib format)
+library: 'path/to/full_library.parquet'
+
+# FASTA sequence database (same as used for library generation)
+fasta: 'path/to/proteome.fasta'
+
+# Sample definitions
+samples:
+  - id: 'sample1'
+    dir: 'path/to/sample1/ms_files'
+    file_type: 'raw'      # raw, mzML, d, dia, wiff
+    recursive: false      # Search subdirectories
+
+# === MBR Settings ===
+
+# Identification stage MBR (default: false - identification only)
+mbr: false
+
+# Final stage MBR (default: true - sensitive quantification)
+mbr_final: true
+
+# === Quantification Parameters ===
+
+# Protein group level (1=proteins, 0=genes)
+pg_level: 1
+
+# Mass accuracy calibration threshold
+mass_acc_cal: 25
+
+# Smart profiling for improved quantification
+smart_profiling: true
+
+# Generate quantification matrices
+matrices: true
+
+# === Optional Batch Correction ===
+# Uncomment for multi-batch experiments
+
+# individual_mass_acc: true
+# individual_windows: true
+# ref_library: 'path/to/reference_library.parquet'
+
+# === Resource Settings ===
+
+# Output directory
+outdir: 'results'
+
+# Number of threads per job
+threads: 60
+
+# Parallel execution mode
+# true: 2 jobs × 30 cores (better throughput)
+# false: 1 job × 60 cores (faster per sample)
+parallel_mode: true
+
+# === SLURM Settings (if using slurm profile) ===
+
+# slurm_account: 'myaccount'
+# slurm_queue: 'work'
+# slurm_nodelist: 'node01'

@@ -150,12 +150,14 @@ workflow {
     }
     log.info ""
 
-    // Run quantification
+    // Run quantification with MBR (match-between-runs) enabled by default
+    def mbr = params.mbr != null ? params.mbr : true
     QUANTIFY(
         samples_ch,
         library_file,
         fasta_file,
-        ref_library_file
+        ref_library_file,
+        mbr
     )
 }
 

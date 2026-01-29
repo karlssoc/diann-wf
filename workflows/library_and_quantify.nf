@@ -83,12 +83,14 @@ workflow {
     def subdir = params.quantify_subdir ?: ''
     def samples_ch = createSamplesChannel(samples_list, subdir)
 
-    // Quantify all samples with the generated library
+    // Quantify all samples with the generated library (MBR enabled by default)
+    def mbr = params.mbr != null ? params.mbr : true
     QUANTIFY(
         samples_ch,
         GENERATE_LIBRARY.out.library.first(),  // Broadcast library to all samples
         fasta_file,
-        ref_library_file
+        ref_library_file,
+        mbr
     )
 
     // Emit outputs for potential use in combined workflows

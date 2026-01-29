@@ -218,12 +218,14 @@ workflow {
         // Handle optional reference library for batch correction
         def ref_library_file = params.ref_library ? file(params.ref_library) : file('NO_FILE')
 
-        // Quantify samples
+        // Quantify samples (MBR enabled by default)
+        def mbr = params.mbr != null ? params.mbr : true
         QUANTIFY(
             samples_ch,
             GENERATE_LIBRARY.out.library,
             fasta_file,
-            ref_library_file
+            ref_library_file,
+            mbr
         )
 
         // Store out-lib results for tuning

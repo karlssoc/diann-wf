@@ -37,10 +37,11 @@ process QUANTIFY {
     path library
     path fasta
     path ref_library
+    val mbr  // Match-between-runs: true enables --reanalyse, false disables it
 
     output:
     tuple val(sample_id), path("report.parquet"), emit: report
-    tuple val(sample_id), path("out-lib.parquet"), emit: out_lib
+    tuple val(sample_id), path("out-lib.parquet"), emit: out_lib, optional: true
     tuple val(sample_id), path("out-lib.parquet.skyline.speclib"), emit: skyline_lib, optional: true
     tuple val(sample_id), path("*.tsv"), emit: matrices, optional: true
     tuple val(sample_id), path("report-first-pass.parquet"), emit: first_pass_report, optional: true
@@ -107,7 +108,7 @@ process QUANTIFY {
         --temp temp_diann \\
         --out report.parquet \\
         --out-lib out-lib.parquet \\
-        --reanalyse \\
+        ${mbr ? '--reanalyse' : ''} \\
         ${pg_level} \\
         ${mass_acc_params} \\
         ${mass_acc_cal} \\

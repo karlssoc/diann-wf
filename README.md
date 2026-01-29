@@ -1041,7 +1041,8 @@ nextflow run YOUR_USERNAME/diann-wf \
 - [ ] Integration with storage (SMB, Swestore, OpenBIS, seqera)
 - [x] `.speclib` to `.parquet` — `workflows/convert_library.nf` (verified byte-identical quantification output)
 - [ ] Restructure MS profiles (ttht-evosep-30SPD, hfx-vneo-24SPD) using sets of tuned parameters
--  [ ] Sematics batches `Sample` -> `Batch` 
+- [ ] Sematics batches `Sample` -> `Batch` 
+- [ ] Tuning diann fr for HFX has no added benefit for external validation, results worse than original 
 
 ## Support
 

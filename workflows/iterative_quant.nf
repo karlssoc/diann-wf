@@ -4,9 +4,10 @@
  * Iterative Quantification Workflow
  *
  * This workflow implements an iterative quantification strategy:
- * 1. Identification stage: Quantify with full proteome library WITHOUT MBR to identify proteins
- * 2. Library subsetting: Reduce the library to only include identified Protein.Groups
- * 3. Final quantification: Quantify with subset library WITH MBR for improved sensitivity
+ * 1. Library generation (optional): Generate library from FASTA if not provided
+ * 2. Identification stage: Quantify with full proteome library WITHOUT MBR to identify proteins
+ * 3. Library subsetting: Reduce the library to only include identified Protein.Groups
+ * 4. Final quantification: Quantify with subset library WITH MBR for improved sensitivity
  *
  * This approach:
  * - Reduces false positives by limiting MBR to identified proteins
@@ -14,11 +15,14 @@
  * - Significantly reduces computational time for final stage
  *
  * Required parameters:
- *   --library         Path to full spectral library (.parquet or .speclib)
  *   --fasta           Path to FASTA file
  *   --samples         Sample definitions (id, dir, file_type, recursive)
  *
  * Optional parameters:
+ *   --library         Path to existing spectral library (.parquet or .speclib)
+ *                     If not provided, library is generated from FASTA
+ *   --library_name    Name for generated library (default: 'predicted_library')
+ *   --model_preset    Pre-trained models for library generation (e.g., 'ttht-evos-30spd')
  *   --mbr             Enable MBR in identification stage (default: false)
  *   --mbr_final       Enable MBR in final stage (default: true)
  */
@@ -30,9 +34,11 @@ include { QUANTIFY as QUANTIFY_IDENTIFY } from '../modules/quantify'
 include { QUANTIFY as QUANTIFY_FINAL } from '../modules/quantify'
 include { SUBSET_LIBRARY } from '../modules/subset_library'
 include { CONVERT_LIBRARY } from '../modules/convert_library'
+include { GENERATE_LIBRARY } from '../modules/library'
 
 // Include shared utilities
 include { createSamplesChannel } from '../lib/samples'
+include { resolveModelFiles; logModelInfo } from '../lib/models'
 
 // Help message
 def helpMessage() {
@@ -40,23 +46,36 @@ def helpMessage() {
     Iterative Quantification Workflow
 
     This workflow performs iterative quantification:
-    1. Identification stage: WITHOUT MBR to identify proteins
-    2. Library subsetting: based on identified Protein.Groups
-    3. Final stage: WITH MBR on subset library for improved quantification
+    1. Library generation (if not provided): Generate from FASTA
+    2. Identification stage: WITHOUT MBR to identify proteins
+    3. Library subsetting: based on identified Protein.Groups
+    4. Final stage: WITH MBR on subset library for improved quantification
 
     Usage:
       nextflow run workflows/iterative_quant.nf -params-file <config.yaml> -profile <profile>
 
     Required Parameters:
-      --library PATH        Full spectral library (.parquet or .speclib)
       --fasta PATH          FASTA sequence database
       --samples LIST        Sample definitions [{id, dir, file_type, recursive}]
 
     Optional Parameters:
+      --library PATH        Existing spectral library (.parquet or .speclib)
+                            If not provided, library is generated from FASTA
+      --library_name NAME   Name for generated library (default: 'predicted_library')
+      --model_preset NAME   Pre-trained models for library generation
+                            Example: 'ttht-evos-30spd'
       --mbr BOOL            Enable MBR in identification stage (default: false)
       --mbr_final BOOL      Enable MBR in final stage (default: true)
       --outdir PATH         Output directory (default: results)
       --threads N           Number of threads (default: ${params.threads})
+
+    Library Generation Parameters (when --library not provided):
+      --library.min_fr_mz 200      Min fragment m/z
+      --library.max_fr_mz 1800     Max fragment m/z
+      --library.min_pep_len 7      Min peptide length
+      --library.max_pep_len 30     Max peptide length
+      --library.min_pr_mz 350      Min precursor m/z
+      --library.max_pr_mz 1650     Max precursor m/z
 
     Profiles:
       standard              Run locally with Singularity
@@ -66,6 +85,8 @@ def helpMessage() {
 
     Output Structure:
       results/
+      ├── library/                 # Generated library (if no --library provided)
+      │   └── predicted_library.predicted.speclib
       ├── identification/          # Identification stage results
       │   └── <sample_id>/
       │       ├── report.parquet   # Quantification report
@@ -86,11 +107,6 @@ if (params.help) {
 }
 
 // Validate required parameters
-if (!params.library) {
-    log.error "ERROR: --library parameter is required"
-    helpMessage()
-    exit 1
-}
 if (!params.fasta) {
     log.error "ERROR: --fasta parameter is required"
     helpMessage()
@@ -105,13 +121,8 @@ if (!params.samples) {
 // Main workflow
 workflow {
     // Validate input files
-    def library_file = file(params.library)
     def fasta_file = file(params.fasta)
 
-    if (!library_file.exists()) {
-        log.error "ERROR: Library file not found: ${params.library}"
-        exit 1
-    }
     if (!fasta_file.exists()) {
         log.error "ERROR: FASTA file not found: ${params.fasta}"
         exit 1
@@ -127,30 +138,78 @@ workflow {
     // Reference library (optional, for batch correction)
     def ref_library_file = params.ref_library ? file(params.ref_library) : file('NO_FILE')
 
+    // Library name for generation (if needed)
+    def library_name = params.library_name ?: 'predicted_library'
+
+    // Determine library source
+    def generate_library = !params.library
+    def library_source = generate_library ? "generated from FASTA" : params.library
+
+    // Resolve model files for library generation
+    def models = null
+    if (generate_library) {
+        models = resolveModelFiles(params, projectDir)
+    }
+
     // Log workflow parameters
     log.info ""
     log.info "Iterative Quantification Workflow"
     log.info "================================="
-    log.info "Library      : ${params.library}"
     log.info "FASTA        : ${params.fasta}"
+    log.info "Library      : ${library_source}"
     log.info "Samples      : ${samples_list.size()}"
     log.info "MBR (identify): ${mbr_identify}"
     log.info "MBR (final)  : ${mbr_final}"
     log.info "Output dir   : ${params.outdir}"
+    if (generate_library && models) {
+        logModelInfo(models, params)
+    }
     log.info ""
+
+    // ========================================
+    // LIBRARY GENERATION (if no library provided)
+    // ========================================
+    def library_for_quantify = null
+
+    if (generate_library) {
+        log.info "Generating library from FASTA..."
+
+        GENERATE_LIBRARY(
+            fasta_file,
+            library_name,
+            'library',
+            models.tokens,
+            models.rt_model,
+            models.im_model,
+            models.fr_model
+        )
+
+        // Convert generated .speclib to .parquet for subsetting
+        CONVERT_LIBRARY(GENERATE_LIBRARY.out.library, 'library')
+        library_for_quantify = CONVERT_LIBRARY.out.parquet_library
+    } else {
+        // Use provided library
+        def library_file = file(params.library)
+
+        if (!library_file.exists()) {
+            log.error "ERROR: Library file not found: ${params.library}"
+            exit 1
+        }
+
+        // Check if library needs conversion to parquet
+        if (library_file.name.endsWith('.speclib')) {
+            log.info "Converting .speclib to .parquet for subsetting compatibility"
+            CONVERT_LIBRARY(library_file, 'converted_library')
+            library_for_quantify = CONVERT_LIBRARY.out.parquet_library
+        } else {
+            library_for_quantify = Channel.value(library_file)
+        }
+    }
 
     // ========================================
     // IDENTIFICATION STAGE: Quantify without MBR
     // ========================================
     log.info "Identification: Quantifying with full library (MBR=${mbr_identify})"
-
-    // Check if library needs conversion to parquet
-    def library_for_quantify = library_file
-    if (library_file.name.endsWith('.speclib')) {
-        log.info "Converting .speclib to .parquet for subsetting compatibility"
-        CONVERT_LIBRARY(library_file, 'converted_library')
-        library_for_quantify = CONVERT_LIBRARY.out.parquet_library
-    }
 
     // Create samples channel for identification stage
     def samples_ch_identify = createSamplesChannel(samples_list, 'identification')
@@ -211,6 +270,9 @@ workflow.onComplete {
     log.info "Duration: ${workflow.duration}"
     log.info ""
     log.info "Results:"
+    if (!params.library) {
+        log.info "  Generated library:    ${params.outdir}/library/"
+    }
     log.info "  Identification stage: ${params.outdir}/identification/"
     log.info "  Subset library:       ${params.outdir}/subset_library/"
     log.info "  Final quantification: ${params.outdir}/final/"

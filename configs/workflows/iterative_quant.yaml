@@ -1,9 +1,10 @@
 # Iterative Quantification Workflow Configuration
 #
 # This workflow performs:
-# 1. Identification stage: Quantify with full proteome library WITHOUT MBR
-# 2. Library subsetting based on identified Protein.Groups
-# 3. Final stage: Quantify with subset library WITH MBR
+# 1. Library generation (if not provided): Generate from FASTA
+# 2. Identification stage: Quantify with full proteome library WITHOUT MBR
+# 3. Library subsetting based on identified Protein.Groups
+# 4. Final stage: Quantify with subset library WITH MBR
 #
 # Usage:
 #   nextflow run workflows/iterative_quant.nf \
@@ -12,10 +13,7 @@
 
 # === Required Parameters ===
 
-# Full spectral library (parquet or speclib format)
-library: 'path/to/full_library.parquet'
-
-# FASTA sequence database (same as used for library generation)
+# FASTA sequence database
 fasta: 'path/to/proteome.fasta'
 
 # Sample definitions
@@ -24,6 +22,35 @@ samples:
     dir: 'path/to/sample1/ms_files'
     file_type: 'raw'      # raw, mzML, d, dia, wiff
     recursive: false      # Search subdirectories
+
+# === Optional: Pre-existing Library ===
+# If provided, skip library generation and use this library directly
+# Supports .parquet or .speclib formats
+# library: 'path/to/full_library.parquet'
+
+# === Library Generation Settings (when no library provided) ===
+
+# Name for generated library (default: 'predicted_library')
+library_name: 'predicted_library'
+
+# Pre-trained model preset (optional, improves prediction accuracy)
+# Available presets in models/ directory (e.g., 'ttht-evos-30spd')
+# model_preset: 'ttht-evos-30spd'
+
+# Library generation parameters (defaults shown)
+library:
+  min_fr_mz: 200
+  max_fr_mz: 1800
+  min_pep_len: 7
+  max_pep_len: 30
+  min_pr_mz: 350
+  max_pr_mz: 1650
+  min_pr_charge: 2
+  max_pr_charge: 3
+  cut: 'K*,R*'
+  missed_cleavages: 1
+  met_excision: true
+  unimod4: true
 
 # === MBR Settings ===
 
@@ -63,8 +90,8 @@ outdir: 'results'
 threads: 60
 
 # Parallel execution mode
-# true: 2 jobs × 30 cores (better throughput)
-# false: 1 job × 60 cores (faster per sample)
+# true: 2 jobs x 30 cores (better throughput)
+# false: 1 job x 60 cores (faster per sample)
 parallel_mode: true
 
 # === SLURM Settings (if using slurm profile) ===

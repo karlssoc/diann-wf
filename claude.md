@@ -149,6 +149,14 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 
 ## Testing Strategy
 
+### Critical Testing Principles
+
+1. **Successful execution ≠ correct output**: A workflow completing with exit code 0 does not mean results are valid. Always verify output content matches the intended behavior (e.g., expected ID rates, file sizes, column counts).
+
+2. **Always analyze log files**: Tool-specific logs (e.g., `diann.log`, `report.log.txt`) contain warnings and metrics that are essential for validation. New warnings must be understood before concluding a test passed.
+
+3. **Compare metrics, not just existence**: Check that quantitative outputs (protein counts, precursor IDs, reduction percentages) match expectations, not just that files were created.
+
 **Local testing (standard profile):**
 ```bash
 nextflow run workflows/quantify_only.nf \

@@ -26,7 +26,7 @@ samples:
 # === Optional: Pre-existing Library ===
 # If provided, skip library generation and use this library directly
 # Supports .parquet or .speclib formats
-# library: 'path/to/full_library.parquet'
+# existing_library: 'path/to/full_library.parquet'
 
 # === Library Generation Settings (when no library provided) ===
 

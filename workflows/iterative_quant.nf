@@ -19,9 +19,9 @@
  *   --samples         Sample definitions (id, dir, file_type, recursive)
  *
  * Optional parameters:
- *   --library         Path to existing spectral library (.parquet or .speclib)
- *                     If not provided, library is generated from FASTA
- *   --library_name    Name for generated library (default: 'predicted_library')
+ *   --existing_library  Path to existing spectral library (.parquet or .speclib)
+ *                       If not provided, library is generated from FASTA
+ *   --library_name      Name for generated library (default: 'predicted_library')
  *   --model_preset    Pre-trained models for library generation (e.g., 'ttht-evos-30spd')
  *   --mbr             Enable MBR in identification stage (default: false)
  *   --mbr_final       Enable MBR in final stage (default: true)
@@ -59,9 +59,9 @@ def helpMessage() {
       --samples LIST        Sample definitions [{id, dir, file_type, recursive}]
 
     Optional Parameters:
-      --library PATH        Existing spectral library (.parquet or .speclib)
-                            If not provided, library is generated from FASTA
-      --library_name NAME   Name for generated library (default: 'predicted_library')
+      --existing_library PATH  Existing spectral library (.parquet or .speclib)
+                               If not provided, library is generated from FASTA
+      --library_name NAME      Name for generated library (default: 'predicted_library')
       --model_preset NAME   Pre-trained models for library generation
                             Example: 'ttht-evos-30spd'
       --mbr BOOL            Enable MBR in identification stage (default: false)
@@ -142,8 +142,9 @@ workflow {
     def library_name = params.library_name ?: 'predicted_library'
 
     // Determine library source
-    def generate_library = !params.library
-    def library_source = generate_library ? "generated from FASTA" : params.library
+    // Note: params.library is a map for generation settings, params.existing_library is a path
+    def generate_library = !params.existing_library
+    def library_source = generate_library ? "generated from FASTA" : params.existing_library
 
     // Resolve model files for library generation
     def models = null
@@ -189,10 +190,10 @@ workflow {
         library_for_quantify = CONVERT_LIBRARY.out.parquet_library
     } else {
         // Use provided library
-        def library_file = file(params.library)
+        def library_file = file(params.existing_library)
 
         if (!library_file.exists()) {
-            log.error "ERROR: Library file not found: ${params.library}"
+            log.error "ERROR: Library file not found: ${params.existing_library}"
             exit 1
         }
 
@@ -270,7 +271,7 @@ workflow.onComplete {
     log.info "Duration: ${workflow.duration}"
     log.info ""
     log.info "Results:"
-    if (!params.library) {
+    if (!params.existing_library) {
         log.info "  Generated library:    ${params.outdir}/library/"
     }
     log.info "  Identification stage: ${params.outdir}/identification/"

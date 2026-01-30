@@ -186,7 +186,17 @@ workflow {
         )
 
         // Convert generated .speclib to .parquet for subsetting
-        CONVERT_LIBRARY(GENERATE_LIBRARY.out.library, 'library')
+        // Pass FASTA for proper proteotypic annotation
+        def cut = params.library?.cut ?: 'K*,R*'
+        def missed_cleavages = params.library?.missed_cleavages ?: 1
+
+        CONVERT_LIBRARY(
+            GENERATE_LIBRARY.out.library,
+            'library',
+            fasta_file,
+            cut,
+            missed_cleavages
+        )
         library_for_quantify = CONVERT_LIBRARY.out.parquet_library
     } else {
         // Use provided library
@@ -200,7 +210,17 @@ workflow {
         // Check if library needs conversion to parquet
         if (library_file.name.endsWith('.speclib')) {
             log.info "Converting .speclib to .parquet for subsetting compatibility"
-            CONVERT_LIBRARY(library_file, 'converted_library')
+            // Pass FASTA for proper proteotypic annotation
+            def cut = params.library?.cut ?: 'K*,R*'
+            def missed_cleavages = params.library?.missed_cleavages ?: 1
+
+            CONVERT_LIBRARY(
+                library_file,
+                'converted_library',
+                fasta_file,
+                cut,
+                missed_cleavages
+            )
             library_for_quantify = CONVERT_LIBRARY.out.parquet_library
         } else {
             library_for_quantify = Channel.value(library_file)

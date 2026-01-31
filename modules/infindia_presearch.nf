@@ -1,14 +1,13 @@
-// DIA-NN InfinDIA Pre-search Module
-// Generates an empirical calibration library using InfinDIA fast pre-search
+// DIA-NN Calibration Library Generation Module
+// Generates an empirical calibration library via library-free search
 //
-// This module performs a quick pre-search of MS data to generate an empirical
-// spectral library that can be used as a calibration reference (--ref) in
-// subsequent quantification runs. This significantly speeds up calibration.
+// This module performs a library-free DIA analysis on a subset of MS files
+// to generate an empirical spectral library. This library can be used as a
+// calibration reference (--ref) in subsequent quantification runs to
+// significantly speed up calibration.
 //
-// Key flags:
-//   --pre-search    Enable InfinDIA pre-search mode
-//   --pre-filter    Pre-filter candidate precursors
-//   --pre-select N  Limit to N precursors (optional, for faster runs)
+// Note: Originally used InfinDIA --pre-search, but that mode doesn't output
+// a library file. Standard library-free search is used instead.
 
 process INFINDIA_PRESEARCH {
     label 'diann_library'
@@ -93,6 +92,8 @@ process INFINDIA_PRESEARCH {
         --gen-spec-lib \\
         --pre-search \\
         --pre-filter \\
+        --reanalyse \\
+        --rt-profiling \\
         ${pre_select_param} \\
         ${mass_acc_params} \\
         --met-excision \\

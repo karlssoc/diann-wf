@@ -7,13 +7,13 @@
  * Use the -entry flag to select which workflow to run.
  *
  * Available workflows:
- *   - create_library: Create a spectral library from FASTA
- *   - quantify:       Quantify samples using an existing library
- *   - full_pipeline:  Run the complete DIANN pipeline
+ *   - ITERATIVE_QUANT: Iterative quantification (library gen -> identify -> subset -> final)
+ *   - create_library:  Create a spectral library from FASTA
+ *   - quantify_only:   Quantify samples using an existing library
  *
  * Examples:
+ *   nextflow run karlssoc/diann-wf -entry ITERATIVE_QUANT -params-file config.yaml -profile slurm
  *   nextflow run karlssoc/diann-wf -entry create_library -params-file configs/library.yaml -profile slurm
- *   nextflow run karlssoc/diann-wf -entry quantify -params-file configs/quant.yaml -profile slurm
  */
 
 nextflow.enable.dsl = 2
@@ -21,6 +21,9 @@ nextflow.enable.dsl = 2
 // Import modules
 include { GENERATE_LIBRARY } from './modules/library'
 include { QUANTIFY } from './modules/quantify'
+
+// Import workflows
+include { ITERATIVE_QUANT } from './workflows/iterative_quant'
 
 // Check for non-native execution (ARM Mac with Docker/Podman)
 def checkPlatformWarning() {
@@ -242,13 +245,12 @@ workflow {
     ERROR: No workflow specified.
 
     Please use the -entry flag to select a workflow:
+      -entry ITERATIVE_QUANT : Iterative quantification (recommended)
       -entry create_library  : Create spectral library from FASTA
       -entry quantify_only   : Quantify samples using existing library
-      -entry full_pipeline   : Run complete pipeline (TBD)
 
     Example:
-      nextflow run karlssoc/diann-wf -entry create_library -params-file configs/library.yaml -profile slurm
-      nextflow run karlssoc/diann-wf -entry quantify_only -params-file configs/quant.yaml -profile slurm
+      nextflow run karlssoc/diann-wf -entry ITERATIVE_QUANT -params-file config.yaml -profile slurm
     """
     exit 1
 }

@@ -94,15 +94,18 @@ process CONVERT_TO_DIA_BATCH {
             --threads ${task.cpus} \\
             --verbose 1
 
-        # Get base name without extension
-        base_name=\$(echo "\$filename" | sed -E 's/\\.(raw|d|mzML|wiff)\$//')
+        # Get base name without extension (case-insensitive)
+        base_name=\$(echo "\$filename" | sed -E 's/\\.[rR][aA][wW]\$|\\.[dD]\$|\\.[mM][zZ][mM][lL]\$|\\.[wW][iI][fF][fF]\$//')
 
-        # Move output to sample directory with clean name
+        # DIA-NN creates filename.raw.dia - move to sample directory
+        # Check for both the file and any .dia file that matches
         if [ -f "\${filename}.dia" ]; then
             mv "\${filename}.dia" "\${sample_id}/\${base_name}.dia"
+            echo "  -> \${sample_id}/\${base_name}.dia"
+        else
+            echo "  WARNING: No .dia file created for \$filename"
+            ls -la *.dia 2>/dev/null || echo "  No .dia files in current directory"
         fi
-
-        echo "  -> \${sample_id}/\${base_name}.dia"
         echo ""
     done < ${manifest}
 

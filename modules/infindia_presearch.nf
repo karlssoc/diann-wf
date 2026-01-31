@@ -6,6 +6,9 @@
 // calibration reference (--ref) in subsequent quantification runs to
 // significantly speed up calibration.
 //
+// Uses --direct-quant to disable QuantUMS for faster execution during
+// presearch (calibration library doesn't require QuantUMS precision).
+//
 // Note: Originally used InfinDIA --pre-search, but that mode doesn't output
 // a library file. Standard library-free search is used instead.
 
@@ -109,6 +112,7 @@ process INFINDIA_PRESEARCH {
         --missed-cleavages ${missed_cleavages} \\
         --unimod4 \\
         --pg-level 1 \\
+        --direct-quant \\
         2>&1 | tee calibration_presearch.log
 
     echo ""

@@ -34,14 +34,41 @@ The cache key (hash) must uniquely identify a library based on all inputs that a
 |-----------|--------|-------|
 | FASTA checksum | `fasta.md5()` | Content-based, not path |
 | DIA-NN version | `params.diann_version` | e.g., "2.3.1" |
-| Peptide length | `params.min_pep_len`, `params.max_pep_len` | |
-| Precursor m/z | `params.min_pr_mz`, `params.max_pr_mz` | |
-| Precursor charge | `params.min_pr_charge`, `params.max_pr_charge` | |
-| Fragment m/z | `params.min_fr_mz`, `params.max_fr_mz` | |
-| Enzyme | `params.cut` | e.g., "K*,R*" |
-| Missed cleavages | `params.missed_cleavages` | |
-| Met excision | `params.met_excision` | |
-| Unimod4 | `params.unimod4` | |
+| Peptide length | `params.library.min_pep_len`, `max_pep_len` | |
+| Precursor m/z | `params.library.min_pr_mz`, `max_pr_mz` | |
+| Precursor charge | `params.library.min_pr_charge`, `max_pr_charge` | |
+| Fragment m/z | `params.library.min_fr_mz`, `max_fr_mz` | |
+| Enzyme | `params.library.cut` | e.g., "K*,R*" |
+| Missed cleavages | `params.library.missed_cleavages` | |
+| Met excision | `params.library.met_excision` | |
+| Unimod4 | `params.library.unimod4` | |
+| **Model preset** | `params.model_preset` | Pre-trained RT/IM/FR models |
+
+### Pre-trained Models
+
+Pre-trained models (RT, IM, FR) affect library predictions and must be included in the cache key.
+
+**Options:**
+
+| Approach | Pros | Cons |
+|----------|------|------|
+| Preset name | Fast, simple | Won't detect if preset files change |
+| File MD5 | Detects any model change | Slower (~9MB to hash), more complex |
+
+**Recommendation:** Use preset name. If you update a preset's models, rename the preset (e.g., `ttht-evos-30spd-v2`). This is consistent with how presets are versioned in `models/`.
+
+```groovy
+// Model identification for cache key
+def model_id = params.model_preset ?: 'default'
+
+// Alternative: explicit file checksums (slower, more precise)
+// def model_id = [
+//     tokens_file.name != 'NO_FILE' ? tokens_file.md5() : 'default',
+//     rt_model_file.name != 'NO_FILE' ? rt_model_file.md5() : 'default',
+//     im_model_file.name != 'NO_FILE' ? im_model_file.md5() : 'default',
+//     fr_model_file.name != 'NO_FILE' ? fr_model_file.md5() : 'default',
+// ].join(':')
+```
 
 ### Hash Generation
 
@@ -49,18 +76,19 @@ The cache key (hash) must uniquely identify a library based on all inputs that a
 def cache_key = [
     fasta.md5(),
     params.diann_version,
-    params.min_pep_len,
-    params.max_pep_len,
-    params.min_pr_mz,
-    params.max_pr_mz,
-    params.min_pr_charge,
-    params.max_pr_charge,
-    params.min_fr_mz,
-    params.max_fr_mz,
-    params.cut,
-    params.missed_cleavages,
-    params.met_excision,
-    params.unimod4
+    params.model_preset ?: 'default',  // Pre-trained models
+    params.library?.min_pep_len ?: 7,
+    params.library?.max_pep_len ?: 30,
+    params.library?.min_pr_mz ?: 350,
+    params.library?.max_pr_mz ?: 1650,
+    params.library?.min_pr_charge ?: 2,
+    params.library?.max_pr_charge ?: 3,
+    params.library?.min_fr_mz ?: 200,
+    params.library?.max_fr_mz ?: 1800,
+    params.library?.cut ?: 'K*,R*',
+    params.library?.missed_cleavages ?: 1,
+    params.library?.met_excision ?: true,
+    params.library?.unimod4 ?: true
 ].join('|').md5()[0..7]  // Short hash (8 chars)
 ```
 
@@ -178,6 +206,8 @@ du -sh ~/.diann_cache/libraries/
 1. **FASTA file changes but path stays same**: Handled by content-based MD5
 2. **DIA-NN update with same version string**: Won't detect - consider including binary checksum
 3. **Partial/corrupted cache entries**: storeDir expects all outputs; Nextflow should detect missing files
+4. **Model preset files change but name stays same**: Won't detect - rename preset when updating models (e.g., `preset-v2`)
+5. **Explicit model paths vs preset**: If using explicit `--rt_model` etc. instead of `--model_preset`, need to hash file contents or use consistent naming
 
 ## InfinDIA Calibration Libraries (Implemented)
 
@@ -265,4 +295,4 @@ libraries/
 
 *Status: Design draft (InfinDIA calibration implemented)*
 *Created: 2025-01-30*
-*Updated: 2025-01-31*
+*Updated: 2025-01-31 - Added model preset to cache key design*

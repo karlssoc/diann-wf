@@ -12,17 +12,17 @@
 process CONVERT_TO_DIA {
     label 'diann_convert'
 
-    publishDir "${params.outdir}/dia_converted",
+    publishDir "${params.outdir}/dia_converted/${sample_id}",
         mode: 'copy',
         overwrite: true
 
-    tag "${ms_file.name}"
+    tag "${sample_id}/${ms_file.name}"
 
     input:
-    path ms_file    // Single MS file (RAW, .d folder, mzML, etc.)
+    tuple val(sample_id), path(ms_file)    // Sample ID and MS file
 
     output:
-    path "*.dia", emit: dia_file
+    tuple val(sample_id), path("*.dia"), emit: dia_file
 
     script:
     def diann_cmd = params.diann_binary

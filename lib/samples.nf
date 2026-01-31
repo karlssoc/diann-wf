@@ -111,7 +111,7 @@ def validateSample(sample) {
         return false
     }
 
-    def valid_file_types = ['d', 'raw', 'mzML', 'wiff']
+    def valid_file_types = ['d', 'raw', 'mzML', 'wiff', 'dia']
     def file_type = sample.file_type ?: 'raw'
     if (!valid_file_types.contains(file_type)) {
         log.warn "WARNING: Sample '${sample.id}' has unusual file_type: ${file_type}"

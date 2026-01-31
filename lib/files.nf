@@ -63,5 +63,5 @@ def countMSFiles(sample_dir, recursive = false) {
  * @return List of file extensions (with dots)
  */
 def getSupportedExtensions() {
-    return ['.mzML', '.raw', '.d', '.wiff']
+    return ['.mzML', '.raw', '.d', '.wiff', '.dia']
 }

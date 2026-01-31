@@ -221,8 +221,8 @@ workflow ITERATIVE_QUANT {
     // Converts RAW/.d files to .dia format once, for faster subsequent stages
     // ========================================
     def convert_to_dia = params.convert_to_dia != null ? params.convert_to_dia : false
-    def effective_samples_list = samples_list
     def converted_dia_files_ch = null  // Channel of converted .dia files (if conversion enabled)
+    def converted_samples_ch = null    // Samples channel created from conversion output
 
     if (convert_to_dia) {
         // Check if any sample needs conversion (not already .dia)
@@ -291,29 +291,20 @@ workflow ITERATIVE_QUANT {
                 }
             }
 
-            // Convert all files in parallel
-            CONVERT_TO_DIA(all_files_ch.map { sample_id, f -> f })
+            // Convert all files in parallel (now with sample_id)
+            CONVERT_TO_DIA(all_files_ch)
 
-            // Store converted files channel for calibration use
-            converted_dia_files_ch = CONVERT_TO_DIA.out.dia_file
+            // Store converted files channel for calibration use (flatten to just files)
+            converted_dia_files_ch = CONVERT_TO_DIA.out.dia_file.map { sample_id, dia_file -> dia_file }
 
-            // Note: After conversion, files are in dia_converted/
-            // Update samples to point to converted files
-            effective_samples_list = samples_list.collect { sample ->
-                def file_type = sample.file_type ?: 'raw'
-                if (file_type.toLowerCase() != 'dia') {
-                    // Point to dia_converted directory
-                    return [
-                        id: sample.id,
-                        dir: "${params.outdir}/dia_converted",
-                        file_type: 'dia',
-                        recursive: false  // All .dia files are flat in dia_converted
-                    ]
-                }
-                return sample
-            }
+            // Create samples data from conversion output (as value channel for reuse)
+            // Group by sample_id, collect to list, then use flatMap to create channels
+            converted_samples_ch = CONVERT_TO_DIA.out.dia_file
+                .groupTuple()
+                .map { sample_id, dia_files -> [id: sample_id, file_count: dia_files.size()] }
+                .collect()  // Value channel containing list of sample info
 
-            log.info "Converted files will be in: ${params.outdir}/dia_converted/"
+            log.info "Converted files will be in: ${params.outdir}/dia_converted/<sample_id>/"
         }
     }
 
@@ -504,7 +495,19 @@ workflow ITERATIVE_QUANT {
     log.info "Identification: Quantifying with full library (MBR=${mbr_identify})"
 
     // Create samples channel for identification stage
-    def samples_ch_identify = createSamplesChannel(effective_samples_list, 'identification')
+    // If .dia conversion was done, use converted_samples_ch; otherwise create from original samples
+    def samples_ch_identify = null
+    if (convert_to_dia && converted_samples_ch != null) {
+        // Use converted samples data (value channel with list), flatMap to create tuples
+        samples_ch_identify = converted_samples_ch.flatMap { list ->
+            list.collect { item ->
+                def sample_dir = file("${params.outdir}/dia_converted/${item.id}")
+                tuple(item.id, sample_dir, 'dia', 'identification', false, item.file_count)
+            }
+        }
+    } else {
+        samples_ch_identify = createSamplesChannel(samples_list, 'identification')
+    }
 
     // Use calibration library as --ref if available, otherwise use ref_library for batch correction
     def ref_for_identify = calibration_mode != 'none' ? calibration_library : Channel.value(ref_library_file)
@@ -547,7 +550,19 @@ workflow ITERATIVE_QUANT {
     log.info "Final: Quantifying with subset library (MBR=${mbr_final})"
 
     // Create samples channel for final stage
-    def samples_ch_final = createSamplesChannel(effective_samples_list, 'final')
+    // If .dia conversion was done, use converted_samples_ch; otherwise create from original samples
+    def samples_ch_final = null
+    if (convert_to_dia && converted_samples_ch != null) {
+        // Use converted samples data (value channel with list), flatMap to create tuples
+        samples_ch_final = converted_samples_ch.flatMap { list ->
+            list.collect { item ->
+                def sample_dir = file("${params.outdir}/dia_converted/${item.id}")
+                tuple(item.id, sample_dir, 'dia', 'final', false, item.file_count)
+            }
+        }
+    } else {
+        samples_ch_final = createSamplesChannel(samples_list, 'final')
+    }
 
     // Use calibration library as --ref if available
     def ref_for_final = calibration_mode != 'none' ? calibration_library : Channel.value(ref_library_file)

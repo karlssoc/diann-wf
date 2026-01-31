@@ -247,17 +247,20 @@ workflow {
         def selected_files = all_ms_files.take(calibration_files)
         log.info "Selected ${selected_files.size()} of ${all_ms_files.size()} files for calibration"
 
-        // Create channel from selected files
-        def calibration_files_ch = Channel.fromList(selected_files).collect()
-
         // Convert RAW files to mzML for presearch (Linux ThermoRaw reader may fail on some instruments)
         // Regular DIA-NN quantification handles RAW files fine via different code path
         if (file_type.toLowerCase() == 'raw') {
             log.info "Converting RAW files to mzML for presearch compatibility..."
-            CONVERT_RAW_TO_MZML(calibration_files_ch)
 
+            // Create channel with individual files for parallel conversion
+            def raw_files_ch = Channel.fromList(selected_files)
+
+            // Convert each file in parallel
+            CONVERT_RAW_TO_MZML(raw_files_ch)
+
+            // Collect all converted mzML files for presearch
             INFINDIA_PRESEARCH(
-                CONVERT_RAW_TO_MZML.out.mzml_files,
+                CONVERT_RAW_TO_MZML.out.mzml_file.collect(),
                 fasta_file,
                 'calibration',
                 instrument_type,
@@ -265,6 +268,7 @@ workflow {
             )
         } else {
             // Non-RAW files (mzML, .d, etc.) can be used directly
+            def calibration_files_ch = Channel.fromList(selected_files).collect()
             INFINDIA_PRESEARCH(
                 calibration_files_ch,
                 fasta_file,

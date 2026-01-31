@@ -9,33 +9,22 @@
 process CONVERT_RAW_TO_MZML {
     label 'thermoraw'
 
-    tag "Converting ${raw_files instanceof List ? raw_files.size() : 1} RAW files"
+    tag "${raw_file.name}"
 
     input:
-    path raw_files    // RAW files to convert (can be list)
+    path raw_file    // Single RAW file to convert
 
     output:
-    path "*.mzML", emit: mzml_files
+    path "*.mzML", emit: mzml_file
 
     script:
     // ThermoRawFileParser options:
     // -f 2 = indexed mzML output
-    // -i = input file/directory
+    // -i = input file
     // -o = output directory
-    def files_list = raw_files instanceof List ? raw_files : [raw_files]
-    def convert_cmds = files_list.collect { f ->
-        "ThermoRawFileParser -i ${f} -o . -f 2"
-    }.join('\n')
-
     """
-    echo "=== Converting RAW to mzML ==="
-    echo "Files to convert: ${files_list.size()}"
-    echo ""
-
-    ${convert_cmds}
-
-    echo ""
-    echo "=== Conversion Complete ==="
+    echo "Converting ${raw_file} to mzML..."
+    ThermoRawFileParser -i ${raw_file} -o . -f 2
     ls -la *.mzML
     """
 }

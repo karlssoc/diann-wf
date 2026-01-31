@@ -1,0 +1,50 @@
+# InfinDIA Calibration Test Configuration
+#
+# Tests the iterative quantification workflow with InfinDIA pre-search
+# for generating a calibration library
+
+# Test FASTA
+fasta: 'test_data/fasta/UP000002311_506-entries_2026_01_07.fasta'
+
+# Test samples (using the .dia files)
+samples:
+  - id: 'test_sample'
+    dir: 'generate_example_data'
+    file_type: 'dia'
+    recursive: false
+
+# InfinDIA Calibration Settings
+calibration_mode: 'infindia'
+calibration_files: 1           # Use 1 file for calibration (avoids QuantUMS cross-run crash)
+instrument_type: 'hfx'         # Orbitrap settings (MS1: 5ppm, MS2: 15ppm)
+pre_select: 5000               # Limit precursors for faster calibration
+
+# MBR settings
+mbr: false       # Identification stage: no MBR
+mbr_final: true  # Final stage: with MBR
+
+# Quantification parameters
+pg_level: 1
+mass_acc_cal: 25
+smart_profiling: true
+matrices: true
+
+# Library generation parameters (since we're not providing existing_library)
+library:
+  min_pep_len: 7
+  max_pep_len: 30
+  min_pr_mz: 350
+  max_pr_mz: 1650
+  min_pr_charge: 2
+  max_pr_charge: 3
+  min_fr_mz: 200
+  max_fr_mz: 1800
+  cut: 'K*,R*'
+  missed_cleavages: 1
+
+# Output
+outdir: 'results/infindia_calibration_test'
+
+# Resource settings (minimal for testing)
+threads: 4
+parallel_mode: false

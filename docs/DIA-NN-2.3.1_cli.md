@@ -1,0 +1,182 @@
+# DIA-NN v2.31 cli 
+
+
+- --about display information with basic links and notices for this DIA-NN version
+- --aff M:K-N (Enteprise version) attempt to set the CPU affinity of the main thread to logical core M and all other threads to logical cores K to N (core indices start with 0); consider using - --aff when (i) running DIA-NN on NUMA HPC systems or (ii) running multiple DIA-NN analyses in parallel
+- --auto-aff (Enteprise version) attempt to automatically set thread affinities to spread CPU threads over logical CPU cores, first assigning to cores with even indices (starting with 0), to avoid placing two threads on a single physical core; this setting may be highly beneficial in particular on Windows systems with > 64 logical cores in a single CPU. On NUMA HPC systems, consider using - --aff instead; when using - --auto-aff, do not run any other DIA-NN analyses in parallel on the same PC
+- --cal [N] set the calibration mode, valid values are 0 (off), 1, 3, 5 and 7, default is 7
+- --cal-channel [channel name] specifies which channel to use for calibration: if there is a channel that is expected to produce good identification numbers in all samples, use this command to possibly improve calibration
+- --cfg [file name] specifies a file to load options/commands from
+- --channel-run-norm normalisation of multiplexed samples will be performed in run-specific manner, i.e. to perform normalisation, for each precursor ion DIA-NN will sum the respective channels within each run and will normalise these sums across runs: use e.g. for protein turnover SILAC experiments
+- --channel-spec-norm normalisation of multiplexed samples will be performed in channel-specific manner, i.e. each channel in each run is treated as a separate sample to be normalised: use to analyse experiments wherein multiplexing of independent samples is used to boost throughput
+- --channels [channel 1]; [channel 2]; ... lists multiplexing channels, wherein each channel declaration has the form [channel] = [label group],[channel name],[sites],[mass1:mass2:...], wherein [sites] has the same syntax as for - --var-mod and if N sites are listed, N masses are listed at the end of the channel declaration. The spectral library will be automatically split into multiple channels, for precursors bearing the [label group] modification. To add the latter to a label-free spectral library, can use - --lib-fixed-mod, e.g. - --fixed-mod SILAC,0.0,KR,label - --lib-fixed-mod SILAC. See Multiplexing using plexDIA for usage examples. Currently, [label group] must be the same for all channels and the channels must be listed in such an order that the channel mass shifts are non-decreasing for each modification site.
+- --clear-mods makes DIA-NN 'forget' all built-in modification (PTM) names
+- --cont-quant-exclude [tag] peptides corresponding to protein sequence ids tagged with the specified tag will be excluded from normalisation as well as quantification of protein groups that do not include proteins with the tag
+- --convert makes DIA-NN convert the mass spec files to the .dia format. The files are either saved to the same location as the input files, or in the Temp/.dia dir, if it is specified (in the GUI or using the - --temp option)
+- --cut [specificty 1],[specificity 2],... specifies cleavage specificity for the in silico digest. Cleavage sites (pairs of amino acids) are listed separated by commas, '*' indicates any amino acid, and '!' indicates that the respective site will not be cleaved. Examples: "- --cut K*,R*,!*P" - canonical tryptic specificity, "- --cut " - digest disabled, "- --cut ** - --missed-cleavages 100" will make DIA-NN perform a non-specific digest (first do this for a single peptide length, to estimate the numbers of precursors generated)
+- --dda process data as DDA - must be used with DDA data, must not be used with DIA data
+- --decoy-channel [channel] specifies the decoy channel masses, wherein [channel] has the same syntax as for - --channels
+- --dg-keep-nterm [N] do not change the first N residues when generating decoys, default N = 1
+- --dg-keep-cterm [N] do not change the last N residues when generating decoys, default N = 1
+- --dg-min-shuffle [X] aim for any fragment mass shift introduced by shuffling during decoy generation to exceed X in absolute value, default 5.0
+- --dg-min-mut [X] aim for the precursor mass shift during mutation during decoy generation to be at least X in absolute value, default 15.0
+- --dg-max-mut [X] aim for the precursor mass shift during mutation during decoy generation not to exceed X in absolute value, default 50.0
+- --dir [folder] specifies a folder containing raw files to be processed. All files in the folder must be in .raw, .wiff, .mzML or .dia format
+- --dir-all [folder] as - --dir, but recursive over subfolders
+- --direct-quant disable QuantUMS and use legacy DIA-NN quantification algorithms instead, also disables channel-specific protein quantification when analysing multiplexed samples
+- --dl-no-fr when using the deep learning predictor, prediction of fragment intensities will not be performed
+- --dl-no-im when using the deep learning predictor, prediction of ion mobilities will not be performed
+- --dl-no-rt when using the deep learning predictor, prediction of retention times will not be performed
+- --duplicate-proteins instructs DIA-NN not to skip entries in the sequence database with duplicate IDs (while by default if several entries have the same protein ID, all but the first entry will be skipped)
+- --export-quant add fragment quantities, fragment IDs and quality information to the .parquet output report
+- --ext [string] adds a string to the end of each file name (specified with - --f)
+- --f [file name] specifies a run to be analysed, use multiple - --f commands to specify multiple runs
+- --fasta [file name] specifies a sequence database in FASTA format (full support for UniProt proteomes), use multiple - --fasta commands to specify multiple databases
+- --fasta-filter [file name] only consider peptides matching the stripped sequences specified in the text file provided (one sequence per line), when processing a sequence database
+- --fasta-search instructs DIA-NN to perform an in silico digest of the sequence database
+- --fixed-loss [modification name],[loss mass],[modification sites] instructs DIA-NN to apply a neutral loss (i.e. subtract the specified mass) to each fragment ion containing the specified modification(s) on the specified sites, proportional to the number of such sites within the fragment; this functionality is highly experimental and untested, there should be no more than one - --fixed-loss or - --var-loss declaration
+- --fixed-mod [name],[mass],[sites],[optional: 'label'] - adds the modification name to the list of recognised names and specifies the modification as fixed. Same syntax as for - --var-mod. Has an effect of (i) applying fixed modifications during FASTA digest or (ii) declaring fixed modifications that can be applied to a library with - --lib-fixed-mod
+- --force-swissprot only consider SwissProt (i.e. marked with '>sp|') sequences when processing a sequence database
+- --full-profiling enable using empirical spectra for empirical library generation
+- --full-unimod loads the complete UniMod modification database and disables the automatic conversion of modification names to the UniMod format
+- --gen-spec-lib instructs DIA-NN to generate a spectral library
+- --global-norm instructs DIA-NN to use simple global normalisation instead of RT-dependent normalisation
+- --high-acc QuantUMS settings will be otimised for maximum accuracy, i.e. to minimise any ratio compression quantitative bias
+- --ids-to-names protein sequence ids will also be used as protein names and genes, any information on actual protein names or genes will be ignored
+- --id-profiling set the empirical library generation mode to IDs profiling
+- --ignore-decoys ignore decoys when loading a .parquet library
+- --il-eq when using the 'Reannotate' function, peptides will be matched to proteins while considering isoleucine and leucine equivalent
+- --im-acc [X] a parameter that should roughly correspond to the magnitude of observed IM value differences between different ion species matching the same precursor, default X = 0.02
+- --im-model [file] specifies the file containing the IM deep learning prediction model
+- --im-prec [X] a parameter that should roughly correspond to the magnitude of IM errors due to noise, default X = 0.01
+- --im-window [X] IM extraction window will not be less than the specified value
+- --im-window-mul [X] affects the IM window/tolerance, larger values result in larger IM extraction window, default X = 2.0
+- --individual-mass-acc mass accuracies, if set to automatic, will be determined independently for different runs
+- --individual-reports a separate output report will be created for each run
+- --individual-windows scan window, if set to automatic, will be determined independently for different runs
+- --int-removal 0 disables the removal of interfering precursors, not recommended
+- --lib [file] specifies a spectral library. The use of multiple - --lib commands (experimental) allows to load multiple libraries in .tsv format
+- --lib-fixed-mod [name] in silico applies a modification, previously declared using - --fixed-mod, to a spectral library
+- --light-models use the built-in lightweight deep learning models for fragmentation, RT and IM prediction, these allow for an order of magnitude faster prediction with minimal quality loss
+- --loc-factor [X] a factor affecting reported PTM localisation confidence, higher values result in higher confidence reported, default X = 40.0, valid range: 2.0 to 1000.0
+- --loc-no-h3po4 DIA-NN will not generate fragments with H3PO4 losses to localise phosphosites
+- --mass-acc [N] sets the MS2 mass accuracy to N ppm
+- --mass-acc-cal [N] sets the mass accuracy used during the calibration phase of the search to N ppm (default is 100 ppm, which is adjusted automatically to lower values based on the data)
+- --mass-acc-ms1 [N] sets the MS1 mass accuracy to N ppm
+- --matrices output quantities matrices
+- --matrix-qvalue [X] sets the q-value used to filter the output matrices
+- --matrix-spec-q [X] run-specific protein q-value filtering will be used, in addition to the global q-value filtering, when saving protein matrices. The ability to filter based on run-specific protein q-values, which allows to generate highly reliable data, is one of the advantages of DIA-NN
+- --max-pep-len [N] sets the maximum precursor length for the in silico library generation or library-free search
+- --max-pr-charge [N] sets the maximum precursor charge for the in silico library generation or library-free search
+- --mbr-fix-settings when using the 'Unrelated runs' option in combination with MBR, the same settings will be used to process all runs during the second MBR pass
+- --met-excision enables protein N-term methionine excision as variable modification for the in silico digest
+- --min-cal [N] provide a guidance to DIA-NN suggesting the minimum number of IDs to use for mass calibration
+- --min-class [N] provide a guidance to DIA-NN suggesting the minimum number of IDs to use for linear classifier training
+- --min-corr [X] forces DIA-NN to only consider peak group candidates with correlation scores at least X
+- --min-fr specifies the minimum number of fragments per precursors in the spectral library being saved
+- --min-fr-aas [N] library will be filtered to only retain fragments comprising at least N residues, default N = 3
+- --min-peak sets the minimum peak height to consider. Must be 0.01 or greater
+- --min-pep-len [N] sets the minimum precursor length for the in silico library generation or library-free search
+- --min-pr-charge [N] sets the minimum precursor charge for the in silico library generation or library-free search
+- --min-pr-mz [N] sets the minimum precursor m/z for the in silico library generation or library-free search
+- --missed-cleavages [N] sets the maximum number of missed cleavages
+- --mod [name],[mass],[optional: 'label'] declares a modification name. Examples: "- --mod UniMod:5,43.005814", "- --mod SILAC-Lys8,8.014199,label"
+- --no-batch-mode disable batch mode, consequently, use all precursors for calibration
+- --no-calibration disables mass calibration, not recommended
+- --no-cut-after-mod [name] discard peptides generated via in silico cuts after residues bearing a particular modification
+- --no-decoy-channel disables the use of a decoy channel for channel q-value calculation
+- --no-fragmentation DIA-NN will not consider fragments other than included in the spectral library
+- --no-fr-selection the selection of fragments for quantification based on the quality assessment of the respective extracted chromatograms will be disabled
+- --no-isotopes do not extract chromatograms for heavy isotopologues
+- --no-lib-filter the input library will be used 'as is' without discarding fragments that might be harmful for the analysis; use with caution
+- --no-maxlfq disables MaxLFQ for protein quantification
+- --no-ms1 do not consider MS1 data, use only during method optimisation to evaluate the impact of MS1 on the data quality
+- --no-norm disables cross-run normalisation
+- --no-peptidoforms disables automatic activation of peptidoform scoring when variable modifications are declared, not recommended
+- --no-prot-inf disables protein inference (that is protein grouping) - protein groups from the spectral library will be used instead
+- --no-prot-norm disable protein-level normalisation
+- --no-quant-files instructs DIA-NN not to save .quant files to disk and store them in memory instead
+- --no-refine-q do not use protein information when calculating precursor q-values, essential if the goal is validation of DIA-NN's precursor-level q-values using classic entrapment
+- --no-rt-norm disable RT-dependent normalisation
+- --no-rt-window disables RT-windowed search
+- --no-skyline do not generate .skyline.speclib
+- --no-stats disables the generation of the stats file
+- --no-swissprot instruct DIA-NN not to give preference for SwissProt proteins when inferring protein groups
+- --no-tims-scan force processing of timsTOF .d acquisitions as dia-PASEF (i.e. not slice/diagonal), use this to process 'dia-PASEF' files that are wrongly recognised as Slice-PASEF by DIA-NN - this may happen e.g. if the files that have a single window within the frame split in several windows with identical m/z bounds but different IM ranges (not recommended)
+- --original-mods disables the automatic conversion of known modifications to the UniMod format names known to DIA-NN
+- --out [file name] specifies the name of the main output report. The names of all other report files will be derived from this one
+- --out-lib [file name] specifies the name of a spectral library to be generated
+- --out-lib-copy copies the spectral library used into the output folder
+- --peak-boundary [X] if the fragment or MS1 signal decays below its max / X, this is considered the boundary of the elution peak, affects among other algorithms the calculation of start/stop RT values reported in the main .parquet report
+- --peak-translation instructs DIA-NN to take advantage of the co-elution of isotopologues, when identifying and quantifying precursors; automatically activated when using - --channels
+- --peptidoforms enables peptidoform confidence scoring
+- --pg-level [N] controls the protein inference mode, with 0 - isoforms, 1 - protein names (as in UniProt), 2 - genes
+- --pre-filter use InfinDIA spectra representation to filter precursors during calibration stage of the conventional search
+- --pre-search use InfinDIA pre-search
+- --pre-select [N] InfinDIA will aim to pre-select at least N precursors
+- --pre-select-force InfinDIA will aim not to exceed significantly the number set by - --pre-select
+- --predict-n-frag [N] specifies the maximum number of fragments predicted by the deep learning predictor, default value is 12
+- --predictor instructs DIA-NN to perform deep learning-based prediction of spectra, retention times and ion mobility values
+- --prefix [string] adds a string at the beginning of each file name (specified with - --f) - convenient when working with automatic scripts for the generation of config files
+- --prosit export prosit input based on the FASTA digest
+- --proteoforms enables the proteoform confidence scoring mode
+- --pr-filter [file name] specify a file containing a list of precursors (same format as the Precursor.Id column in DIA-NN output), FASTA digest will be filtered to only include these precursors
+- --qvalue [X] specifies the precursor-level q-value filtering threshold
+- --quant-acc [X] sets the precision-accuracy balance for QuantUMS to X, where X must be between 0 and 1
+- --quant-pep [X] sets the posterior error probability threshold for precursor ions to be used for quantification: precursors not passing the threshold may be ignored by some algorithms of DIA-NN, default X value is 0.05
+- --quant-ori-names .quant files will retain original raw file names even if saved to a separate directory, convenient for .quant file manipulation
+- --quant-fr [N] sets the number of top fragment ions among which the fragments that will be used for quantification are chosen for the legacy (pre-QuantUMS) quantification mode. Default value is 6
+- --quick-mass-acc (experimental) when choosing the MS2 mass accuracy setting automatically, DIA-NN will use a fast heuristical algorithm instead of IDs number optimisation
+- --quant-no-ms1 instructs QuantUMS not to use the recorded MS1 quantities directly
+- --quant-params [params] use previously obtained QuantUMS parameters
+- --quant-sel-runs [N] instructs QuantUMS to train its parameters on N automatically chosen runs, to speed up training for large experiments, N here must be 6 or greater
+- --quant-tims-sum for slice/scanning timsTOF methods, calculate intensities by taking the sum of all cognate signals across the cycle, as opposed to taking the maximum, use this for Synchro-PASEF
+- --quant-train-runs [N1]:[N2] instructs QuantUMS to train its parameters on runs with indices in the range N1 to N2 (inclusive), e.g. - --quant-train-runs 0:5 will perform training on 6 runs with indices 0 to 5
+- --read-threads [N] use a particular number of CPU threads when reading raw files
+- --reanalyse enables MBR
+- --reannotate reannotate the spectral library with protein information from the FASTA database, using the specified digest specificity
+- --ref [file name] specify a special (small) spectral library which will be used exclusively for calibration, same as the Calibration lib GUI option
+- --regular-swath all runs will be analysed as if they were not Scanning SWATH runs
+- --report-decoys save decoy PSMs to the main .parquet report
+- --report-file-name save the full run name, including the file path, to the main report
+- --restrict-fr some fragments will not be used for quantification, based on the value in the ExcludeFromAssay spectral library column; marking all fragments of a precursor as excluded will, together with - --restrict-fr, suppress the use of this precursor for protein quantification whenever possible
+- --rt-model [file] specifies the file containing the RT deep learning prediction model
+- --rt-profiling set the empirical library generation mode to IDs, RT and IM profiling
+- --rt-window [X] RT extraction window will not be less than the specified value
+- --rt-window-factor [N] Affects the RT extraction window, set to higher values to enable narrow RT windows, default N = 40
+- --rt-window-force [X] RT extraction window will be set to the specified value
+- --rt-window-mul [X] Affects the RT extraction window, larger values result in larger window, decrease for faster analysis, default X = 2.5
+- --scanning-swath all runs will be analysed as if they were Scanning SWATH runs
+- --semi when using the 'Reannotate' function, a peptide will be matched to a protein also if it could be obtained with one specific and one non-specific cut (at either of the termini)
+- --sig-norm enable signal-dependent normalisation, not recommended
+- --site-ms1-quant use MS1 quantities for modification site quantification matrices
+- --skip-unknown-mods instructs DIA-NN to ignore peptides with modifications that are not supported by the deep learning predictor, when performing the prediction
+- --smart-profiling enables an intelligent algorithm which determines how to extract spectra, when creating a spectral library from DIA data, use with - --full-profiling. The performance has so far always been observed to be comparable to IDs, RT and IM profiling
+- --species-genes instructs DIA-NN to add the organism identifier to the gene names - useful for distinguishing genes from different species, when analysing mixed samples. Works with UniProt sequence databases.
+- --species-ids instructs DIA-NN to add the organism identifier to the sequence ids/protein isoform ids - useful for distinguishing protein ids from different species, when analysing mixed samples. Works with UniProt sequence databases.
+- --sptxt-acc [N] sets the fragment filtering mass accuracy (in ppm) when reading .sptxt/.msp libraries
+- --tag-to-ids [tag] proteins that have the respective FASTA header start with tag (i.e. the string following '>' starts with tag) will have the tag incorporated in the respective protein sequence ids, names and genes
+- --temp [folder] specifies the Temp/.dia directory
+- --threads [N] specifies the number of CPU threads to use
+- --time-corr-only restrict machine learning during calibration
+- --time-corr-only-force restrict the use of machine learning for peak group selection during all search stages
+- --tims-min-cnt [N] specifies the minimum number of peaks to constitute a centroided peak when loading timsTOF data
+- --tims-min-int [N] specifies the minimum peak intensity (an integer ion count) to be considered when loading timsTOF data
+- --tims-ms1-cycle [N] merge the MS/MS spectra from N consecutive cycles, each cycle defined as the set of MS/MS scans following an MS1 scan, use this option only for slice/scanning timsTOF data and always test if the performance is better than without it
+- --tokens [file] specify the file name for the text file that contains a mapping between modified residues or N-term modifications and integers in the range 0-255, this file is used by the deep learning predictor
+- --top [N] set N for the top N protein quantification, default N = 1
+- --tune-fr tune the fragmentation deep learning predictor, requires - --tune-lib. Fragmentation tuning can be detrimental, hence it is recommended to always compare the performance to the base fragmentation model
+- --tune-im tune the IM deep learning predictor, requires - --tune-lib
+- --tune-lib [file] specifies the library to be used for deep learning predictor fine-tuning, may require declaring unknown modifications with - --mod
+- --tune-lr [X] specifies fine-tuning learning rate, default is 0.0005
+- --tune-restrict-layers keep RNN layer weights and embedding weights for all AAs except cysteine fixed when fine-tuning
+- --tune-rt tune the RT deep learning predictor, requires - --tune-lib
+- --use-quant use existing .quant files, if available
+- --verbose [N] sets the level of detail of the log. Reasonable values are in the range 0 - 4
+- --var-combinations [N] if the number of modified peptides reaches N at K sites occupied for a particular sequence, occupancies greater than K will not be considered, default N = 1024. This setting limits unreasonable search space expansion due to peptides with too high numbers of variable modification sites
+- --var-loss [modification name],[loss mass],[modification sites] instructs DIA-NN to apply a neutral loss (i.e. subtract the specified mass) to each fragment ion containing the specified modification(s) on the specified sites, max 1 time regardless of the number of sites, and then append such modified fragments to the original list of fragments without losses; this functionality is highly experimental and untested, it is in particular not known how this can affect identification numbers; there should be no more than one - --fixed-loss or - --var-loss declaration
+- --var-mod [name],[mass],[sites],[optional: 'label'] - adds the modification name to the list of recognised names and specifies the modification as variable. [sites] can contain a list of amino acids and 'n' which codes for the N-terminus of the peptide. '*n' indicates protein N-terminus. Examples: "- --var-mod UniMod:21,79.966331,STY" - phosphorylation, "- --var-mod UniMod:1,42.010565,*n" - N-terminal protein acetylation. Similar to - --mod can be followed by 'label'. Has an effect of (i) applying variable modifications during FASTA digest or (ii) declaring modifications to be localised during raw data analysis
+- --var-mods sets the maximum number of variable modifications, see also - --var-combinations
+- --xic [optional: X] instructs DIA-NN to extract MS1/fragment chromatograms for identified precursors within X seconds from the elution apex, with X set to 10s if not provided; the chromatograms are saved in .parquet files (one per run) located in a folder that is created in the same location as the main output report; equivalent to the 'XICs' option in the GUI
+- --xic-theoretical-fr makes DIA-NN extract chromatograms for all theoretical charge 1-2 fragment ions, including those with common neutral losses, if - --xic is used
+- --window [N] sets the scan window radius to a specific value. Ideally, should be approximately equal to the average number of MS/MS data points per peak

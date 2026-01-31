@@ -3,16 +3,20 @@
 /*
  * Iterative Quantification Workflow
  *
- * This workflow implements an iterative quantification strategy:
- * 1. Library generation (optional): Generate library from FASTA if not provided
- * 2. Identification stage: Quantify with full proteome library WITHOUT MBR to identify proteins
- * 3. Library subsetting: Reduce the library to only include identified Protein.Groups
- * 4. Final quantification: Quantify with subset library WITH MBR for improved sensitivity
+ * This workflow implements an iterative quantification strategy with optional
+ * InfinDIA-based calibration for faster processing:
+ *
+ * 1. Calibration (optional): InfinDIA pre-search to generate empirical calibration library
+ * 2. Library generation (optional): Generate library from FASTA if not provided
+ * 3. Identification stage: Quantify with full proteome library WITHOUT MBR to identify proteins
+ * 4. Library subsetting: Reduce the library to only include identified Protein.Groups
+ * 5. Final quantification: Quantify with subset library WITH MBR for improved sensitivity
  *
  * This approach:
  * - Reduces false positives by limiting MBR to identified proteins
  * - Improves quantification sensitivity for true positives
  * - Significantly reduces computational time for final stage
+ * - (With InfinDIA) Speeds up calibration using empirical library
  *
  * Required parameters:
  *   --fasta           Path to FASTA file
@@ -25,6 +29,13 @@
  *   --model_preset    Pre-trained models for library generation (e.g., 'ttht-evos-30spd')
  *   --mbr             Enable MBR in identification stage (default: false)
  *   --mbr_final       Enable MBR in final stage (default: true)
+ *
+ * Calibration parameters (InfinDIA):
+ *   --calibration_mode    'infindia', 'existing', or 'none' (default: 'none')
+ *   --calibration_library Path to existing calibration library (when mode='existing')
+ *   --instrument_type     'hfx' or 'timstof' for mass accuracy presets
+ *   --pre_select          Limit precursors in InfinDIA (default: 0 = unlimited)
+ *   --calibration_files   Number of MS files to use for calibration (default: 5)
  */
 
 nextflow.enable.dsl = 2
@@ -35,6 +46,7 @@ include { QUANTIFY as QUANTIFY_FINAL } from '../modules/quantify'
 include { SUBSET_LIBRARY } from '../modules/subset_library'
 include { CONVERT_LIBRARY } from '../modules/convert_library'
 include { GENERATE_LIBRARY } from '../modules/library'
+include { INFINDIA_PRESEARCH } from '../modules/infindia_presearch'
 
 // Include shared utilities
 include { createSamplesChannel } from '../lib/samples'
@@ -45,11 +57,12 @@ def helpMessage() {
     log.info"""
     Iterative Quantification Workflow
 
-    This workflow performs iterative quantification:
-    1. Library generation (if not provided): Generate from FASTA
-    2. Identification stage: WITHOUT MBR to identify proteins
-    3. Library subsetting: based on identified Protein.Groups
-    4. Final stage: WITH MBR on subset library for improved quantification
+    This workflow performs iterative quantification with optional InfinDIA calibration:
+    1. Calibration (optional): InfinDIA pre-search for fast calibration library
+    2. Library generation (if not provided): Generate from FASTA
+    3. Identification stage: WITHOUT MBR to identify proteins
+    4. Library subsetting: based on identified Protein.Groups
+    5. Final stage: WITH MBR on subset library for improved quantification
 
     Usage:
       nextflow run workflows/iterative_quant.nf -params-file <config.yaml> -profile <profile>
@@ -69,6 +82,21 @@ def helpMessage() {
       --outdir PATH         Output directory (default: results)
       --threads N           Number of threads (default: ${params.threads})
 
+    Calibration Parameters (InfinDIA):
+      --calibration_mode MODE    Calibration strategy:
+                                 'none'     - No calibration library (default)
+                                 'infindia' - Generate via InfinDIA pre-search
+                                 'existing' - Use existing calibration library
+      --calibration_library PATH Path to existing calibration library
+                                 (required when mode='existing')
+      --calibration_files N      Number of MS files for calibration (default: 5)
+                                 Uses random selection from first sample
+      --instrument_type TYPE     Mass accuracy presets:
+                                 'hfx'      - Orbitrap HFX (MS1: 5ppm, MS2: 15ppm)
+                                 'timstof'  - timsTOF (MS1: 15ppm, MS2: 15ppm)
+      --pre_select N             Limit precursors in InfinDIA (default: 0 = unlimited)
+                                 Recommended: 5000-10000 for fast calibration
+
     Library Generation Parameters (when --library not provided):
       --library.min_fr_mz 200      Min fragment m/z
       --library.max_fr_mz 1800     Max fragment m/z
@@ -85,6 +113,8 @@ def helpMessage() {
 
     Output Structure:
       results/
+      ├── calibration/             # Calibration library (if mode='infindia')
+      │   └── calibration_lib.parquet
       ├── library/                 # Generated library (if no --library provided)
       │   └── predicted_library.predicted.speclib
       ├── identification/          # Identification stage results
@@ -135,8 +165,11 @@ workflow {
     def mbr_identify = params.mbr != null ? params.mbr : false
     def mbr_final = params.mbr_final != null ? params.mbr_final : (params.mbr_second_pass != null ? params.mbr_second_pass : true)
 
-    // Reference library (optional, for batch correction)
-    def ref_library_file = params.ref_library ? file(params.ref_library) : file('NO_FILE')
+    // Calibration settings
+    def calibration_mode = params.calibration_mode ?: 'none'
+    def instrument_type = params.instrument_type ?: ''
+    def pre_select = params.pre_select ?: 0
+    def calibration_files = params.calibration_files ?: 5
 
     // Library name for generation (if needed)
     def library_name = params.library_name ?: 'predicted_library'
@@ -161,11 +194,88 @@ workflow {
     log.info "Samples      : ${samples_list.size()}"
     log.info "MBR (identify): ${mbr_identify}"
     log.info "MBR (final)  : ${mbr_final}"
+    log.info "Calibration  : ${calibration_mode}"
+    if (calibration_mode == 'infindia') {
+        log.info "  Files      : ${calibration_files}"
+        log.info "  Instrument : ${instrument_type ?: 'auto'}"
+        log.info "  Pre-select : ${pre_select > 0 ? pre_select : 'unlimited'}"
+    } else if (calibration_mode == 'existing') {
+        log.info "  Library    : ${params.calibration_library}"
+    }
     log.info "Output dir   : ${params.outdir}"
     if (generate_library && models) {
         logModelInfo(models, params)
     }
     log.info ""
+
+    // ========================================
+    // CALIBRATION LIBRARY (optional)
+    // ========================================
+    def calibration_library = null
+
+    if (calibration_mode == 'infindia') {
+        log.info "Generating calibration library via InfinDIA pre-search..."
+
+        // Use first sample for calibration
+        def first_sample = samples_list[0]
+        def calibration_sample_dir = file(first_sample.dir)
+        def file_type = first_sample.file_type ?: 'raw'
+
+        if (!calibration_sample_dir.exists()) {
+            log.error "ERROR: Calibration sample directory not found: ${first_sample.dir}"
+            exit 1
+        }
+
+        // Find MS files and randomly select N for calibration
+        def file_pattern = file_type == 'd' ? '*.d' : "*.${file_type}"
+        def all_ms_files = calibration_sample_dir.listFiles().findAll { f ->
+            if (file_type == 'd') {
+                return f.isDirectory() && f.name.endsWith('.d')
+            } else {
+                return f.isFile() && f.name.toLowerCase().endsWith(".${file_type.toLowerCase()}")
+            }
+        }
+
+        if (all_ms_files.size() == 0) {
+            log.error "ERROR: No ${file_type} files found in ${calibration_sample_dir}"
+            exit 1
+        }
+
+        // Shuffle and take N files (or all if fewer than N)
+        Collections.shuffle(all_ms_files)
+        def selected_files = all_ms_files.take(calibration_files)
+        log.info "Selected ${selected_files.size()} of ${all_ms_files.size()} files for calibration"
+
+        // Create channel from selected files
+        def calibration_files_ch = Channel.fromList(selected_files).collect()
+
+        INFINDIA_PRESEARCH(
+            calibration_files_ch,
+            fasta_file,
+            'calibration',
+            instrument_type,
+            pre_select
+        )
+
+        calibration_library = INFINDIA_PRESEARCH.out.calibration_library
+    } else if (calibration_mode == 'existing') {
+        if (!params.calibration_library) {
+            log.error "ERROR: --calibration_library is required when --calibration_mode='existing'"
+            exit 1
+        }
+        def cal_lib_file = file(params.calibration_library)
+        if (!cal_lib_file.exists()) {
+            log.error "ERROR: Calibration library not found: ${params.calibration_library}"
+            exit 1
+        }
+        calibration_library = Channel.value(cal_lib_file)
+    } else {
+        // No calibration library - use placeholder
+        calibration_library = Channel.value(file('NO_FILE'))
+    }
+
+    // Reference library for batch correction (separate from calibration)
+    def ref_library_file = params.ref_library ? file(params.ref_library) : file('NO_FILE')
 
     // ========================================
     // LIBRARY GENERATION (if no library provided)
@@ -235,11 +345,14 @@ workflow {
     // Create samples channel for identification stage
     def samples_ch_identify = createSamplesChannel(samples_list, 'identification')
 
+    // Use calibration library as --ref if available, otherwise use ref_library for batch correction
+    def ref_for_identify = calibration_mode != 'none' ? calibration_library : Channel.value(ref_library_file)
+
     QUANTIFY_IDENTIFY(
         samples_ch_identify,
         library_for_quantify,
         fasta_file,
-        ref_library_file,
+        ref_for_identify,
         mbr_identify
     )
 
@@ -275,11 +388,14 @@ workflow {
     // Create samples channel for final stage
     def samples_ch_final = createSamplesChannel(samples_list, 'final')
 
+    // Use calibration library as --ref if available
+    def ref_for_final = calibration_mode != 'none' ? calibration_library : Channel.value(ref_library_file)
+
     QUANTIFY_FINAL(
         samples_ch_final,
         SUBSET_LIBRARY.out.subset_library.first(),
         fasta_file,
-        ref_library_file,
+        ref_for_final,
         mbr_final
     )
 }
@@ -291,6 +407,9 @@ workflow.onComplete {
     log.info "Duration: ${workflow.duration}"
     log.info ""
     log.info "Results:"
+    if (params.calibration_mode == 'infindia') {
+        log.info "  Calibration library:  ${params.outdir}/calibration/"
+    }
     if (!params.existing_library) {
         log.info "  Generated library:    ${params.outdir}/library/"
     }

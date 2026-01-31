@@ -26,7 +26,7 @@ process CONVERT_TO_DIA {
 
     script:
     def diann_cmd = params.diann_binary
-    def base_name = ms_file.name.replaceAll(/\.(raw|d|mzML|wiff)$/i, '')
+    def base_name = ms_file.name.replaceAll(/(?i)\.(raw|d|mzML|wiff)$/, '')
 
     """
     echo "=== Converting to .dia format ==="

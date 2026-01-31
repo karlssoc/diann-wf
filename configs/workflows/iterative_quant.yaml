@@ -88,6 +88,13 @@ mbr: false
 # Final stage MBR (default: true - sensitive quantification)
 mbr_final: true
 
+# === File Conversion Settings ===
+
+# Convert RAW/.d files to .dia format before processing
+# Benefits: Files read only once, faster loading in subsequent stages
+# Outputs to: ${outdir}/dia_converted/
+convert_to_dia: true
+
 # === Quantification Parameters ===
 
 # Protein group level (1=proteins, 0=genes)

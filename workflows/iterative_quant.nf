@@ -50,6 +50,7 @@ include { CONVERT_LIBRARY } from '../modules/convert_library'
 include { GENERATE_LIBRARY } from '../modules/library'
 include { INFINDIA_PRESEARCH } from '../modules/infindia_presearch'
 include { CONVERT_RAW_TO_MZML } from '../modules/convert_raw'
+include { CONVERT_TO_DIA } from '../modules/convert_to_dia'
 
 // Include shared utilities
 include { createSamplesChannel } from '../lib/samples'
@@ -216,6 +217,107 @@ workflow ITERATIVE_QUANT {
     def ref_library_file = params.ref_library ? file(params.ref_library) : file('NO_FILE')
 
     // ========================================
+    // DIA CONVERSION (optional preprocessing)
+    // Converts RAW/.d files to .dia format once, for faster subsequent stages
+    // ========================================
+    def convert_to_dia = params.convert_to_dia != null ? params.convert_to_dia : false
+    def effective_samples_list = samples_list
+    def converted_dia_files_ch = null  // Channel of converted .dia files (if conversion enabled)
+
+    if (convert_to_dia) {
+        // Check if any sample needs conversion (not already .dia)
+        def samples_needing_conversion = samples_list.findAll { sample ->
+            def file_type = sample.file_type ?: 'raw'
+            file_type.toLowerCase() != 'dia'
+        }
+
+        if (samples_needing_conversion.size() > 0) {
+            log.info "Converting MS files to .dia format for faster processing..."
+
+            // Collect all files that need conversion with their sample IDs
+            def all_files_ch = Channel.empty()
+
+            samples_needing_conversion.each { sample ->
+                def sample_id = sample.id
+                def sample_dir = file(sample.dir)
+                def file_type = sample.file_type ?: 'raw'
+                def recursive = sample.recursive ?: false
+
+                if (!sample_dir.exists()) {
+                    log.error "ERROR: Sample directory not found: ${sample.dir}"
+                    exit 1
+                }
+
+                // Find MS files based on file_type
+                def ms_files = []
+                if (file_type == 'd') {
+                    // Bruker .d folders
+                    if (recursive) {
+                        sample_dir.eachDirRecurse { dir ->
+                            if (dir.name.endsWith('.d')) {
+                                ms_files << dir
+                            }
+                        }
+                    } else {
+                        sample_dir.eachDir { dir ->
+                            if (dir.name.endsWith('.d')) {
+                                ms_files << dir
+                            }
+                        }
+                    }
+                } else {
+                    // Regular files (raw, mzML, wiff)
+                    def pattern = "*.${file_type}"
+                    if (recursive) {
+                        sample_dir.eachFileRecurse { f ->
+                            if (f.name.toLowerCase().endsWith(".${file_type.toLowerCase()}")) {
+                                ms_files << f
+                            }
+                        }
+                    } else {
+                        sample_dir.eachFile { f ->
+                            if (f.name.toLowerCase().endsWith(".${file_type.toLowerCase()}")) {
+                                ms_files << f
+                            }
+                        }
+                    }
+                }
+
+                log.info "  Sample ${sample_id}: ${ms_files.size()} files to convert"
+
+                // Add files to channel with sample_id tag
+                ms_files.each { f ->
+                    all_files_ch = all_files_ch.mix(Channel.of(tuple(sample_id, f)))
+                }
+            }
+
+            // Convert all files in parallel
+            CONVERT_TO_DIA(all_files_ch.map { sample_id, f -> f })
+
+            // Store converted files channel for calibration use
+            converted_dia_files_ch = CONVERT_TO_DIA.out.dia_file
+
+            // Note: After conversion, files are in dia_converted/
+            // Update samples to point to converted files
+            effective_samples_list = samples_list.collect { sample ->
+                def file_type = sample.file_type ?: 'raw'
+                if (file_type.toLowerCase() != 'dia') {
+                    // Point to dia_converted directory
+                    return [
+                        id: sample.id,
+                        dir: "${params.outdir}/dia_converted",
+                        file_type: 'dia',
+                        recursive: false  // All .dia files are flat in dia_converted
+                    ]
+                }
+                return sample
+            }
+
+            log.info "Converted files will be in: ${params.outdir}/dia_converted/"
+        }
+    }
+
+    // ========================================
     // LIBRARY GENERATION (if no library provided)
     // Must happen BEFORE calibration so we can subset the predicted library
     // ========================================
@@ -286,58 +388,17 @@ workflow ITERATIVE_QUANT {
     if (calibration_mode == 'infindia') {
         log.info "Running InfinDIA pre-search to identify peptides for calibration..."
 
-        // Use first sample for calibration
-        def first_sample = samples_list[0]
-        def calibration_sample_dir = file(first_sample.dir)
-        def file_type = first_sample.file_type ?: 'raw'
+        // If .dia conversion was enabled, use converted files channel directly
+        // Otherwise, use original logic to find and optionally convert files
+        if (convert_to_dia && converted_dia_files_ch != null) {
+            // Use the converted .dia files directly
+            // Randomly select calibration_files from the converted files
+            log.info "Using converted .dia files for presearch (selecting ${calibration_files} files)"
 
-        if (!calibration_sample_dir.exists()) {
-            log.error "ERROR: Calibration sample directory not found: ${first_sample.dir}"
-            exit 1
-        }
+            def calibration_files_ch = converted_dia_files_ch
+                .randomSample(calibration_files)
+                .collect()
 
-        // Find MS files and randomly select N for calibration
-        def file_pattern = file_type == 'd' ? '*.d' : "*.${file_type}"
-        def all_ms_files = calibration_sample_dir.listFiles().findAll { f ->
-            if (file_type == 'd') {
-                return f.isDirectory() && f.name.endsWith('.d')
-            } else {
-                return f.isFile() && f.name.toLowerCase().endsWith(".${file_type.toLowerCase()}")
-            }
-        }
-
-        if (all_ms_files.size() == 0) {
-            log.error "ERROR: No ${file_type} files found in ${calibration_sample_dir}"
-            exit 1
-        }
-
-        // Shuffle and take N files (or all if fewer than N)
-        Collections.shuffle(all_ms_files)
-        def selected_files = all_ms_files.take(calibration_files)
-        log.info "Selected ${selected_files.size()} of ${all_ms_files.size()} files for calibration"
-
-        // Convert RAW files to mzML for presearch (Linux ThermoRaw reader may fail on some instruments)
-        // Regular DIA-NN quantification handles RAW files fine via different code path
-        if (file_type.toLowerCase() == 'raw') {
-            log.info "Converting RAW files to mzML for presearch compatibility..."
-
-            // Create channel with individual files for parallel conversion
-            def raw_files_ch = Channel.fromList(selected_files)
-
-            // Convert each file in parallel
-            CONVERT_RAW_TO_MZML(raw_files_ch)
-
-            // Collect all converted mzML files for presearch
-            INFINDIA_PRESEARCH(
-                CONVERT_RAW_TO_MZML.out.mzml_file.collect(),
-                fasta_file,
-                'calibration',
-                instrument_type,
-                pre_select
-            )
-        } else {
-            // Non-RAW files (mzML, .d, etc.) can be used directly
-            def calibration_files_ch = Channel.fromList(selected_files).collect()
             INFINDIA_PRESEARCH(
                 calibration_files_ch,
                 fasta_file,
@@ -345,6 +406,68 @@ workflow ITERATIVE_QUANT {
                 instrument_type,
                 pre_select
             )
+        } else {
+            // Original logic: find files from directory and convert if needed
+            def first_sample = samples_list[0]
+            def calibration_sample_dir = file(first_sample.dir)
+            def file_type = first_sample.file_type ?: 'raw'
+
+            if (!calibration_sample_dir.exists()) {
+                log.error "ERROR: Calibration sample directory not found: ${first_sample.dir}"
+                exit 1
+            }
+
+            // Find MS files and randomly select N for calibration
+            def file_pattern = file_type == 'd' ? '*.d' : "*.${file_type}"
+            def all_ms_files = calibration_sample_dir.listFiles().findAll { f ->
+                if (file_type == 'd') {
+                    return f.isDirectory() && f.name.endsWith('.d')
+                } else {
+                    return f.isFile() && f.name.toLowerCase().endsWith(".${file_type.toLowerCase()}")
+                }
+            }
+
+            if (all_ms_files.size() == 0) {
+                log.error "ERROR: No ${file_type} files found in ${calibration_sample_dir}"
+                exit 1
+            }
+
+            // Shuffle and take N files (or all if fewer than N)
+            Collections.shuffle(all_ms_files)
+            def selected_files = all_ms_files.take(calibration_files)
+            log.info "Selected ${selected_files.size()} of ${all_ms_files.size()} files for calibration"
+
+            // Determine how to handle files for presearch
+            // If RAW files, convert to mzML for presearch (Linux ThermoRaw reader may fail)
+            // Other formats (mzML, .d, .dia) can be used directly
+            if (file_type.toLowerCase() == 'raw') {
+                log.info "Converting RAW files to mzML for presearch compatibility..."
+
+                // Create channel with individual files for parallel conversion
+                def raw_files_ch = Channel.fromList(selected_files)
+
+                // Convert each file in parallel
+                CONVERT_RAW_TO_MZML(raw_files_ch)
+
+                // Collect all converted mzML files for presearch
+                INFINDIA_PRESEARCH(
+                    CONVERT_RAW_TO_MZML.out.mzml_file.collect(),
+                    fasta_file,
+                    'calibration',
+                    instrument_type,
+                    pre_select
+                )
+            } else {
+                // Non-RAW files (mzML, .d, .dia, etc.) can be used directly
+                def calibration_files_ch = Channel.fromList(selected_files).collect()
+                INFINDIA_PRESEARCH(
+                    calibration_files_ch,
+                    fasta_file,
+                    'calibration',
+                    instrument_type,
+                    pre_select
+                )
+            }
         }
 
         // Subset the PREDICTED library using peptides identified in presearch
@@ -381,7 +504,7 @@ workflow ITERATIVE_QUANT {
     log.info "Identification: Quantifying with full library (MBR=${mbr_identify})"
 
     // Create samples channel for identification stage
-    def samples_ch_identify = createSamplesChannel(samples_list, 'identification')
+    def samples_ch_identify = createSamplesChannel(effective_samples_list, 'identification')
 
     // Use calibration library as --ref if available, otherwise use ref_library for batch correction
     def ref_for_identify = calibration_mode != 'none' ? calibration_library : Channel.value(ref_library_file)
@@ -424,7 +547,7 @@ workflow ITERATIVE_QUANT {
     log.info "Final: Quantifying with subset library (MBR=${mbr_final})"
 
     // Create samples channel for final stage
-    def samples_ch_final = createSamplesChannel(samples_list, 'final')
+    def samples_ch_final = createSamplesChannel(effective_samples_list, 'final')
 
     // Use calibration library as --ref if available
     def ref_for_final = calibration_mode != 'none' ? calibration_library : Channel.value(ref_library_file)

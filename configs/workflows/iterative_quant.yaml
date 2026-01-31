@@ -118,9 +118,9 @@ outdir: 'results'
 threads: 60
 
 # Parallel execution mode
-# true: 2 jobs x 30 cores (better throughput)
-# false: 1 job x 60 cores (faster per sample)
-parallel_mode: true
+# true: 2 jobs x 30 cores (better throughput for multiple samples)
+# false: 1 job x 60 cores (full cores per sample)
+parallel_mode: false
 
 # === SLURM Settings (if using slurm profile) ===
 

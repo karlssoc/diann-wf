@@ -28,6 +28,33 @@ samples:
 # Supports .parquet or .speclib formats
 # existing_library: 'path/to/full_library.parquet'
 
+# === InfinDIA Calibration Settings ===
+# InfinDIA pre-search generates an empirical calibration library from a subset
+# of MS files, which speeds up subsequent quantification runs.
+
+# Calibration mode:
+#   'none'     - No calibration library (default, skip presearch)
+#   'infindia' - Generate calibration library via InfinDIA pre-search
+#   'existing' - Use an existing calibration library
+calibration_mode: 'none'
+
+# Path to existing calibration library (required when mode='existing')
+# calibration_library: 'path/to/calibration_lib.parquet'
+
+# Number of MS files to randomly select for calibration (default: 5)
+# Uses files from the first sample in the samples list
+calibration_files: 5
+
+# Instrument type for mass accuracy presets:
+#   'hfx'      - Orbitrap HFX (MS1: 5ppm, MS2: 15ppm)
+#   'timstof'  - timsTOF (MS1: 15ppm, MS2: 15ppm)
+#   ''         - Auto-calibrate (let DIA-NN determine)
+instrument_type: ''
+
+# Limit precursors in InfinDIA for faster calibration (default: 0 = unlimited)
+# Recommended: 5000-10000 for fast calibration runs
+pre_select: 0
+
 # === Library Generation Settings (when no library provided) ===
 
 # Name for generated library (default: 'predicted_library')

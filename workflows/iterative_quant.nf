@@ -47,6 +47,7 @@ include { SUBSET_LIBRARY } from '../modules/subset_library'
 include { CONVERT_LIBRARY } from '../modules/convert_library'
 include { GENERATE_LIBRARY } from '../modules/library'
 include { INFINDIA_PRESEARCH } from '../modules/infindia_presearch'
+include { CONVERT_RAW_TO_MZML } from '../modules/convert_raw'
 
 // Include shared utilities
 include { createSamplesChannel } from '../lib/samples'
@@ -249,13 +250,29 @@ workflow {
         // Create channel from selected files
         def calibration_files_ch = Channel.fromList(selected_files).collect()
 
-        INFINDIA_PRESEARCH(
-            calibration_files_ch,
-            fasta_file,
-            'calibration',
-            instrument_type,
-            pre_select
-        )
+        // Convert RAW files to mzML for presearch (Linux ThermoRaw reader may fail on some instruments)
+        // Regular DIA-NN quantification handles RAW files fine via different code path
+        if (file_type.toLowerCase() == 'raw') {
+            log.info "Converting RAW files to mzML for presearch compatibility..."
+            CONVERT_RAW_TO_MZML(calibration_files_ch)
+
+            INFINDIA_PRESEARCH(
+                CONVERT_RAW_TO_MZML.out.mzml_files,
+                fasta_file,
+                'calibration',
+                instrument_type,
+                pre_select
+            )
+        } else {
+            // Non-RAW files (mzML, .d, etc.) can be used directly
+            INFINDIA_PRESEARCH(
+                calibration_files_ch,
+                fasta_file,
+                'calibration',
+                instrument_type,
+                pre_select
+            )
+        }
 
         calibration_library = INFINDIA_PRESEARCH.out.calibration_library
     } else if (calibration_mode == 'existing') {

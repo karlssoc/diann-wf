@@ -50,7 +50,7 @@ include { CONVERT_LIBRARY } from '../modules/convert_library'
 include { GENERATE_LIBRARY } from '../modules/library'
 include { INFINDIA_PRESEARCH } from '../modules/infindia_presearch'
 include { CONVERT_RAW_TO_MZML } from '../modules/convert_raw'
-include { CONVERT_TO_DIA } from '../modules/convert_to_dia'
+include { CONVERT_TO_DIA; CONVERT_TO_DIA_BATCH } from '../modules/convert_to_dia'
 
 // Include shared utilities
 include { createSamplesChannel } from '../lib/samples'
@@ -232,10 +232,11 @@ workflow ITERATIVE_QUANT {
         }
 
         if (samples_needing_conversion.size() > 0) {
-            log.info "Converting MS files to .dia format for faster processing..."
+            log.info "Converting MS files to .dia format (batch mode)..."
 
-            // Collect all files that need conversion with their sample IDs
-            def all_files_ch = Channel.empty()
+            // Collect all files and build manifest
+            def all_files = []
+            def manifest_lines = ["filename,sample_id"]
 
             samples_needing_conversion.each { sample ->
                 def sample_id = sample.id
@@ -267,7 +268,6 @@ workflow ITERATIVE_QUANT {
                     }
                 } else {
                     // Regular files (raw, mzML, wiff)
-                    def pattern = "*.${file_type}"
                     if (recursive) {
                         sample_dir.eachFileRecurse { f ->
                             if (f.name.toLowerCase().endsWith(".${file_type.toLowerCase()}")) {
@@ -285,24 +285,34 @@ workflow ITERATIVE_QUANT {
 
                 log.info "  Sample ${sample_id}: ${ms_files.size()} files to convert"
 
-                // Add files to channel with sample_id tag
+                // Add to collections
                 ms_files.each { f ->
-                    all_files_ch = all_files_ch.mix(Channel.of(tuple(sample_id, f)))
+                    all_files << f
+                    manifest_lines << "${f.name},${sample_id}"
                 }
             }
 
-            // Convert all files in parallel (now with sample_id)
-            CONVERT_TO_DIA(all_files_ch)
+            // Create manifest file
+            def manifest_content = manifest_lines.join('\n')
+            def manifest_file = file("${workDir}/conversion_manifest.csv")
+            manifest_file.text = manifest_content
 
-            // Store converted files channel for calibration use (flatten to just files)
-            converted_dia_files_ch = CONVERT_TO_DIA.out.dia_file.map { sample_id, dia_file -> dia_file }
+            // Convert all files in single batch job
+            CONVERT_TO_DIA_BATCH(
+                Channel.fromList(all_files).collect(),
+                manifest_file
+            )
 
-            // Create samples data from conversion output (as value channel for reuse)
-            // Group by sample_id, collect to list, then use flatMap to create channels
-            converted_samples_ch = CONVERT_TO_DIA.out.dia_file
-                .groupTuple()
-                .map { sample_id, dia_files -> [id: sample_id, file_count: dia_files.size()] }
-                .collect()  // Value channel containing list of sample info
+            // Store converted files channel for calibration use
+            converted_dia_files_ch = CONVERT_TO_DIA_BATCH.out.dia_files.flatten()
+
+            // Parse output manifest to create samples channel
+            converted_samples_ch = CONVERT_TO_DIA_BATCH.out.manifest
+                .splitCsv(header: true)
+                .map { row -> [id: row.sample_id, dia_file: row.dia_file] }
+                .groupTuple(by: 0)
+                .map { sample_id, entries -> [id: sample_id, file_count: entries.size()] }
+                .collect()
 
             log.info "Converted files will be in: ${params.outdir}/dia_converted/<sample_id>/"
         }

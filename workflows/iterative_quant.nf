@@ -6,8 +6,9 @@
  * This workflow implements an iterative quantification strategy with optional
  * InfinDIA-based calibration for faster processing:
  *
- * 1. Calibration (optional): InfinDIA pre-search to generate empirical calibration library
- * 2. Library generation (optional): Generate library from FASTA if not provided
+ * 1. Library generation (optional): Generate library from FASTA if not provided
+ * 2. Calibration (optional): InfinDIA pre-search to identify peptides, then subset
+ *    the predicted library for calibration (ensures matching RT/IM predictions)
  * 3. Identification stage: Quantify with full proteome library WITHOUT MBR to identify proteins
  * 4. Library subsetting: Reduce the library to only include identified Protein.Groups
  * 5. Final quantification: Quantify with subset library WITH MBR for improved sensitivity
@@ -16,7 +17,7 @@
  * - Reduces false positives by limiting MBR to identified proteins
  * - Improves quantification sensitivity for true positives
  * - Significantly reduces computational time for final stage
- * - (With InfinDIA) Speeds up calibration using empirical library
+ * - (With InfinDIA) Speeds up calibration using subset of predicted library
  *
  * Required parameters:
  *   --fasta           Path to FASTA file
@@ -44,6 +45,7 @@ nextflow.enable.dsl = 2
 include { QUANTIFY as QUANTIFY_IDENTIFY } from '../modules/quantify'
 include { QUANTIFY as QUANTIFY_FINAL } from '../modules/quantify'
 include { SUBSET_LIBRARY } from '../modules/subset_library'
+include { SUBSET_LIBRARY as SUBSET_LIBRARY_CALIBRATION } from '../modules/subset_library'
 include { CONVERT_LIBRARY } from '../modules/convert_library'
 include { GENERATE_LIBRARY } from '../modules/library'
 include { INFINDIA_PRESEARCH } from '../modules/infindia_presearch'
@@ -59,8 +61,9 @@ def helpMessage() {
     Iterative Quantification Workflow
 
     This workflow performs iterative quantification with optional InfinDIA calibration:
-    1. Calibration (optional): InfinDIA pre-search for fast calibration library
-    2. Library generation (if not provided): Generate from FASTA
+    1. Library generation (if not provided): Generate from FASTA
+    2. Calibration (optional): InfinDIA pre-search identifies peptides, then subsets
+       the predicted library for calibration (ensures matching RT/IM predictions)
     3. Identification stage: WITHOUT MBR to identify proteins
     4. Library subsetting: based on identified Protein.Groups
     5. Final stage: WITH MBR on subset library for improved quantification
@@ -209,13 +212,79 @@ workflow ITERATIVE_QUANT {
     }
     log.info ""
 
+    // Reference library for batch correction (separate from calibration)
+    def ref_library_file = params.ref_library ? file(params.ref_library) : file('NO_FILE')
+
+    // ========================================
+    // LIBRARY GENERATION (if no library provided)
+    // Must happen BEFORE calibration so we can subset the predicted library
+    // ========================================
+    def library_for_quantify = null
+
+    if (generate_library) {
+        log.info "Generating library from FASTA..."
+
+        GENERATE_LIBRARY(
+            fasta_file,
+            library_name,
+            'library',
+            models.tokens,
+            models.rt_model,
+            models.im_model,
+            models.fr_model
+        )
+
+        // Convert generated .speclib to .parquet for subsetting
+        // Pass FASTA for proper proteotypic annotation
+        def cut = params.library?.cut ?: 'K*,R*'
+        def missed_cleavages = params.library?.missed_cleavages ?: 1
+
+        CONVERT_LIBRARY(
+            GENERATE_LIBRARY.out.library,
+            'library',
+            fasta_file,
+            cut,
+            missed_cleavages
+        )
+        library_for_quantify = CONVERT_LIBRARY.out.parquet_library
+    } else {
+        // Use provided library
+        def library_file = file(params.existing_library)
+
+        if (!library_file.exists()) {
+            log.error "ERROR: Library file not found: ${params.existing_library}"
+            exit 1
+        }
+
+        // Check if library needs conversion to parquet
+        if (library_file.name.endsWith('.speclib')) {
+            log.info "Converting .speclib to .parquet for subsetting compatibility"
+            // Pass FASTA for proper proteotypic annotation
+            def cut = params.library?.cut ?: 'K*,R*'
+            def missed_cleavages = params.library?.missed_cleavages ?: 1
+
+            CONVERT_LIBRARY(
+                library_file,
+                'converted_library',
+                fasta_file,
+                cut,
+                missed_cleavages
+            )
+            library_for_quantify = CONVERT_LIBRARY.out.parquet_library
+        } else {
+            library_for_quantify = Channel.value(library_file)
+        }
+    }
+
     // ========================================
     // CALIBRATION LIBRARY (optional)
+    // Uses InfinDIA to identify peptides, then subsets the PREDICTED library
+    // This ensures calibration library has matching RT/IM predictions
     // ========================================
     def calibration_library = null
 
     if (calibration_mode == 'infindia') {
-        log.info "Generating calibration library via InfinDIA pre-search..."
+        log.info "Running InfinDIA pre-search to identify peptides for calibration..."
 
         // Use first sample for calibration
         def first_sample = samples_list[0]
@@ -278,7 +347,18 @@ workflow ITERATIVE_QUANT {
             )
         }
 
-        calibration_library = INFINDIA_PRESEARCH.out.calibration_library
+        // Subset the PREDICTED library using peptides identified in presearch
+        // This creates a calibration library with matching RT/IM predictions
+        log.info "Subsetting predicted library using presearch-identified peptides..."
+
+        SUBSET_LIBRARY_CALIBRATION(
+            INFINDIA_PRESEARCH.out.report,
+            library_for_quantify,
+            'calibration',
+            'calibration_lib'
+        )
+
+        calibration_library = SUBSET_LIBRARY_CALIBRATION.out.subset_library
     } else if (calibration_mode == 'existing') {
         if (!params.calibration_library) {
             log.error "ERROR: --calibration_library is required when --calibration_mode='existing'"
@@ -293,69 +373,6 @@ workflow ITERATIVE_QUANT {
     } else {
         // No calibration library - use placeholder
         calibration_library = Channel.value(file('NO_FILE'))
-    }
-
-    // Reference library for batch correction (separate from calibration)
-    def ref_library_file = params.ref_library ? file(params.ref_library) : file('NO_FILE')
-
-    // ========================================
-    // LIBRARY GENERATION (if no library provided)
-    // ========================================
-    def library_for_quantify = null
-
-    if (generate_library) {
-        log.info "Generating library from FASTA..."
-
-        GENERATE_LIBRARY(
-            fasta_file,
-            library_name,
-            'library',
-            models.tokens,
-            models.rt_model,
-            models.im_model,
-            models.fr_model
-        )
-
-        // Convert generated .speclib to .parquet for subsetting
-        // Pass FASTA for proper proteotypic annotation
-        def cut = params.library?.cut ?: 'K*,R*'
-        def missed_cleavages = params.library?.missed_cleavages ?: 1
-
-        CONVERT_LIBRARY(
-            GENERATE_LIBRARY.out.library,
-            'library',
-            fasta_file,
-            cut,
-            missed_cleavages
-        )
-        library_for_quantify = CONVERT_LIBRARY.out.parquet_library
-    } else {
-        // Use provided library
-        def library_file = file(params.existing_library)
-
-        if (!library_file.exists()) {
-            log.error "ERROR: Library file not found: ${params.existing_library}"
-            exit 1
-        }
-
-        // Check if library needs conversion to parquet
-        if (library_file.name.endsWith('.speclib')) {
-            log.info "Converting .speclib to .parquet for subsetting compatibility"
-            // Pass FASTA for proper proteotypic annotation
-            def cut = params.library?.cut ?: 'K*,R*'
-            def missed_cleavages = params.library?.missed_cleavages ?: 1
-
-            CONVERT_LIBRARY(
-                library_file,
-                'converted_library',
-                fasta_file,
-                cut,
-                missed_cleavages
-            )
-            library_for_quantify = CONVERT_LIBRARY.out.parquet_library
-        } else {
-            library_for_quantify = Channel.value(library_file)
-        }
     }
 
     // ========================================

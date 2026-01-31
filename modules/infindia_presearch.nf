@@ -1,16 +1,18 @@
-// DIA-NN Calibration Library Generation Module
-// Generates an empirical calibration library via library-free search
+// DIA-NN InfinDIA Pre-search Module
+// Performs library-free search to identify peptides for calibration
 //
 // This module performs a library-free DIA analysis on a subset of MS files
-// to generate an empirical spectral library. This library can be used as a
-// calibration reference (--ref) in subsequent quantification runs to
-// significantly speed up calibration.
+// to identify peptides. The report output is used to subset the predicted
+// spectral library, creating a calibration library with matching RT/IM
+// predictions. This approach avoids RT/IM mismatch warnings that occur
+// when using the empirical library directly.
 //
 // Uses --direct-quant to disable QuantUMS for faster execution during
 // presearch (calibration library doesn't require QuantUMS precision).
 //
-// Note: Originally used InfinDIA --pre-search, but that mode doesn't output
-// a library file. Standard library-free search is used instead.
+// Outputs:
+//   - calibration_report.parquet: Used to subset predicted library
+//   - calibration_lib.parquet: Empirical library (for reference only)
 
 process INFINDIA_PRESEARCH {
     label 'diann_library'
@@ -32,7 +34,7 @@ process INFINDIA_PRESEARCH {
     path "calibration_lib.parquet", emit: calibration_library
     path "calibration_lib.parquet.skyline.speclib", emit: skyline_lib, optional: true
     path "calibration_presearch.log", emit: log
-    path "calibration_report.parquet", emit: report, optional: true
+    path "calibration_report.parquet", emit: report  // Required for library subsetting
     path "calibration_report.stats.tsv", emit: stats, optional: true
 
     script:

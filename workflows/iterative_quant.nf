@@ -150,7 +150,7 @@ if (!params.samples) {
 }
 
 // Main workflow
-workflow {
+workflow ITERATIVE_QUANT {
     // Validate input files
     def fasta_file = file(params.fasta)
 

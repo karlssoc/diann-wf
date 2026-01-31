@@ -7,9 +7,10 @@
 # 4. Final stage: Quantify with subset library WITH MBR
 #
 # Usage:
-#   nextflow run workflows/iterative_quant.nf \
+#   nextflow run karlssoc/diann-wf \
+#     -entry ITERATIVE_QUANT \
 #     -params-file configs/workflows/iterative_quant.yaml \
-#     -profile docker
+#     -profile slurm
 
 # === Required Parameters ===
 

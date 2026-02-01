@@ -45,7 +45,7 @@ nextflow.enable.dsl = 2
 include { QUANTIFY as QUANTIFY_IDENTIFY } from '../modules/quantify'
 include { QUANTIFY as QUANTIFY_FINAL } from '../modules/quantify'
 include { SUBSET_LIBRARY } from '../modules/subset_library'
-include { SUBSET_LIBRARY as SUBSET_LIBRARY_CALIBRATION } from '../modules/subset_library'
+include { SUBSET_LIBRARY_PEPTIDE } from '../modules/subset_library_peptide'
 include { CONVERT_LIBRARY } from '../modules/convert_library'
 include { GENERATE_LIBRARY } from '../modules/library'
 include { INFINDIA_PRESEARCH } from '../modules/infindia_presearch'
@@ -473,17 +473,18 @@ workflow ITERATIVE_QUANT {
         }
 
         // Subset the PREDICTED library using peptides identified in presearch
-        // This creates a calibration library with matching RT/IM predictions
+        // Uses peptide-level (Modified.Sequence) join for minimal calibration library size
+        // Note: Protein.Group is not populated in InfinDIA presearch reports
         log.info "Subsetting predicted library using presearch-identified peptides..."
 
-        SUBSET_LIBRARY_CALIBRATION(
+        SUBSET_LIBRARY_PEPTIDE(
             INFINDIA_PRESEARCH.out.report,
             library_for_quantify,
             'calibration',
             'calibration_lib'
         )
 
-        calibration_library = SUBSET_LIBRARY_CALIBRATION.out.subset_library
+        calibration_library = SUBSET_LIBRARY_PEPTIDE.out.subset_library
     } else if (calibration_mode == 'existing') {
         if (!params.calibration_library) {
             log.error "ERROR: --calibration_library is required when --calibration_mode='existing'"

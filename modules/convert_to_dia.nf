@@ -12,6 +12,7 @@
 // Single file conversion (parallel execution)
 process CONVERT_TO_DIA {
     label 'diann_convert'
+    stageInMode 'copy'  // Required for Thermo RAW files (DIA-NN can't read symlinks)
 
     publishDir "${params.outdir}/dia_converted/${sample_id}",
         mode: 'copy',
@@ -55,6 +56,7 @@ process CONVERT_TO_DIA {
 // Use this when parallel container extraction is problematic (e.g., /tmp space)
 process CONVERT_TO_DIA_BATCH {
     label 'diann_library'  // Use library label for longer time/more resources
+    stageInMode 'copy'  // Required for Thermo RAW files (DIA-NN can't read symlinks)
 
     publishDir "${params.outdir}/dia_converted",
         mode: 'copy',

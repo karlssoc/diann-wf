@@ -49,7 +49,6 @@ include { SUBSET_LIBRARY as SUBSET_LIBRARY_CALIBRATION } from '../modules/subset
 include { CONVERT_LIBRARY } from '../modules/convert_library'
 include { GENERATE_LIBRARY } from '../modules/library'
 include { INFINDIA_PRESEARCH } from '../modules/infindia_presearch'
-include { CONVERT_RAW_TO_MZML } from '../modules/convert_raw'
 include { CONVERT_TO_DIA; CONVERT_TO_DIA_BATCH } from '../modules/convert_to_dia'
 
 // Include shared utilities
@@ -439,20 +438,22 @@ workflow ITERATIVE_QUANT {
             log.info "Selected ${selected_files.size()} of ${all_ms_files.size()} files for calibration"
 
             // Determine how to handle files for presearch
-            // If RAW files, convert to mzML for presearch (Linux ThermoRaw reader may fail)
+            // RAW files must be converted to .dia (InfinDIA can't read RAW directly)
             // Other formats (mzML, .d, .dia) can be used directly
             if (file_type.toLowerCase() == 'raw') {
-                log.info "Converting RAW files to mzML for presearch compatibility..."
+                log.info "Converting ${selected_files.size()} RAW files to .dia for presearch..."
 
                 // Create channel with individual files for parallel conversion
+                // Use 'calibration' as sample_id for all calibration files
                 def raw_files_ch = Channel.fromList(selected_files)
+                    .map { f -> tuple('calibration', f) }
 
                 // Convert each file in parallel
-                CONVERT_RAW_TO_MZML(raw_files_ch)
+                CONVERT_TO_DIA(raw_files_ch)
 
-                // Collect all converted mzML files for presearch
+                // Collect all converted .dia files for presearch
                 INFINDIA_PRESEARCH(
-                    CONVERT_RAW_TO_MZML.out.mzml_file.collect(),
+                    CONVERT_TO_DIA.out.dia_file.map { sample_id, dia -> dia }.collect(),
                     fasta_file,
                     'calibration',
                     instrument_type,

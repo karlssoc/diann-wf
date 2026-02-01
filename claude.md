@@ -103,6 +103,18 @@ executor {
 **Cause:** Using closures `{ }` for config directives that need direct evaluation
 **Solution:** Remove closures, use direct ternary: `params.parallel_mode ? 30 : 60`
 
+### Issue 6: CONVERT_TO_DIA fails with symlinked RAW files
+**Cause:** DIA-NN's `--convert` flag cannot read Thermo RAW files that are symlinks
+**Symptom:** Conversion silently fails or produces no output when input files are symbolic links
+**Solution:** Use real files, not symlinks. Nextflow staging typically creates symlinks by default - ensure the process receives actual files or configure staging to copy files instead.
+**Note:** This is a DIA-NN limitation, not a Nextflow issue.
+
+### Issue 7: INFINDIA_PRESEARCH fails with Thermo RAW files
+**Cause:** DIA-NN's InfinDIA pre-search cannot read Thermo RAW files directly
+**Symptom:** Pre-search fails or produces no results when given RAW files
+**Solution:** Convert RAW files to .dia format before running INFINDIA_PRESEARCH. mzML files can be used directly without conversion.
+**Implementation:** The iterative_quant workflow automatically converts only the calibration RAW files to .dia (not all files), then uses them for presearch.
+
 ## Important Patterns
 
 ### Dynamic CPU Allocation
@@ -470,5 +482,5 @@ Use `bin/collect_models.sh` to organize tuning outputs into repository structure
 
 ---
 
-*Last updated: 2025-12-17*
+*Last updated: 2026-02-01*
 *This file is specifically for AI assistants working on the project*

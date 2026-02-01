@@ -1,0 +1,102 @@
+# HFX Model Comparison Evaluation
+# Compares default vs tuned RT models on the same samples
+#
+# Usage:
+#   nextflow run workflows/evaluate_methods.nf \
+#     -params-file configs/evaluation/hfx_model_comparison.yaml \
+#     -profile slurm
+
+# =============================================================================
+# INPUT DATA
+# =============================================================================
+
+fasta: '/path/to/protein.fasta'
+
+samples:
+  - id: 'sample1'
+    dir: '/path/to/ms_data/sample1'
+    file_type: 'raw'   # Thermo HFX RAW files
+    # recursive: false
+
+  - id: 'sample2'
+    dir: '/path/to/ms_data/sample2'
+    file_type: 'raw'
+
+  # Add more samples (recommended: 5-10 for evaluation)
+  # - id: 'sample3'
+  #   dir: '/path/to/ms_data/sample3'
+  #   file_type: 'raw'
+
+# =============================================================================
+# CONDITIONS TO RUN
+# =============================================================================
+
+# Run with DIA-NN default models (baseline)
+run_default: true
+
+# Run with first model preset
+run_preset_a: true
+model_preset_a: 'hfx-nlc-120min-260128'  # RT-only model
+
+# Run with second model preset
+run_preset_b: true
+model_preset_b: 'hfx-elc-120min-260131'  # RT+IM+FR model
+
+# Run iterative search (for comparison with standard)
+# Note: Iterative not yet integrated - run separately with iterative_quant.nf
+run_iterative: false
+
+# =============================================================================
+# QUANTIFICATION SETTINGS
+# =============================================================================
+
+# Enable match-between-runs
+mbr: true
+
+# Library generation parameters
+library:
+  min_fr_mz: 200
+  max_fr_mz: 1800
+  min_pep_len: 7
+  max_pep_len: 30
+  min_pr_mz: 300
+  max_pr_mz: 1800
+  min_pr_charge: 2
+  max_pr_charge: 3
+  cut: 'K*,R*'
+  missed_cleavages: 1
+
+# =============================================================================
+# OUTPUT
+# =============================================================================
+
+outdir: 'results/evaluation'
+
+# =============================================================================
+# SLURM SETTINGS (if using -profile slurm)
+# =============================================================================
+
+slurm_account: 'YOUR_ACCOUNT'
+slurm_queue: 'work'
+# slurm_nodelist: 'alap759'  # Optional: specific node
+
+threads: 60
+parallel_mode: false  # false for full 60-core jobs
+
+# =============================================================================
+# POST-PROCESSING
+# =============================================================================
+#
+# After the workflow completes, extract and compare metrics:
+#
+#   # Extract metrics from all conditions
+#   python bin/extract_metrics.py results/evaluation
+#
+#   # Generate comparison report
+#   python bin/compare_results.py results/evaluation/metrics/summary.tsv
+#
+# This will create:
+#   - results/evaluation/metrics/summary.tsv
+#   - results/evaluation/metrics/comparison.html
+#
+# =============================================================================

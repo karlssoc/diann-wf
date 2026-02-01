@@ -333,7 +333,8 @@ workflow ITERATIVE_QUANT {
             models.tokens,
             models.rt_model,
             models.im_model,
-            models.fr_model
+            models.fr_model,
+            file('NO_FILE')  // No fasta filter
         )
 
         // Convert generated .speclib to .parquet for subsetting

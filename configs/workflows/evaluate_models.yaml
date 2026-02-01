@@ -1,0 +1,93 @@
+# Model Evaluation Workflow Configuration
+#
+# Evaluates pre-trained models by running full iterative quantification
+# with MBR. Compares multiple model presets and generates accuracy metrics.
+#
+# Usage:
+#   nextflow run workflows/evaluate_models.nf \
+#     -params-file configs/workflows/evaluate_models.yaml \
+#     -profile slurm
+
+# =============================================================================
+# REQUIRED PARAMETERS
+# =============================================================================
+
+# FASTA database
+fasta: '/path/to/proteome.fasta'
+
+# Model presets to evaluate (from ./models directory)
+# Run `ls models/` to see available presets
+model_presets:
+  - 'hfx-vneo-50spd'
+  - 'hfx-nlc-120min-260128'
+  # - 'hfx-vneo-16spd-260201'
+
+# Sample definitions
+samples:
+  - id: 'evaluation_sample'
+    dir: '/path/to/ms/files'
+    file_type: 'raw'  # or 'dia', 'd', 'mzML'
+    recursive: false
+
+# =============================================================================
+# CALIBRATION SETTINGS
+# =============================================================================
+
+# Number of MS files to use for InfinDIA calibration
+calibration_files: 5
+
+# Instrument type for mass accuracy presets
+# 'hfx' (Orbitrap): MS1 5ppm, MS2 15ppm
+# 'timstof': MS1 15ppm, MS2 15ppm
+# Leave empty for auto-detection
+instrument_type: 'hfx'
+
+# Precursor limit for InfinDIA pre-search (0 = unlimited)
+# Recommended: 5000-10000 for fast calibration
+pre_select: 0
+
+# =============================================================================
+# QUANTIFICATION SETTINGS
+# =============================================================================
+
+# MBR settings
+mbr_identify: false   # Identification stage (recommended: false)
+mbr_final: true       # Final stage (recommended: true)
+
+# =============================================================================
+# LIBRARY GENERATION PARAMETERS
+# =============================================================================
+
+library:
+  # Peptide length range
+  min_pep_len: 7
+  max_pep_len: 30
+
+  # Precursor m/z range
+  min_pr_mz: 350
+  max_pr_mz: 1650
+
+  # Precursor charge range
+  min_pr_charge: 2
+  max_pr_charge: 3
+
+  # Fragment m/z range
+  min_fr_mz: 200
+  max_fr_mz: 1800
+
+  # Enzyme settings
+  cut: 'K*,R*'
+  missed_cleavages: 1
+
+# =============================================================================
+# OUTPUT
+# =============================================================================
+
+outdir: 'results/model_evaluation'
+
+# =============================================================================
+# EXECUTION (usually set via profile, not here)
+# =============================================================================
+
+# threads: 60
+# diann_version: '2.3.1'

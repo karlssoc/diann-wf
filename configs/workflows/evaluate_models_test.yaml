@@ -1,0 +1,45 @@
+# Test configuration for evaluate_models workflow
+# Uses test data with hfx-vneo-50spd preset
+
+fasta: 'test_data/fasta/UP000002311_506-entries_2026_01_07.fasta'
+
+model_presets:
+  - 'default'           # Standard DIA-NN (no tuned models)
+  - 'hfx-vneo-50spd'    # Tuned models
+
+samples:
+  - id: 'test_sample'
+    dir: 'test_data/raw/sample1'
+    file_type: 'dia'
+    recursive: false
+
+# Use single file for calibration (only 1 available)
+calibration_files: 1
+
+# Instrument type
+instrument_type: 'hfx'
+
+# Faster settings for testing
+pre_select: 5000
+
+# MBR settings
+mbr_identify: false
+mbr_final: true
+
+# Library settings
+library:
+  min_pep_len: 7
+  max_pep_len: 30
+  min_pr_mz: 350
+  max_pr_mz: 1650
+  min_pr_charge: 2
+  max_pr_charge: 3
+  min_fr_mz: 200
+  max_fr_mz: 1800
+  cut: 'K*,R*'
+  missed_cleavages: 1
+
+outdir: 'results/evaluate_models_test'
+
+# Local testing - limit resources
+threads: 8

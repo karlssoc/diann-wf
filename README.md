@@ -1042,7 +1042,11 @@ nextflow run YOUR_USERNAME/diann-wf \
 - [x] `.speclib` to `.parquet` — `workflows/convert_library.nf` (verified byte-identical quantification output)
 - [ ] Restructure MS profiles (ttht-evosep-30SPD, hfx-vneo-24SPD) using sets of tuned parameters
 - [ ] Sematics batches `Sample` -> `Batch` 
+- [ ] For batches/samples support for multiple fasta files 
 - [ ] Tuning diann fr for HFX has no added benefit for external validation, results worse than original 
+- [ ] Maybe remove this model models/hfx-elc-120min-260131
+- [ ] No IM prediction for Thermo raw
+- [ ] Only use ms as files as requested in yaml. Ie, if both raw and dia files exist in input dir with config 'raw', ignore dia files
 
 ## Support
 

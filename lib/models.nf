@@ -43,7 +43,7 @@ def findModelsDir(projectDir) {
  *
  * Example usage:
  *   def models = resolveModelFiles(params, projectDir)
- *   GENERATE_LIBRARY(..., models.tokens, models.rt_model, models.im_model, models.fr_model)
+ *   GENERATE_LIBRARY(..., models.tokens, models.rt_model, models.im_model, models.fr_model, file('NO_FILE'))
  */
 def resolveModelFiles(params, projectDir) {
     def tokens_file = file('NO_FILE')
@@ -195,8 +195,10 @@ def listAvailablePresets(projectDir) {
 
     def presets = []
     models_dir.eachDir { dir ->
-        // Skip example and hidden directories
-        if (!dir.name.startsWith('.') && !dir.name.startsWith('example-')) {
+        // Skip example, hidden, and archived directories
+        if (!dir.name.startsWith('.') &&
+            !dir.name.startsWith('example-') &&
+            dir.name != 'archived') {
             presets << dir.name
         }
     }

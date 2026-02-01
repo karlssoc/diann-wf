@@ -1,5 +1,8 @@
 // DIANN Library Generation Module
 // Creates a spectral library from FASTA file
+//
+// Supports optional --fasta-filter for faster generation when only a subset
+// of peptides is needed (e.g., from InfinDIA presearch)
 
 process GENERATE_LIBRARY {
     label 'diann_library'
@@ -21,6 +24,7 @@ process GENERATE_LIBRARY {
     path rt_model, stageAs: 'rt_model.pt'
     path im_model, stageAs: 'im_model.pt'
     path fr_model, stageAs: 'fr_model.pt'
+    path fasta_filter, stageAs: 'fasta_filter.txt'  // Optional: stripped sequences to filter
 
     output:
     path "${library_name}.predicted.speclib", emit: library
@@ -33,6 +37,9 @@ process GENERATE_LIBRARY {
 
     // Check if using tuned models based on tokens file (must convert to string for bash)
     def use_tuned = (tokens.getName() != 'NO_FILE') ? 'true' : 'false'
+
+    // Check if using fasta filter
+    def use_filter = (fasta_filter.getName() != 'NO_FILE') ? 'true' : 'false'
 
     // Library generation parameters
     def min_fr_mz = params.library?.min_fr_mz ?: 200
@@ -55,6 +62,7 @@ process GENERATE_LIBRARY {
     RT_PARAM=""
     IM_PARAM=""
     FR_PARAM=""
+    FILTER_PARAM=""
 
     if [ "${use_tuned}" = "true" ] && [ -s "tokens.txt" ]; then
         TOKENS_PARAM="--tokens tokens.txt"
@@ -74,6 +82,12 @@ process GENERATE_LIBRARY {
     if [ "${use_tuned}" = "true" ] && [ -s "fr_model.pt" ]; then
         FR_PARAM="--fr-model fr_model.pt"
         echo "Using tuned FR model"
+    fi
+
+    if [ "${use_filter}" = "true" ] && [ -s "fasta_filter.txt" ]; then
+        FILTER_PARAM="--fasta-filter fasta_filter.txt"
+        FILTER_COUNT=\$(wc -l < fasta_filter.txt)
+        echo "Using FASTA filter with \$FILTER_COUNT sequences"
     fi
 
     # Run library generation
@@ -101,6 +115,7 @@ process GENERATE_LIBRARY {
         \$RT_PARAM \\
         \$IM_PARAM \\
         \$FR_PARAM \\
+        \$FILTER_PARAM \\
         2>&1 | tee library_generation.log
     """
 }

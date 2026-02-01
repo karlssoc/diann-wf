@@ -102,7 +102,8 @@ workflow create_library {
         tokens_file,
         rt_model_file,
         im_model_file,
-        fr_model_file
+        fr_model_file,
+        file('NO_FILE')  // No fasta filter
     )
 }
 

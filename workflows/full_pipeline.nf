@@ -209,7 +209,8 @@ workflow {
             use_tuned ? tuned_tokens : file('NO_FILE'),
             use_tuned ? tuned_rt : file('NO_FILE'),
             use_tuned ? tuned_im : file('NO_FILE'),
-            fr_param
+            fr_param,
+            file('NO_FILE')  // No fasta filter
         )
 
         // Create samples channel for this stage using shared utility

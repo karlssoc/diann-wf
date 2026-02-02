@@ -50,6 +50,7 @@ include { CONVERT_LIBRARY } from '../modules/convert_library'
 include { GENERATE_LIBRARY } from '../modules/library'
 include { INFINDIA_PRESEARCH } from '../modules/infindia_presearch'
 include { CONVERT_TO_DIA; CONVERT_TO_DIA_BATCH } from '../modules/convert_to_dia'
+include { FILTER_LIBRARY_CHARGE } from '../modules/filter_library'
 
 // Include shared utilities
 include { createSamplesChannel } from '../lib/samples'
@@ -100,6 +101,11 @@ def helpMessage() {
                                  'timstof'  - timsTOF (MS1: 15ppm, MS2: 15ppm)
       --pre_select N             Limit precursors in InfinDIA (default: 0 = unlimited)
                                  Recommended: 5000-10000 for fast calibration
+
+    Search Space Optimization:
+      --exclude_charges LIST     Exclude precursor charges from identification search
+                                 Example: [1] or [1, 4] to exclude charge 1 (and 4)
+                                 Reduces search space without affecting final quantification
 
     Library Generation Parameters (when --library not provided):
       --library.min_fr_mz 200      Min fragment m/z
@@ -525,9 +531,23 @@ workflow ITERATIVE_QUANT {
     // Use calibration library as --ref if available, otherwise use ref_library for batch correction
     def ref_for_identify = calibration_mode != 'none' ? calibration_library : Channel.value(ref_library_file)
 
+    // Optional: Filter library by precursor charge for identification stage
+    // This reduces search space by excluding certain charge states (e.g., charge 1)
+    def library_for_identify = library_for_quantify
+    if (params.exclude_charges) {
+        log.info "Filtering library: excluding charge states ${params.exclude_charges}"
+        FILTER_LIBRARY_CHARGE(
+            library_for_quantify,
+            params.exclude_charges,
+            'filtered_lib',
+            'identification'
+        )
+        library_for_identify = FILTER_LIBRARY_CHARGE.out.filtered_library
+    }
+
     QUANTIFY_IDENTIFY(
         samples_ch_identify,
-        library_for_quantify,
+        library_for_identify,
         fasta_file,
         ref_for_identify,
         mbr_identify

@@ -423,30 +423,33 @@ workflow {
         }
 
     // 5. Subset library by peptides for calibration (per preset)
+    // Use preset-specific output names to track preset through the pipeline
     SUBSET_LIBRARY_PEPTIDE(
         INFINDIA_PRESEARCH.out.report,
         parquet_libs_with_preset.map { preset, lib -> lib },
         parquet_libs_with_preset.map { preset, lib -> preset + '/calibration' },
-        'calibration_lib'
+        parquet_libs_with_preset.map { preset, lib -> preset + '_calibration_lib' }
     )
 
-    // Track preset with calibration library
+    // Track preset with calibration library (extract from filename)
     def calibration_libs_with_preset = SUBSET_LIBRARY_PEPTIDE.out.subset_library
         .map { lib ->
-            // Extract preset from parent directory path
-            def preset = lib.parent.parent.name
+            // Extract preset from filename: "default_calibration_lib.parquet" -> "default"
+            def preset = lib.baseName.replace('_calibration_lib', '')
             tuple(preset, lib)
         }
 
     // 6. Create samples channel for identification - pair with preset-specific library
     // For each preset, create sample tuples joined with the correct library
+    // Use preset__sample_id format to track preset through QUANTIFY process
     def samples_with_libs_ch = parquet_libs_with_preset
         .combine(calibration_libs_with_preset, by: 0)  // Join by preset name
         .flatMap { preset, lib, cal_lib ->
             samples_list.collect { sample ->
                 def sample_dir = file(sample.dir)
-                // tuple: sample_id, sample_dir, file_type, subdir, recursive, file_count (optional), library, calibration_lib
-                tuple(sample.id, sample_dir, sample.file_type ?: 'raw', "${preset}/identification", sample.recursive ?: false, lib, cal_lib)
+                // Encode preset in sample_id for tracking: "preset__original_id"
+                def unique_id = "${preset}__${sample.id}"
+                tuple(unique_id, sample_dir, sample.file_type ?: 'raw', "${preset}/identification", sample.recursive ?: false, lib, cal_lib)
             }
         }
 
@@ -462,8 +465,8 @@ workflow {
     // Group identification reports by preset, then subset each preset's library
     def identify_reports_with_preset = QUANTIFY_IDENTIFY.out.report
         .map { sample_id, report ->
-            // Extract preset from report path: results/preset/identification/sample_id/report.parquet
-            def preset = report.parent.parent.parent.name
+            // Extract preset from sample_id: "preset__original_sample_id" -> "preset"
+            def preset = sample_id.split('__')[0]
             tuple(preset, report)
         }
 
@@ -476,23 +479,27 @@ workflow {
         subset_input.map { preset, report, lib -> report },
         subset_input.map { preset, report, lib -> lib },
         subset_input.map { preset, report, lib -> preset + '/subset_library' },
-        'subset_lib'
+        subset_input.map { preset, report, lib -> preset + '_subset_lib' }
     )
 
-    // Track preset with subset library
+    // Track preset with subset library (extract from filename)
     def subset_libs_with_preset = SUBSET_LIBRARY.out.subset_library
         .map { lib ->
-            def preset = lib.parent.parent.name
+            // Extract preset from filename: "default_subset_lib.parquet" -> "default"
+            def preset = lib.baseName.replace('_subset_lib', '')
             tuple(preset, lib)
         }
 
     // 8. Final quantification with MBR (per preset)
+    // Use preset__sample_id format to track preset through QUANTIFY process
     def samples_final_with_libs_ch = subset_libs_with_preset
         .combine(calibration_libs_with_preset, by: 0)  // Join by preset name
         .flatMap { preset, subset_lib, cal_lib ->
             samples_list.collect { sample ->
                 def sample_dir = file(sample.dir)
-                tuple(sample.id, sample_dir, sample.file_type ?: 'raw', "${preset}/final", sample.recursive ?: false, subset_lib, cal_lib)
+                // Encode preset in sample_id for tracking: "preset__original_id"
+                def unique_id = "${preset}__${sample.id}"
+                tuple(unique_id, sample_dir, sample.file_type ?: 'raw', "${preset}/final", sample.recursive ?: false, subset_lib, cal_lib)
             }
         }
 
@@ -508,7 +515,8 @@ workflow {
     // Group final reports by preset
     def final_reports_with_preset = QUANTIFY_FINAL.out.report
         .map { sample_id, report ->
-            def preset = report.parent.parent.parent.name
+            // Extract preset from sample_id: "preset__original_sample_id" -> "preset"
+            def preset = sample_id.split('__')[0]
             tuple(preset, report)
         }
         .groupTuple()

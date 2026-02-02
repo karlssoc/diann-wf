@@ -18,6 +18,7 @@ fasta: '/path/to/proteome.fasta'
 # Model presets to evaluate (from ./models directory)
 # Run `ls models/` to see available presets
 model_presets:
+  - 'default'
   - 'hfx-vneo-50spd'
   - 'hfx-nlc-120min-260128'
   # - 'hfx-vneo-16spd-260201'
@@ -50,9 +51,8 @@ pre_select: 0
 # QUANTIFICATION SETTINGS
 # =============================================================================
 
-# MBR settings
-mbr_identify: false   # Identification stage (recommended: false)
-mbr_final: true       # Final stage (recommended: true)
+# MBR setting (match-between-runs)
+mbr: true
 
 # =============================================================================
 # LIBRARY GENERATION PARAMETERS
@@ -88,6 +88,10 @@ outdir: 'results/model_evaluation'
 # =============================================================================
 # EXECUTION (usually set via profile, not here)
 # =============================================================================
+
+# Disable parallel mode to use full threads for presearch step
+# (presearch only runs once, no benefit from parallel mode)
+parallel_mode: false
 
 # threads: 60
 # diann_version: '2.3.1'

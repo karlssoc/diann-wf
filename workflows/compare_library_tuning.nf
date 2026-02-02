@@ -79,7 +79,8 @@ workflow {
         file('NO_FILE'),  // No tokens
         file('NO_FILE'),  // No RT model
         file('NO_FILE'),  // No IM model
-        file('NO_FILE')   // No FR model
+        file('NO_FILE'),  // No FR model
+        file('NO_FILE')   // No fasta filter
     )
 
     // Prepare samples channel for default quantification using shared utility
@@ -125,7 +126,8 @@ workflow {
         TUNE_MODELS.out.tokens,
         TUNE_MODELS.out.rt_model,
         TUNE_MODELS.out.im_model,
-        TUNE_MODELS.out.fr_model
+        TUNE_MODELS.out.fr_model,
+        file('NO_FILE')   // No fasta filter
     )
 
     // Prepare samples channel for tuned quantification using shared utility

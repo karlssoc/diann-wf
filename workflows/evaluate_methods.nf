@@ -182,7 +182,8 @@ workflow EVALUATE_METHODS {
             file('NO_FILE'),  // tokens
             file('NO_FILE'),  // rt_model
             file('NO_FILE'),  // im_model
-            file('NO_FILE')   // fr_model
+            file('NO_FILE'),  // fr_model
+            file('NO_FILE')   // fasta_filter
         )
 
         // Convert to parquet
@@ -224,7 +225,8 @@ workflow EVALUATE_METHODS {
             models_a.tokens,
             models_a.rt_model,
             models_a.im_model,
-            models_a.fr_model
+            models_a.fr_model,
+            file('NO_FILE')   // fasta_filter
         )
 
         // Convert to parquet
@@ -266,7 +268,8 @@ workflow EVALUATE_METHODS {
             models_b.tokens,
             models_b.rt_model,
             models_b.im_model,
-            models_b.fr_model
+            models_b.fr_model,
+            file('NO_FILE')   // fasta_filter
         )
 
         // Convert to parquet

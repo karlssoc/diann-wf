@@ -257,7 +257,8 @@ workflow {
         file('NO_FILE'),  // no tokens
         file('NO_FILE'),  // no rt model
         file('NO_FILE'),  // no im model
-        file('NO_FILE')   // no fr model
+        file('NO_FILE'),  // no fr model
+        file('NO_FILE')   // no fasta filter
     )
     def default_library = GENERATE_LIBRARY_DEFAULT.out.library
 
@@ -271,7 +272,8 @@ workflow {
         tokens_file,
         rt_model_file,
         im_model_file,
-        fr_model_file
+        fr_model_file,
+        file('NO_FILE')   // no fasta filter
     )
     def tuned_library = GENERATE_LIBRARY_TUNED.out.library
 

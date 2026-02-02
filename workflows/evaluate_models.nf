@@ -1,19 +1,16 @@
 #!/usr/bin/env nextflow
 
 /*
- * Model Evaluation Workflow
+ * Model Evaluation Workflow (Simplified)
  *
- * Evaluates pre-trained models from ./models by running full iterative
- * quantification with MBR. Supports comparing multiple model presets
- * in parallel and generates RT/IM accuracy metrics.
+ * Evaluates pre-trained models from ./models by comparing iRT prediction
+ * accuracy. Supports comparing multiple model presets in parallel.
  *
- * For each model preset:
- * 1. Library generation: Generate predicted library using model preset
- * 2. Calibration: InfinDIA pre-search + peptide-level subsetting
- * 3. Identification: Quantify WITHOUT MBR
- * 4. Subsetting: Reduce library to identified Protein.Groups
- * 5. Final quantification: Quantify WITH MBR
- * 6. Accuracy report: RT/IM correlation metrics and plots
+ * Simplified flow (no calibration needed for model accuracy comparison):
+ * 1. InfinDIA presearch: Library-free peptide identification (shared)
+ * 2. Library generation: Generate predicted library per model preset
+ * 3. Quantification: Single-stage quantification per preset
+ * 4. Accuracy report: iRT/RT/IM correlation metrics per preset
  *
  * Required parameters:
  *   --fasta           Path to FASTA file
@@ -21,17 +18,14 @@
  *   --model_presets   List of model preset names to evaluate
  *
  * Optional parameters:
- *   --calibration_files  Number of MS files for calibration (default: 5)
+ *   --calibration_files  Number of MS files for presearch (default: 5)
  *   --instrument_type    'hfx' or 'timstof' for mass accuracy presets
  */
 
 nextflow.enable.dsl = 2
 
 // Include modules
-include { QUANTIFY as QUANTIFY_IDENTIFY } from '../modules/quantify'
-include { QUANTIFY as QUANTIFY_FINAL } from '../modules/quantify'
-include { SUBSET_LIBRARY } from '../modules/subset_library'
-include { SUBSET_LIBRARY_PEPTIDE } from '../modules/subset_library_peptide'
+include { QUANTIFY } from '../modules/quantify'
 include { CONVERT_LIBRARY } from '../modules/convert_library'
 include { GENERATE_LIBRARY } from '../modules/library'
 include { INFINDIA_PRESEARCH } from '../modules/infindia_presearch'
@@ -45,10 +39,10 @@ include { resolveModelFiles; logModelInfo; validateModelPreset; listAvailablePre
 // Help message
 def helpMessage() {
     log.info"""
-    Model Evaluation Workflow
+    Model Evaluation Workflow (Simplified)
 
-    Evaluates pre-trained models by running full iterative quantification
-    with MBR. Compares multiple model presets and generates accuracy metrics.
+    Evaluates pre-trained models by comparing iRT prediction accuracy.
+    Compares multiple model presets and generates accuracy metrics.
 
     Usage:
       nextflow run workflows/evaluate_models.nf -params-file <config.yaml> -profile <profile>
@@ -57,14 +51,13 @@ def helpMessage() {
       --fasta PATH            FASTA sequence database
       --samples LIST          Sample definitions [{id, dir, file_type, recursive}]
       --model_presets LIST    Model preset names to evaluate
-                              Example: ['hfx-vneo-50spd', 'hfx-nlc-120min-260128']
+                              Example: ['default', 'hfx-vneo-50spd']
 
     Optional Parameters:
-      --calibration_files N   Number of MS files for calibration (default: 5)
+      --calibration_files N   Number of MS files for presearch (default: 5)
       --instrument_type TYPE  Mass accuracy presets: 'hfx' or 'timstof'
       --pre_select N          Limit precursors in InfinDIA (default: 0 = unlimited)
-      --mbr_identify BOOL     Enable MBR in identification stage (default: false)
-      --mbr_final BOOL        Enable MBR in final stage (default: true)
+      --mbr BOOL              Enable MBR in quantification (default: true)
       --outdir PATH           Output directory (default: results)
 
     Library Generation Parameters:
@@ -77,14 +70,11 @@ def helpMessage() {
 
     Output Structure:
       results/
-      ├── <preset_name>/
-      │   ├── library/              # Generated library
-      │   ├── calibration/          # Calibration library
-      │   ├── identification/       # Identification stage results
-      │   ├── subset_library/       # Subset library
-      │   ├── final/                # Final quantification
-      │   └── accuracy/             # RT/IM accuracy metrics
-      └── comparison/               # Cross-preset comparison summary
+      ├── presearch/              # Shared InfinDIA presearch results
+      └── <preset_name>/
+          ├── library/            # Generated library
+          ├── quant/              # Quantification results
+          └── accuracy/           # iRT/RT/IM accuracy metrics
 
     Available Model Presets:
     """.stripIndent()
@@ -124,138 +114,6 @@ if (!params.model_presets) {
     exit 1
 }
 
-// Sub-workflow for evaluating a single model preset
-workflow EVALUATE_PRESET {
-    take:
-    preset_name          // Model preset name
-    fasta_file           // FASTA file
-    samples_list         // List of sample definitions
-    calibration_files_ch // Calibration MS files
-    instrument_type      // Instrument type for mass accuracy
-    pre_select           // Pre-select limit
-    mbr_identify         // MBR for identification
-    mbr_final            // MBR for final
-
-    main:
-    log.info "============================================"
-    log.info "Evaluating model preset: ${preset_name}"
-    log.info "============================================"
-
-    // Resolve model files for this preset
-    def models_dir = findModelsDir(projectDir)
-    def tokens_file = file("${models_dir}/${preset_name}/dict.txt")
-    def rt_model_file = file("${models_dir}/${preset_name}/tuned_rt.pt")
-    def im_model_file = file("${models_dir}/${preset_name}/tuned_im.pt")
-    def fr_model_file = file("${models_dir}/${preset_name}/tuned_fr.pt")
-
-    // Use NO_FILE for missing models
-    tokens_file = tokens_file.exists() ? tokens_file : file('NO_FILE')
-    rt_model_file = rt_model_file.exists() ? rt_model_file : file('NO_FILE')
-    im_model_file = im_model_file.exists() ? im_model_file : file('NO_FILE')
-    fr_model_file = fr_model_file.exists() ? fr_model_file : file('NO_FILE')
-
-    log.info "  Tokens : ${tokens_file.name != 'NO_FILE' ? 'yes' : 'no'}"
-    log.info "  RT     : ${rt_model_file.name != 'NO_FILE' ? 'yes' : 'no'}"
-    log.info "  IM     : ${im_model_file.name != 'NO_FILE' ? 'yes' : 'no'}"
-    log.info "  FR     : ${fr_model_file.name != 'NO_FILE' ? 'yes' : 'no'}"
-
-    // 1. InfinDIA presearch FIRST (library-free search to identify peptides)
-    INFINDIA_PRESEARCH(
-        calibration_files_ch,
-        fasta_file,
-        "${preset_name}/calibration",
-        instrument_type,
-        pre_select
-    )
-
-    // 2. Extract stripped sequences for fasta-filter (speeds up library generation)
-    EXTRACT_SEQUENCES(
-        INFINDIA_PRESEARCH.out.report
-    )
-
-    // 3. Generate library with preset models (filtered to identified peptides only)
-    GENERATE_LIBRARY(
-        fasta_file,
-        "${preset_name}_library",
-        "${preset_name}/library",
-        tokens_file,
-        rt_model_file,
-        im_model_file,
-        fr_model_file,
-        EXTRACT_SEQUENCES.out.sequences
-    )
-
-    // 4. Convert library to parquet
-    def cut = params.library?.cut ?: 'K*,R*'
-    def missed_cleavages = params.library?.missed_cleavages ?: 1
-
-    CONVERT_LIBRARY(
-        GENERATE_LIBRARY.out.library,
-        "${preset_name}/library",
-        fasta_file,
-        cut,
-        missed_cleavages
-    )
-
-    // 5. Subset library by peptides for calibration (from presearch)
-    SUBSET_LIBRARY_PEPTIDE(
-        INFINDIA_PRESEARCH.out.report,
-        CONVERT_LIBRARY.out.parquet_library,
-        "${preset_name}/calibration",
-        'calibration_lib'
-    )
-
-    // 5. Identification stage (without MBR)
-    def samples_ch_identify = createSamplesChannel(samples_list, "${preset_name}/identification")
-
-    QUANTIFY_IDENTIFY(
-        samples_ch_identify,
-        CONVERT_LIBRARY.out.parquet_library,
-        fasta_file,
-        SUBSET_LIBRARY_PEPTIDE.out.subset_library,
-        mbr_identify
-    )
-
-    // 6. Subset library by Protein.Group
-    def identify_report = QUANTIFY_IDENTIFY.out.report
-        .first()
-        .map { sample_id, report -> report }
-
-    SUBSET_LIBRARY(
-        identify_report,
-        CONVERT_LIBRARY.out.parquet_library,
-        "${preset_name}/subset_library",
-        'subset_lib'
-    )
-
-    // 7. Final quantification (with MBR)
-    def samples_ch_final = createSamplesChannel(samples_list, "${preset_name}/final")
-
-    QUANTIFY_FINAL(
-        samples_ch_final,
-        SUBSET_LIBRARY.out.subset_library.first(),
-        fasta_file,
-        SUBSET_LIBRARY_PEPTIDE.out.subset_library,
-        mbr_final
-    )
-
-    // 8. Generate accuracy report
-    // Collect all final reports for this preset
-    def final_reports = QUANTIFY_FINAL.out.report
-        .map { sample_id, report -> report }
-        .collect()
-
-    MODEL_ACCURACY_REPORT(
-        final_reports,
-        preset_name,
-        "${preset_name}/accuracy"
-    )
-
-    emit:
-    accuracy_report = MODEL_ACCURACY_REPORT.out.metrics
-    final_reports = QUANTIFY_FINAL.out.report
-}
-
 // Main workflow
 workflow {
     // Validate input files
@@ -282,38 +140,36 @@ workflow {
     }
 
     // Settings
-    def mbr_identify = params.mbr_identify != null ? params.mbr_identify : false
-    def mbr_final = params.mbr_final != null ? params.mbr_final : true
+    def mbr = params.mbr != null ? params.mbr : true
     def instrument_type = params.instrument_type ?: ''
     def pre_select = params.pre_select ?: 0
     def calibration_files_count = params.calibration_files ?: 5
 
     // Log workflow parameters
     log.info ""
-    log.info "Model Evaluation Workflow"
-    log.info "========================="
+    log.info "Model Evaluation Workflow (Simplified)"
+    log.info "======================================"
     log.info "FASTA          : ${params.fasta}"
     log.info "Samples        : ${samples_list.size()}"
     log.info "Model presets  : ${model_presets.join(', ')}"
-    log.info "MBR (identify) : ${mbr_identify}"
-    log.info "MBR (final)    : ${mbr_final}"
-    log.info "Calibration    : ${calibration_files_count} files"
+    log.info "MBR            : ${mbr}"
+    log.info "Presearch files: ${calibration_files_count}"
     log.info "Instrument     : ${instrument_type ?: 'auto'}"
     log.info "Output dir     : ${params.outdir}"
     log.info ""
 
-    // Prepare calibration files (same for all presets)
+    // Prepare presearch files (same for all presets)
     def first_sample = samples_list[0]
-    def calibration_sample_dir = file(first_sample.dir)
+    def sample_dir = file(first_sample.dir)
     def file_type = first_sample.file_type ?: 'raw'
 
-    if (!calibration_sample_dir.exists()) {
-        log.error "ERROR: Calibration sample directory not found: ${first_sample.dir}"
+    if (!sample_dir.exists()) {
+        log.error "ERROR: Sample directory not found: ${first_sample.dir}"
         exit 1
     }
 
     // Find MS files
-    def all_ms_files = calibration_sample_dir.listFiles().findAll { f ->
+    def all_ms_files = sample_dir.listFiles().findAll { f ->
         if (file_type == 'd') {
             return f.isDirectory() && f.name.endsWith('.d')
         } else {
@@ -322,18 +178,18 @@ workflow {
     }
 
     if (all_ms_files.size() == 0) {
-        log.error "ERROR: No ${file_type} files found in ${calibration_sample_dir}"
+        log.error "ERROR: No ${file_type} files found in ${sample_dir}"
         exit 1
     }
 
-    // Shuffle and select calibration files
+    // Shuffle and select presearch files
     Collections.shuffle(all_ms_files)
     def selected_files = all_ms_files.take(calibration_files_count)
-    log.info "Selected ${selected_files.size()} of ${all_ms_files.size()} files for calibration"
+    log.info "Selected ${selected_files.size()} of ${all_ms_files.size()} files for presearch"
 
-    def calibration_files_ch = Channel.fromList(selected_files).collect()
+    def presearch_files_ch = Channel.fromList(selected_files).collect()
 
-    // Create channel of presets with all required context
+    // Create channel of presets with model files
     // Special preset "default" uses NO_FILE for all models (standard DIA-NN predictions)
     def presets_ch = Channel.fromList(model_presets)
         .map { preset_name ->
@@ -362,21 +218,25 @@ workflow {
             }
         }
 
-    // 1. InfinDIA presearch (same for all presets - library-free)
+    // =========================================================================
+    // Step 1: InfinDIA presearch (shared across all presets - library-free)
+    // =========================================================================
     INFINDIA_PRESEARCH(
-        calibration_files_ch,
+        presearch_files_ch,
         fasta_file,
         'presearch',
         instrument_type,
         pre_select
     )
 
-    // 2. Extract sequences for fasta-filter
+    // Extract sequences for fasta-filter (speeds up library generation)
     EXTRACT_SEQUENCES(
         INFINDIA_PRESEARCH.out.report
     )
 
-    // 3. Generate library for each preset (with fasta-filter)
+    // =========================================================================
+    // Step 2: Generate library for each preset (with fasta-filter)
+    // =========================================================================
     def cut = params.library?.cut ?: 'K*,R*'
     def missed_cleavages = params.library?.missed_cleavages ?: 1
 
@@ -406,7 +266,7 @@ workflow {
             tuple(preset, lib)
         }
 
-    // 4. Convert library to parquet (track preset)
+    // Convert library to parquet (track preset)
     CONVERT_LIBRARY(
         libraries_with_preset.map { preset, lib -> lib },
         libraries_with_preset.map { preset, lib -> preset + '/library' },
@@ -422,98 +282,44 @@ workflow {
             tuple(preset, lib)
         }
 
-    // 5. Subset library by peptides for calibration (per preset)
-    // Use preset-specific output names to track preset through the pipeline
-    SUBSET_LIBRARY_PEPTIDE(
-        INFINDIA_PRESEARCH.out.report,
-        parquet_libs_with_preset.map { preset, lib -> lib },
-        parquet_libs_with_preset.map { preset, lib -> preset + '/calibration' },
-        parquet_libs_with_preset.map { preset, lib -> preset + '_calibration_lib' }
-    )
-
-    // Track preset with calibration library (extract from filename)
-    def calibration_libs_with_preset = SUBSET_LIBRARY_PEPTIDE.out.subset_library
-        .map { lib ->
-            // Extract preset from filename: "default_calibration_lib.parquet" -> "default"
-            def preset = lib.baseName.replace('_calibration_lib', '')
-            tuple(preset, lib)
-        }
-
-    // 6. Create samples channel for identification - pair with preset-specific library
-    // For each preset, create sample tuples joined with the correct library
+    // =========================================================================
+    // Step 3: Quantification (single stage per preset)
+    // =========================================================================
+    // Create samples channel paired with preset-specific library
     // Use preset__sample_id format to track preset through QUANTIFY process
     def samples_with_libs_ch = parquet_libs_with_preset
-        .combine(calibration_libs_with_preset, by: 0)  // Join by preset name
-        .flatMap { preset, lib, cal_lib ->
+        .flatMap { preset, lib ->
             samples_list.collect { sample ->
-                def sample_dir = file(sample.dir)
+                def sample_dir_path = file(sample.dir)
+                def ft = sample.file_type ?: 'raw'
+                // Count MS files in directory
+                def file_count = sample_dir_path.listFiles().findAll { f ->
+                    if (ft == 'd') {
+                        return f.isDirectory() && f.name.endsWith('.d')
+                    } else {
+                        return f.isFile() && f.name.toLowerCase().endsWith(".${ft.toLowerCase()}")
+                    }
+                }.size()
                 // Encode preset in sample_id for tracking: "preset__original_id"
                 def unique_id = "${preset}__${sample.id}"
-                tuple(unique_id, sample_dir, sample.file_type ?: 'raw', "${preset}/identification", sample.recursive ?: false, lib, cal_lib)
+                tuple(unique_id, sample_dir_path, ft, "${preset}/quant", sample.recursive ?: false, file_count, lib)
             }
         }
 
-    QUANTIFY_IDENTIFY(
-        samples_with_libs_ch.map { id, dir, ft, subdir, rec, lib, cal -> tuple(id, dir, ft, subdir, rec) },
-        samples_with_libs_ch.map { id, dir, ft, subdir, rec, lib, cal -> lib },
+    // For model evaluation, no calibration library needed
+    QUANTIFY(
+        samples_with_libs_ch.map { id, dir, ft, subdir, rec, fc, lib -> tuple(id, dir, ft, subdir, rec, fc) },
+        samples_with_libs_ch.map { id, dir, ft, subdir, rec, fc, lib -> lib },
         fasta_file,
-        samples_with_libs_ch.map { id, dir, ft, subdir, rec, lib, cal -> cal },
-        mbr_identify
+        file('NO_FILE'),
+        mbr
     )
 
-    // 7. Subset library by Protein.Group (per preset)
-    // Group identification reports by preset, then subset each preset's library
-    def identify_reports_with_preset = QUANTIFY_IDENTIFY.out.report
-        .map { sample_id, report ->
-            // Extract preset from sample_id: "preset__original_sample_id" -> "preset"
-            def preset = sample_id.split('__')[0]
-            tuple(preset, report)
-        }
-
-    // Join reports with libraries by preset
-    def subset_input = identify_reports_with_preset
-        .combine(parquet_libs_with_preset, by: 0)
-        .map { preset, report, lib -> tuple(preset, report, lib) }
-
-    SUBSET_LIBRARY(
-        subset_input.map { preset, report, lib -> report },
-        subset_input.map { preset, report, lib -> lib },
-        subset_input.map { preset, report, lib -> preset + '/subset_library' },
-        subset_input.map { preset, report, lib -> preset + '_subset_lib' }
-    )
-
-    // Track preset with subset library (extract from filename)
-    def subset_libs_with_preset = SUBSET_LIBRARY.out.subset_library
-        .map { lib ->
-            // Extract preset from filename: "default_subset_lib.parquet" -> "default"
-            def preset = lib.baseName.replace('_subset_lib', '')
-            tuple(preset, lib)
-        }
-
-    // 8. Final quantification with MBR (per preset)
-    // Use preset__sample_id format to track preset through QUANTIFY process
-    def samples_final_with_libs_ch = subset_libs_with_preset
-        .combine(calibration_libs_with_preset, by: 0)  // Join by preset name
-        .flatMap { preset, subset_lib, cal_lib ->
-            samples_list.collect { sample ->
-                def sample_dir = file(sample.dir)
-                // Encode preset in sample_id for tracking: "preset__original_id"
-                def unique_id = "${preset}__${sample.id}"
-                tuple(unique_id, sample_dir, sample.file_type ?: 'raw', "${preset}/final", sample.recursive ?: false, subset_lib, cal_lib)
-            }
-        }
-
-    QUANTIFY_FINAL(
-        samples_final_with_libs_ch.map { id, dir, ft, subdir, rec, lib, cal -> tuple(id, dir, ft, subdir, rec) },
-        samples_final_with_libs_ch.map { id, dir, ft, subdir, rec, lib, cal -> lib },
-        fasta_file,
-        samples_final_with_libs_ch.map { id, dir, ft, subdir, rec, lib, cal -> cal },
-        mbr_final
-    )
-
-    // 9. Generate accuracy report for each preset
-    // Group final reports by preset
-    def final_reports_with_preset = QUANTIFY_FINAL.out.report
+    // =========================================================================
+    // Step 4: Generate accuracy report for each preset
+    // =========================================================================
+    // Group reports by preset
+    def reports_with_preset = QUANTIFY.out.report
         .map { sample_id, report ->
             // Extract preset from sample_id: "preset__original_sample_id" -> "preset"
             def preset = sample_id.split('__')[0]
@@ -522,9 +328,9 @@ workflow {
         .groupTuple()
 
     MODEL_ACCURACY_REPORT(
-        final_reports_with_preset.map { preset, reports -> reports },
-        final_reports_with_preset.map { preset, reports -> preset },
-        final_reports_with_preset.map { preset, reports -> preset + '/accuracy' }
+        reports_with_preset.map { preset, reports -> reports },
+        reports_with_preset.map { preset, reports -> preset },
+        reports_with_preset.map { preset, reports -> preset + '/accuracy' }
     )
 }
 
@@ -537,11 +343,9 @@ workflow.onComplete {
     log.info "Results by preset:"
     params.model_presets.each { preset ->
         log.info "  ${preset}:"
-        log.info "    Library:        ${params.outdir}/${preset}/library/"
-        log.info "    Calibration:    ${params.outdir}/${preset}/calibration/"
-        log.info "    Identification: ${params.outdir}/${preset}/identification/"
-        log.info "    Final:          ${params.outdir}/${preset}/final/"
-        log.info "    Accuracy:       ${params.outdir}/${preset}/accuracy/"
+        log.info "    Library:  ${params.outdir}/${preset}/library/"
+        log.info "    Quant:    ${params.outdir}/${preset}/quant/"
+        log.info "    Accuracy: ${params.outdir}/${preset}/accuracy/"
     }
     log.info ""
 }

@@ -22,9 +22,8 @@ instrument_type: 'hfx'
 # Faster settings for testing
 pre_select: 5000
 
-# MBR settings
-mbr_identify: false
-mbr_final: true
+# MBR setting
+mbr: true
 
 # Library settings
 library:

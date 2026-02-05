@@ -50,7 +50,7 @@ include { QUANTIFY as QUANTIFY_TUNED } from '../modules/quantify'
 
 // Include shared utilities
 include { parseSamples; createSamplesChannel } from '../lib/samples'
-include { findModelsDir } from '../lib/models'
+include { resolveModelFiles; logModelInfo } from '../lib/models'
 
 // Help message
 def helpMessage() {
@@ -145,103 +145,19 @@ workflow {
         exit 1
     }
 
-    // Resolve model files from preset or explicit paths
-    // Priority: explicit paths > model preset > NO_FILE (defaults)
-    def tokens_file = file('NO_FILE')
-    def rt_model_file = file('NO_FILE')
-    def im_model_file = file('NO_FILE')
-    def fr_model_file = file('NO_FILE')
-    def model_source = "none"
-
-    // Check explicit paths first (highest priority)
-    if (params.tokens) {
-        tokens_file = file(params.tokens)
-        if (!tokens_file.exists()) {
-            log.error "ERROR: Tokens file not found: ${params.tokens}"
-            exit 1
-        }
-        model_source = "explicit paths"
-    }
-    if (params.rt_model) {
-        rt_model_file = file(params.rt_model)
-        if (!rt_model_file.exists()) {
-            log.error "ERROR: RT model file not found: ${params.rt_model}"
-            exit 1
-        }
-        model_source = "explicit paths"
-    }
-    if (params.im_model) {
-        im_model_file = file(params.im_model)
-        if (!im_model_file.exists()) {
-            log.error "ERROR: IM model file not found: ${params.im_model}"
-            exit 1
-        }
-    }
-    if (params.fr_model) {
-        fr_model_file = file(params.fr_model)
-        if (!fr_model_file.exists()) {
-            log.error "ERROR: FR model file not found: ${params.fr_model}"
-            exit 1
-        }
-    }
-
-    // If no explicit paths, try model preset
-    if (model_source == "none" && params.model_preset) {
-        def preset_dir = "${findModelsDir(projectDir)}/${params.model_preset}"
-
-        // Check tokens
-        def tokens_path = "${preset_dir}/dict.txt"
-        if (file(tokens_path).exists()) {
-            tokens_file = file(tokens_path)
-        } else {
-            log.error "ERROR: Tokens file not found in preset: ${tokens_path}"
-            exit 1
-        }
-
-        // Check RT model
-        def rt_path = "${preset_dir}/tuned_rt.pt"
-        if (file(rt_path).exists()) {
-            rt_model_file = file(rt_path)
-        } else {
-            log.warn "RT model not found in preset: ${rt_path} (will use default)"
-        }
-
-        // Check IM model
-        def im_path = "${preset_dir}/tuned_im.pt"
-        if (file(im_path).exists()) {
-            im_model_file = file(im_path)
-        } else {
-            log.info "IM model not found in preset: ${im_path} (will use default)"
-        }
-
-        // Check FR model
-        def fr_path = "${preset_dir}/tuned_fr.pt"
-        if (file(fr_path).exists()) {
-            fr_model_file = file(fr_path)
-        } else {
-            log.info "FR model not found in preset: ${fr_path} (will use default)"
-        }
-
-        model_source = "preset '${params.model_preset}'"
-    }
+    // Resolve model files using shared utility (supports --model_preset and explicit paths)
+    def models = resolveModelFiles(params, projectDir)
 
     // Log workflow info
     log.info ""
     log.info "DIANN Library Comparison with Pre-trained Models"
     log.info "================================================="
     log.info "FASTA        : ${params.fasta}"
-    log.info "Model source : ${model_source}"
-    if (params.model_preset) {
-        log.info "Model preset : ${params.model_preset}"
-    }
-    log.info "Tokens       : ${tokens_file.getName() != 'NO_FILE' ? tokens_file : '(default)'}"
-    log.info "RT model     : ${rt_model_file.getName() != 'NO_FILE' ? rt_model_file : '(default)'}"
-    log.info "IM model     : ${im_model_file.getName() != 'NO_FILE' ? im_model_file : '(default)'}"
-    log.info "FR model     : ${fr_model_file.getName() != 'NO_FILE' ? fr_model_file : '(default)'}"
     log.info "DIANN version: ${params.diann_version}"
     log.info "Threads      : ${params.threads}"
     log.info "Output dir   : ${params.outdir}"
     log.info "Samples      : ${samples_list.size()}"
+    logModelInfo(models, params)
     if (params.ref_library) {
         log.info "Ref library  : ${params.ref_library}"
     }
@@ -269,10 +185,10 @@ workflow {
         fasta_file,
         library_name_tuned,
         'tuned_library',
-        tokens_file,
-        rt_model_file,
-        im_model_file,
-        fr_model_file,
+        models.tokens,
+        models.rt_model,
+        models.im_model,
+        models.fr_model,
         file('NO_FILE')   // no fasta filter
     )
     def tuned_library = GENERATE_LIBRARY_TUNED.out.library
@@ -284,7 +200,7 @@ workflow {
 
     QUANTIFY_DEFAULT(
         samples_ch_default,
-        default_library,
+        default_library.first(),  // Broadcast library to all samples
         fasta_file,
         ref_library_file,
         mbr

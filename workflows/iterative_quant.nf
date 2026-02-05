@@ -558,20 +558,15 @@ workflow ITERATIVE_QUANT {
     // ========================================
     log.info "Subsetting library based on identified Protein.Groups"
 
-    // Collect all identification stage reports and merge Protein.Groups
-    // For multi-sample, we take the union of all identified Protein.Groups
+    // Collect all identification reports for union of Protein.Groups across all samples
+    // report.parquet contains entries at all q-value levels (not just 1% FDR),
+    // and SUBSET_LIBRARY extracts ALL Protein.Groups without FDR filtering
     def all_identify_reports = QUANTIFY_IDENTIFY.out.report
         .map { sample_id, report -> report }
         .collect()
 
-    // Use the first report for subsetting (in multi-sample, could merge)
-    // For now, use the collected reports - DuckDB can handle multiple files
-    def identify_report = QUANTIFY_IDENTIFY.out.report
-        .first()
-        .map { sample_id, report -> report }
-
     SUBSET_LIBRARY(
-        identify_report,
+        all_identify_reports,
         library_for_quantify,
         'subset_library',
         'subset_lib'

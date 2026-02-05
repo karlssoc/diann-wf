@@ -4,7 +4,7 @@
 
 # Use a PREDICTED library (not empirical) - required for iterative workflow
 # Empirical libraries (with q-values) cause issues with MBR in the second pass
-library: 'test_data/library/predicted_lib.parquet'
+existing_library: 'test_data/library/predicted_lib.parquet'
 
 # Test FASTA
 fasta: 'test_data/fasta/UP000002311_506-entries_2026_01_07.fasta'

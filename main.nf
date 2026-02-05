@@ -7,13 +7,16 @@
  * Use the -entry flag to select which workflow to run.
  *
  * Available workflows:
- *   - ITERATIVE_QUANT: Iterative quantification (library gen -> identify -> subset -> final)
- *   - create_library:  Create a spectral library from FASTA
- *   - quantify_only:   Quantify samples using an existing library
+ *   - ITERATIVE_QUANT:     Iterative quantification (library gen -> identify -> subset -> final)
+ *   - LIBRARY_AND_QUANTIFY: Generate library + quantify samples in one go
+ *   - create_library:       Create a spectral library from FASTA
+ *   - quantify_only:        Quantify samples using an existing library
  *
  * Examples:
  *   nextflow run karlssoc/diann-wf -entry ITERATIVE_QUANT -params-file config.yaml -profile slurm
+ *   nextflow run karlssoc/diann-wf -entry LIBRARY_AND_QUANTIFY -params-file config.yaml -profile slurm
  *   nextflow run karlssoc/diann-wf -entry create_library -params-file configs/library.yaml -profile slurm
+ *   nextflow run karlssoc/diann-wf -entry quantify_only -params-file configs/quantify.yaml -profile slurm
  */
 
 nextflow.enable.dsl = 2
@@ -24,6 +27,11 @@ include { QUANTIFY } from './modules/quantify'
 
 // Import workflows
 include { ITERATIVE_QUANT } from './workflows/iterative_quant'
+include { LIBRARY_AND_QUANTIFY } from './workflows/library_and_quantify'
+
+// Import shared utilities
+include { parseSamples; createSamplesChannel } from './lib/samples'
+include { resolveModelFiles; logModelInfo } from './lib/models'
 
 // Check for non-native execution (ARM Mac with Docker/Podman)
 def checkPlatformWarning() {
@@ -67,20 +75,16 @@ workflow create_library {
     }
 
     // Check FASTA file
-    fasta_file = file(params.fasta)
+    def fasta_file = file(params.fasta)
     if (!fasta_file.exists()) {
         log.error "ERROR: FASTA file not found: ${params.fasta}"
         exit 1
     }
 
-    // Handle tuned model files (use placeholder if not provided)
-    tokens_file = params.tokens ? file(params.tokens) : file('NO_FILE')
-    rt_model_file = params.rt_model ? file(params.rt_model) : file('NO_FILE')
-    im_model_file = params.im_model ? file(params.im_model) : file('NO_FILE')
-    fr_model_file = params.fr_model ? file(params.fr_model) : file('NO_FILE')
+    // Resolve model files using shared utility (supports --model_preset and explicit paths)
+    def models = resolveModelFiles(params, projectDir)
 
     // Log workflow info
-    def using_tuned = params.tokens != null
     log.info ""
     log.info "DIANN Library Creation Workflow"
     log.info "================================"
@@ -89,7 +93,7 @@ workflow create_library {
     log.info "DIANN version: ${params.diann_version}"
     log.info "Threads      : ${params.threads}"
     log.info "Output dir   : ${params.outdir}"
-    log.info "Using tuned  : ${using_tuned}"
+    logModelInfo(models, params)
     log.info ""
 
     def subdir = params.subdir ?: 'library'
@@ -99,10 +103,10 @@ workflow create_library {
         fasta_file,
         params.library_name,
         subdir,
-        tokens_file,
-        rt_model_file,
-        im_model_file,
-        fr_model_file,
+        models.tokens,
+        models.rt_model,
+        models.im_model,
+        models.fr_model,
         file('NO_FILE')  // No fasta filter
     )
 }
@@ -126,80 +130,16 @@ workflow quantify_only {
         exit 1
     }
 
-    // Parse samples
-    def samples_list
-    if (params.samples instanceof List) {
-        samples_list = params.samples
-    } else if (params.samples instanceof String && params.samples.startsWith('[')) {
-        samples_list = new groovy.json.JsonSlurper().parseText(params.samples)
-    } else if (params.samples instanceof String) {
-        def samples_file = file(params.samples)
-        if (!samples_file.exists()) {
-            log.error "ERROR: Samples file not found: ${params.samples}"
-            exit 1
-        }
-        if (samples_file.name.endsWith('.yaml') || samples_file.name.endsWith('.yml')) {
-            samples_list = new org.yaml.snakeyaml.Yaml().load(samples_file.text).samples
-        } else {
-            samples_list = new groovy.json.JsonSlurper().parseText(samples_file.text)
-        }
-    }
+    // Parse samples using shared utility
+    def samples_list = parseSamples(params.samples)
 
-    // Create channel from samples
+    // Create channel from samples with file counting
     def subdir = params.subdir ?: ''
-    samples_ch = Channel.fromList(samples_list)
-        .map { sample ->
-            def sample_id = sample.id
-            def sample_dir = file(sample.dir)
-            def file_type = sample.file_type ?: 'raw'
-            def recursive = sample.recursive ?: false
-
-            if (!sample_dir.exists()) {
-                log.error "ERROR: Sample directory not found: ${sample.dir}"
-                exit 1
-            }
-
-            // Count MS files in directory for dynamic time allocation
-            def file_extensions = ['.mzML', '.raw', '.d', '.wiff']
-            def file_count = 0
-
-            if (recursive) {
-                // Recursive counting: traverse all subdirectories
-                sample_dir.eachFileRecurse { file ->
-                    if (file.isFile()) {
-                        def extension = file.name.substring(file.name.lastIndexOf('.'))
-                        if (file_extensions.contains(extension)) {
-                            file_count++
-                        }
-                    } else if (file.isDirectory() && file.name.endsWith('.d')) {
-                        // Count Bruker .d directories as one file
-                        file_count++
-                    }
-                }
-            } else {
-                // Non-recursive: only immediate directory
-                sample_dir.listFiles().each { file ->
-                    if (file.isFile()) {
-                        def extension = file.name.substring(file.name.lastIndexOf('.'))
-                        if (file_extensions.contains(extension)) {
-                            file_count++
-                        }
-                    } else if (file.isDirectory() && file.name.endsWith('.d')) {
-                        // Count Bruker .d directories as one file
-                        file_count++
-                    }
-                }
-            }
-
-            // Log file count for user awareness
-            log.info "Sample ${sample_id}: Found ${file_count} MS files"
-
-            tuple(sample_id, sample_dir, file_type, subdir, recursive, file_count)
-        }
+    def samples_ch = createSamplesChannel(samples_list, subdir)
 
     // Check library and fasta files
-    library_file = file(params.library)
-    fasta_file = file(params.fasta)
+    def library_file = file(params.library)
+    def fasta_file = file(params.fasta)
 
     if (!library_file.exists()) {
         log.error "ERROR: Library file not found: ${params.library}"
@@ -211,14 +151,13 @@ workflow quantify_only {
     }
 
     // Handle optional reference library for batch correction
-    ref_library_file = params.ref_library ? file(params.ref_library) : file('NO_FILE')
+    def ref_library_file = params.ref_library ? file(params.ref_library) : file('NO_FILE')
     if (params.ref_library && !ref_library_file.exists()) {
         log.error "ERROR: Reference library file not found: ${params.ref_library}"
         exit 1
     }
 
     // Log workflow info
-    def using_batch_correction = params.ref_library != null
     log.info ""
     log.info "DIANN Quantification Workflow"
     log.info "=============================="
@@ -228,27 +167,32 @@ workflow quantify_only {
     log.info "Threads      : ${params.threads}"
     log.info "Output dir   : ${params.outdir}"
     log.info "Samples      : ${samples_list.size()}"
-    log.info "Batch corr.  : ${using_batch_correction}"
+    if (params.ref_library) {
+        log.info "Ref library  : ${params.ref_library}"
+    }
     log.info ""
 
-    // Run quantification
+    // Run quantification (MBR enabled by default)
+    def mbr = params.mbr != null ? params.mbr : true
     QUANTIFY(
         samples_ch,
         library_file,
         fasta_file,
-        ref_library_file
+        ref_library_file,
+        mbr
     )
 }
 
-// Default workflow (points to the manifest main script)
+// Default workflow (no entry specified)
 workflow {
     log.error """
     ERROR: No workflow specified.
 
     Please use the -entry flag to select a workflow:
-      -entry ITERATIVE_QUANT : Iterative quantification (recommended)
-      -entry create_library  : Create spectral library from FASTA
-      -entry quantify_only   : Quantify samples using existing library
+      -entry ITERATIVE_QUANT      : Iterative quantification (recommended)
+      -entry LIBRARY_AND_QUANTIFY : Generate library + quantify samples
+      -entry create_library       : Create spectral library from FASTA
+      -entry quantify_only        : Quantify samples using existing library
 
     Example:
       nextflow run karlssoc/diann-wf -entry ITERATIVE_QUANT -params-file config.yaml -profile slurm

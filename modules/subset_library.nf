@@ -1,7 +1,8 @@
 // DIANN Library Subsetting Module
-// Filters a spectral library to include only protein groups identified in a quantification report
+// Filters a spectral library to include only protein groups found in source parquet file(s)
 //
-// Uses DuckDB for efficient parquet operations with schema preservation
+// Supports single or multiple input files (e.g., from .collect() across samples).
+// Uses DuckDB for efficient parquet operations with schema preservation.
 
 process SUBSET_LIBRARY {
     label 'duckdb'
@@ -13,7 +14,7 @@ process SUBSET_LIBRARY {
     tag "${subdir ? subdir + '/' : ''}${library.baseName}"
 
     input:
-    path report        // Quantification report parquet (source of Protein.Group filter)
+    path pg_source     // Parquet file(s) containing Protein.Group column (out-lib or report)
     path library       // Full spectral library parquet (to be filtered)
     val subdir         // Optional output subdirectory
     val output_name    // Output file name (without .parquet extension)
@@ -26,20 +27,26 @@ process SUBSET_LIBRARY {
     """
     # Log subsetting operation
     echo "=== Library Subsetting ===" | tee subset_library.log
-    echo "Report:  ${report}" | tee -a subset_library.log
-    echo "Library: ${library}" | tee -a subset_library.log
-    echo "Output:  ${output_name}.parquet" | tee -a subset_library.log
+    echo "PG source: ${pg_source}" | tee -a subset_library.log
+    echo "Library:   ${library}" | tee -a subset_library.log
+    echo "Output:    ${output_name}.parquet" | tee -a subset_library.log
     echo "" | tee -a subset_library.log
 
-    # Count input rows (use -csv -noheader for clean output)
-    REPORT_ROWS=\$(/duckdb -csv -noheader -c "SELECT COUNT(*) FROM read_parquet('${report}')")
+    # Build DuckDB list from staged Protein.Group source file(s)
+    # Handles both single file and multiple files from .collect()
+    PG_LIST=\$(echo "${pg_source}" | tr ' ' '\\n' | sed "s/.*/'&'/" | paste -sd, -)
+    PG_COUNT=\$(echo "${pg_source}" | wc -w | tr -d ' ')
+    echo "PG source files: \$PG_COUNT" | tee -a subset_library.log
+
+    # Count input rows
+    PG_ROWS=\$(/duckdb -csv -noheader -c "SELECT COUNT(*) FROM read_parquet([\$PG_LIST])")
     LIBRARY_ROWS=\$(/duckdb -csv -noheader -c "SELECT COUNT(*) FROM read_parquet('${library}')")
-    echo "Report rows:  \$REPORT_ROWS" | tee -a subset_library.log
+    echo "PG source rows (total): \$PG_ROWS" | tee -a subset_library.log
     echo "Library rows: \$LIBRARY_ROWS" | tee -a subset_library.log
 
-    # Count unique Protein.Groups in report
-    UNIQUE_PG=\$(/duckdb -csv -noheader -c "SELECT COUNT(DISTINCT \\\"Protein.Group\\\") FROM read_parquet('${report}')")
-    echo "Unique Protein.Groups in report: \$UNIQUE_PG" | tee -a subset_library.log
+    # Count unique Protein.Groups across all source files (union)
+    UNIQUE_PG=\$(/duckdb -csv -noheader -c "SELECT COUNT(DISTINCT \\\"Protein.Group\\\") FROM read_parquet([\$PG_LIST])")
+    echo "Unique Protein.Groups in source: \$UNIQUE_PG" | tee -a subset_library.log
     echo "" | tee -a subset_library.log
 
     # Perform subsetting with inner join on unique Protein.Groups
@@ -51,7 +58,7 @@ process SUBSET_LIBRARY {
             FROM read_parquet('${library}') L
             INNER JOIN (
                 SELECT DISTINCT \\\"Protein.Group\\\"
-                FROM read_parquet('${report}')
+                FROM read_parquet([\$PG_LIST])
             ) R ON L.\\\"Protein.Group\\\" = R.\\\"Protein.Group\\\"
         ) TO '${output_name}.parquet' (FORMAT PARQUET);
     "

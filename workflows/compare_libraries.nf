@@ -190,7 +190,7 @@ workflow {
 
     QUANTIFY_DEFAULT(
         samples_ch_default,
-        default_library,
+        default_library.first(),  // Broadcast library to all samples
         fasta_file,
         ref_library_file,
         mbr

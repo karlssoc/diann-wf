@@ -23,21 +23,21 @@ include { QUANTIFY } from '../modules/quantify'
 include { parseSamples; createSamplesChannel } from '../lib/samples'
 include { resolveModelFiles; logModelInfo } from '../lib/models'
 
+// Validate required parameters
+if (!params.fasta) {
+    error "ERROR: Missing required parameter --fasta"
+}
+if (!params.samples) {
+    error "ERROR: Missing required parameter --samples"
+}
+
 /*
 ========================================================================================
     WORKFLOW
 ========================================================================================
 */
 
-workflow {
-    // Validate required parameters
-    if (!params.fasta) {
-        error "ERROR: Missing required parameter --fasta"
-    }
-    if (!params.samples) {
-        error "ERROR: Missing required parameter --samples"
-    }
-
+workflow LIBRARY_AND_QUANTIFY {
     // Parse samples using shared utility
     def samples_list = parseSamples(params.samples)
 

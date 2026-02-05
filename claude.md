@@ -16,32 +16,65 @@ A Nextflow DSL2 workflow for DIA-NN (Data-Independent Acquisition by Neural Netw
 
 ```
 diann-wf/
+├── main.nf                 # Entry point (ITERATIVE_QUANT, LIBRARY_AND_QUANTIFY, create_library, quantify_only)
+│
 ├── workflows/              # Complete workflow definitions
-│   ├── compare_libraries.nf    # Compare default vs tuned libraries
-│   ├── full_pipeline.nf        # Complete analysis pipeline
-│   ├── quantify_only.nf        # Quantify with existing library
-│   ├── create_library.nf       # Generate spectral library
-│   ├── convert_library.nf      # Convert .speclib to .parquet
-│   └── tune_only.nf            # Tune prediction models
+│   ├── library_and_quantify.nf     # Generate library + quantify (core)
+│   ├── iterative_quant.nf          # Iterative quant with calibration (core)
+│   ├── quantify_only.nf            # Quantify with existing library
+│   ├── create_library.nf           # Generate spectral library
+│   ├── convert_library.nf          # Convert .speclib to .parquet
+│   ├── tune_only.nf                # Tune prediction models
+│   ├── repredict_library.nf        # Repredict library from existing
+│   ├── infindia_presearch_only.nf  # Library-free presearch
+│   ├── compare_libraries.nf        # Compare default vs tuned libraries
+│   ├── compare_with_models.nf      # Compare default vs preset models
+│   └── evaluate_models.nf          # Multi-preset accuracy comparison
 │
 ├── modules/                # Reusable process modules
-│   ├── library.nf             # GENERATE_LIBRARY process
-│   ├── tune.nf                # TUNE_MODELS process
-│   ├── quantify.nf            # QUANTIFY process
-│   └── convert_library.nf    # CONVERT_LIBRARY process
+│   ├── library.nf              # GENERATE_LIBRARY
+│   ├── tune.nf                 # TUNE_MODELS
+│   ├── quantify.nf             # QUANTIFY
+│   ├── convert_library.nf      # CONVERT_LIBRARY
+│   ├── convert_to_dia.nf       # CONVERT_TO_DIA, CONVERT_TO_DIA_BATCH
+│   ├── infindia_presearch.nf   # INFINDIA_PRESEARCH
+│   ├── repredict_library.nf    # REPREDICT_LIBRARY
+│   ├── subset_library.nf       # SUBSET_LIBRARY (by Protein.Group)
+│   ├── subset_library_peptide.nf # SUBSET_LIBRARY_PEPTIDE (by Modified.Sequence)
+│   ├── extract_sequences.nf    # EXTRACT_SEQUENCES
+│   ├── filter_library.nf       # FILTER_LIBRARY_CHARGE
+│   └── model_accuracy_report.nf # MODEL_ACCURACY_REPORT
 │
-├── configs/                # Configuration files (reorganized!)
+├── lib/                    # Shared utility functions
+│   ├── samples.nf             # parseSamples(), createSamplesChannel()
+│   ├── models.nf              # resolveModelFiles(), logModelInfo()
+│   └── files.nf               # countMSFiles()
+│
+├── configs/                # Configuration files
 │   ├── workflows/             # Multi-module workflows
+│   │   ├── library_and_quantify.yaml
+│   │   ├── library_and_quantify_preset.yaml
+│   │   ├── iterative_quant.yaml
 │   │   ├── compare_libraries.yaml
-│   │   └── full_pipeline.yaml
+│   │   ├── compare_with_models.yaml
+│   │   └── evaluate_models.yaml
 │   ├── quantify/              # Single module configs
 │   │   ├── basic.yaml
 │   │   ├── ultrafast.yaml
-│   │   └── batch_correction.yaml
+│   │   ├── batch_correction.yaml
+│   │   └── smb_storage.yaml
 │   ├── library/
+│   │   ├── standard.yaml
+│   │   ├── repredict.yaml
+│   │   └── ttht-evos-30spd.yaml
+│   ├── tune/
 │   │   └── standard.yaml
-│   └── tune/
-│       └── standard.yaml
+│   ├── presearch/
+│   │   └── standard.yaml
+│   ├── test/                  # Test configurations
+│   └── cosmos/                # COSMOS HPC examples
+│
+├── models/                 # Pre-trained model presets
 │
 └── nextflow.config         # Main configuration (profiles, resources)
 ```

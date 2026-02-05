@@ -109,11 +109,11 @@ executor {
 **Solution:** Use real files, not symlinks. Nextflow staging typically creates symlinks by default - ensure the process receives actual files or configure staging to copy files instead.
 **Note:** This is a DIA-NN limitation, not a Nextflow issue.
 
-### Issue 7: INFINDIA_PRESEARCH fails with Thermo RAW files
-**Cause:** DIA-NN's InfinDIA pre-search cannot read Thermo RAW files directly
-**Symptom:** Pre-search fails or produces no results when given RAW files
-**Solution:** Convert RAW files to .dia format before running INFINDIA_PRESEARCH. mzML files can be used directly without conversion.
-**Implementation:** The iterative_quant workflow automatically converts only the calibration RAW files to .dia (not all files), then uses them for presearch.
+### Issue 7: INFINDIA_PRESEARCH fails with Thermo RAW and Bruker .d files
+**Cause:** DIA-NN's InfinDIA pre-search cannot read Thermo RAW or Bruker .d files directly
+**Symptom:** Pre-search fails with `ERROR: cannot open the raw data folder` or produces no results
+**Solution:** Convert RAW/.d files to .dia format before running INFINDIA_PRESEARCH. mzML files can be used directly without conversion.
+**Implementation:** Use `convert_to_dia: true` in config. The iterative_quant and infindia_presearch_only workflows automatically convert files to .dia before presearch.
 
 ## Important Patterns
 

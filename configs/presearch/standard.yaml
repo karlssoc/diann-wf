@@ -10,11 +10,16 @@
 fasta: 'path/to/your/database.fasta'
 
 # MS data files for pre-search
-# Provide paths to individual MS files (.dia, .mzML, .d)
-# Note: Thermo RAW files must be converted to .dia first
+# Provide paths to individual MS files (.dia, .mzML, .d, .raw)
 ms_files:
   - 'path/to/file1.dia'
   - 'path/to/file2.dia'
+
+# Convert input files to .dia format before presearch
+# Required for .d (Bruker) and .raw (Thermo) files - DIA-NN presearch
+# cannot read these formats directly
+# Not needed for .dia or .mzML files
+convert_to_dia: false
 
 # Instrument type: 'hfx' (Orbitrap) or 'timstof'
 # Controls mass accuracy presets:

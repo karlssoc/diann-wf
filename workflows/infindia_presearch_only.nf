@@ -1,18 +1,23 @@
 #!/usr/bin/env nextflow
 
 /*
- * InfinDIA Pre-search Only Workflow
+ * InfinDIA Pre-search Workflow
  *
  * Performs a library-free DIA analysis to identify peptides for calibration.
  * The output report can be used to subset a predicted spectral library.
  *
+ * Supports optional .dia conversion for .d (Bruker) and .raw (Thermo) files
+ * that DIA-NN presearch cannot read directly.
+ *
  * Required parameters:
  *   --fasta           Path to FASTA file
- *   --ms_files        List of MS data file paths (.dia, .mzML, .d)
+ *   --ms_files        List of MS data file paths (.dia, .mzML, .d, .raw)
  *
  * Optional parameters:
+ *   --convert_to_dia   Convert input files to .dia before presearch (default: false)
  *   --instrument_type  'hfx' (Orbitrap) or 'timstof' (default: auto-calibrate)
  *   --pre_select       Max precursors to select, 0 = unlimited (default: 5000)
+ *   --mbr              Match-between-runs (default: true)
  *
  * Example usage:
  *   nextflow run workflows/infindia_presearch_only.nf \
@@ -22,24 +27,27 @@
 
 nextflow.enable.dsl = 2
 
-// Include module
+// Include modules
 include { INFINDIA_PRESEARCH } from '../modules/infindia_presearch'
+include { CONVERT_TO_DIA } from '../modules/convert_to_dia'
 
 // Help message
 def helpMessage() {
     log.info"""
-    InfinDIA Pre-search Only Workflow
+    InfinDIA Pre-search Workflow
 
     Usage:
       nextflow run workflows/infindia_presearch_only.nf -params-file <config.yaml> -profile <profile>
 
     Required Parameters:
       --fasta PATH            FASTA database file
-      --ms_files LIST         List of MS data file paths (.dia, .mzML, .d)
+      --ms_files LIST         List of MS data file paths (.dia, .mzML, .d, .raw)
 
     Optional Parameters:
+      --convert_to_dia BOOL   Convert .d/.raw files to .dia first (default: false)
       --instrument_type STR   'hfx' (Orbitrap) or 'timstof' (default: auto)
       --pre_select INT        Max precursors to select, 0 = unlimited (default: 5000)
+      --mbr BOOL              Match-between-runs (default: true)
 
     Library Generation Parameters (with defaults):
       --library.min_pep_len 7
@@ -54,17 +62,15 @@ def helpMessage() {
       --library.missed_cleavages 1
 
     Examples:
-      # Run with config file
+      # Run with .dia files (no conversion needed)
       nextflow run workflows/infindia_presearch_only.nf \\
         -params-file configs/presearch/standard.yaml \\
         -profile standard
 
-      # Run with command-line parameters
+      # Run with .d files (requires conversion)
       nextflow run workflows/infindia_presearch_only.nf \\
-        --fasta mydata.fasta \\
-        --ms_files '[file1.dia, file2.dia]' \\
-        --instrument_type hfx \\
-        --pre_select 5000 \\
+        -params-file configs/presearch/standard.yaml \\
+        --convert_to_dia true \\
         -profile slurm
     """.stripIndent()
 }
@@ -112,6 +118,7 @@ workflow {
     // Resolve parameters with defaults
     def instrument_type = params.instrument_type ?: ''
     def pre_select = params.pre_select ?: 5000
+    def convert_to_dia = params.convert_to_dia ?: false
 
     // Log workflow info
     log.info """
@@ -120,8 +127,10 @@ workflow {
     ============================================
     FASTA          : ${params.fasta}
     MS files       : ${ms_files.size()} file(s)
+    Convert to .dia: ${convert_to_dia}
     Instrument     : ${instrument_type ?: 'auto'}
     Pre-select     : ${pre_select > 0 ? pre_select : 'unlimited'}
+    MBR            : ${params.mbr ?: true}
     DIANN version  : ${params.diann_version}
     Threads        : ${params.threads}
     Output dir     : ${params.outdir}
@@ -129,8 +138,23 @@ workflow {
     ============================================
     """.stripIndent()
 
-    // Create channel from collected files
-    def ms_files_ch = Channel.fromList(ms_files).collect()
+    // Prepare MS files channel
+    if (convert_to_dia) {
+        // Convert .d/.raw files to .dia format first
+        // Use 'presearch' as sample_id for all files
+        def raw_files_ch = Channel.fromList(ms_files)
+            .map { f -> tuple('presearch', f) }
+
+        CONVERT_TO_DIA(raw_files_ch)
+
+        // Collect all converted .dia files
+        ms_files_ch = CONVERT_TO_DIA.out.dia_file
+            .map { sample_id, dia -> dia }
+            .collect()
+    } else {
+        // Use files directly
+        ms_files_ch = Channel.fromList(ms_files).collect()
+    }
 
     // Run pre-search
     INFINDIA_PRESEARCH(

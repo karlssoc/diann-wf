@@ -20,6 +20,9 @@ samples:
 mbr: false       # Identification stage: no MBR
 mbr_final: true  # Final stage: with MBR
 
+# Q-value for identification stage (relaxed to capture more PGs for subsetting)
+qvalue_identify: 0.05
+
 # Quantification parameters
 pg_level: 1
 mass_acc_cal: 25

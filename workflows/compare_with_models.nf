@@ -203,7 +203,8 @@ workflow {
         default_library.first(),  // Broadcast library to all samples
         fasta_file,
         ref_library_file,
-        mbr
+        mbr,
+        params.qvalue ?: 0
     )
 
     // Step 4: Quantify with tuned library
@@ -216,7 +217,8 @@ workflow {
         tuned_library.first(),
         fasta_file,
         ref_library_file,
-        mbr
+        mbr,
+        params.qvalue ?: 0
     )
 }
 

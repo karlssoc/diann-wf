@@ -88,6 +88,13 @@ mbr: false
 # Final stage MBR (default: true - sensitive quantification)
 mbr_final: true
 
+# === Q-value Settings ===
+
+# Q-value threshold for identification stage (default: 0.05)
+# Higher threshold captures more Protein.Groups for library subsetting
+# (report.parquet is filtered by --qvalue; 0.05 captures ~15-30% more PGs than 0.01)
+qvalue_identify: 0.05
+
 # === File Conversion Settings ===
 
 # Convert RAW/.d files to .dia format before processing

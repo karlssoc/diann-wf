@@ -37,7 +37,8 @@ process QUANTIFY {
     path library
     path fasta
     path ref_library
-    val mbr  // Match-between-runs: true enables --reanalyse, false disables it
+    val mbr      // Match-between-runs: true enables --reanalyse, false disables it
+    val qvalue   // Precursor q-value threshold (0 = DIA-NN default 0.01)
 
     output:
     tuple val(sample_id), path("report.parquet"), emit: report
@@ -81,6 +82,12 @@ process QUANTIFY {
     def ref_lib = ref_library.name != 'NO_FILE' ?
         "--ref ${ref_library}" : ""
 
+    // Q-value threshold (0 = use DIA-NN default of 0.01)
+    def qvalue_param = qvalue ? "--qvalue ${qvalue}" : ""
+
+    // Auto-reannotate when using parquet libraries (proteotypic annotations lost in speclib conversion)
+    def reannotate = library.name.endsWith('.parquet') ? '--reannotate' : ''
+
     // Ultrafast mode parameters (trades sensitivity for speed)
     // These parameters enable aggressive filtering and simplified algorithms
     def ultrafast_params = ""
@@ -109,6 +116,8 @@ process QUANTIFY {
         --out report.parquet \\
         --out-lib out-lib.parquet \\
         ${mbr ? '--reanalyse' : ''} \\
+        ${qvalue_param} \\
+        ${reannotate} \\
         ${pg_level} \\
         ${mass_acc_params} \\
         ${mass_acc_cal} \\

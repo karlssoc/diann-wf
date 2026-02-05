@@ -179,7 +179,8 @@ workflow quantify_only {
         library_file,
         fasta_file,
         ref_library_file,
-        mbr
+        mbr,
+        params.qvalue ?: 0
     )
 }
 

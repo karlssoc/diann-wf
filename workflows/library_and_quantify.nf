@@ -91,7 +91,8 @@ workflow LIBRARY_AND_QUANTIFY {
         GENERATE_LIBRARY.out.library.first(),  // Broadcast library to all samples
         fasta_file,
         ref_library_file,
-        mbr
+        mbr,
+        params.qvalue ?: 0
     )
 
     // Emit outputs for potential use in combined workflows

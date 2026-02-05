@@ -312,7 +312,8 @@ workflow {
         samples_with_libs_ch.map { id, dir, ft, subdir, rec, fc, lib -> lib },
         fasta_file,
         file('NO_FILE'),
-        mbr
+        mbr,
+        params.qvalue ?: 0
     )
 
     // =========================================================================

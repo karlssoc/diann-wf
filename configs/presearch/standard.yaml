@@ -1,0 +1,65 @@
+# InfinDIA Pre-search Configuration
+# Performs library-free DIA analysis to identify peptides for calibration
+#
+# Usage:
+#   nextflow run workflows/infindia_presearch_only.nf \
+#     -params-file configs/presearch/standard.yaml \
+#     -profile standard
+
+# FASTA file
+fasta: 'path/to/your/database.fasta'
+
+# MS data files for pre-search
+# Provide paths to individual MS files (.dia, .mzML, .d)
+# Note: Thermo RAW files must be converted to .dia first
+ms_files:
+  - 'path/to/file1.dia'
+  - 'path/to/file2.dia'
+
+# Instrument type: 'hfx' (Orbitrap) or 'timstof'
+# Controls mass accuracy presets:
+#   hfx:     MS1 5 ppm, MS2 15 ppm, cal 20 ppm
+#   timstof: MS1 15 ppm, MS2 15 ppm, cal 20 ppm
+#   (leave empty to let DIA-NN auto-calibrate)
+instrument_type: 'hfx'
+
+# Max precursors to select (0 = unlimited)
+# Lower values = faster execution, good for calibration
+pre_select: 5000
+
+# Match-between-runs (--reanalyse)
+# Enables cross-run matching to increase identifications
+mbr: true
+
+# DIA-NN version
+diann_version: '2.3.1'
+
+# Number of threads
+threads: 60
+
+# Output directory
+outdir: 'results/presearch'
+
+# SLURM settings (for -profile slurm)
+slurm_account: 'my_username'
+# slurm_queue: 'work'
+# slurm_nodelist: 'alap759'
+
+# Library generation parameters (used for in-silico digest)
+library:
+  min_pep_len: 7
+  max_pep_len: 25
+  min_pr_mz: 350
+  max_pr_mz: 1350
+  min_pr_charge: 2
+  max_pr_charge: 4
+  min_fr_mz: 200
+  max_fr_mz: 1800
+  cut: 'K*,R*,!*P*'
+  missed_cleavages: 0
+
+# Parallel mode (split jobs for concurrent execution)
+parallel_mode: false
+
+
+

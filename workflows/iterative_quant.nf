@@ -316,11 +316,12 @@ workflow ITERATIVE_QUANT {
             converted_dia_files_ch = CONVERT_TO_DIA_BATCH.out.dia_files.flatten()
 
             // Parse output manifest to create samples channel
+            // groupTuple requires tuples, not maps
             converted_samples_ch = CONVERT_TO_DIA_BATCH.out.manifest
                 .splitCsv(header: true)
-                .map { row -> [id: row.sample_id, dia_file: row.dia_file] }
-                .groupTuple(by: 0)
-                .map { sample_id, entries -> [id: sample_id, file_count: entries.size()] }
+                .map { row -> tuple(row.sample_id, row.dia_file) }
+                .groupTuple()
+                .map { sample_id, dia_files -> [id: sample_id, file_count: dia_files.size()] }
                 .collect()
 
             log.info "Converted files will be in: ${params.outdir}/dia_converted/<sample_id>/"

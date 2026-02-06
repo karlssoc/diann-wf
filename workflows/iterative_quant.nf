@@ -564,12 +564,16 @@ workflow ITERATIVE_QUANT {
     // ========================================
     log.info "Subsetting library based on identified Protein.Groups"
 
-    // Collect all identification reports for union of Protein.Groups across all samples
-    // --qvalue controls what DIA-NN writes to report.parquet (default 0.01).
-    // Using qvalue_identify=0.05 captures ~15-30% more PGs for subsetting.
-    def all_identify_reports = QUANTIFY_IDENTIFY.out.report
-        .map { sample_id, report -> report }
-        .collect()
+    // Collect identification reports for union of Protein.Groups across all samples.
+    // When MBR is enabled, use first-pass report (pre-MBR, per-file identifications)
+    // for more conservative subsetting. When MBR is off, use the main report.
+    def all_identify_reports = mbr_identify
+        ? QUANTIFY_IDENTIFY.out.first_pass_report
+            .map { sample_id, report -> report }
+            .collect()
+        : QUANTIFY_IDENTIFY.out.report
+            .map { sample_id, report -> report }
+            .collect()
 
     SUBSET_LIBRARY(
         all_identify_reports,

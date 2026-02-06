@@ -82,8 +82,9 @@ library:
 
 # === MBR Settings ===
 
-# Identification stage MBR (default: false - identification only)
-mbr: false
+# Identification stage MBR (default: true)
+# When enabled, report-first-pass.parquet (pre-MBR) is used for library subsetting
+mbr: true
 
 # Final stage MBR (default: true - sensitive quantification)
 mbr_final: true

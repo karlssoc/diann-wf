@@ -28,7 +28,6 @@ process CONVERT_TO_DIA {
 
     script:
     def diann_cmd = params.diann_binary
-    def base_name = ms_file.name.replaceAll(/(?i)\.(raw|d|mzML|wiff)$/, '')
 
     """
     echo "=== Converting to .dia format ==="
@@ -41,11 +40,7 @@ process CONVERT_TO_DIA {
         --threads ${task.cpus} \\
         --verbose 1
 
-    # DIA-NN outputs filename.raw.dia or filename.d.dia, rename to filename.dia
-    if [ -f "${ms_file}.dia" ]; then
-        mv "${ms_file}.dia" "${base_name}.dia"
-    fi
-
+    # DIA-NN appends .dia (e.g. file.raw -> file.raw.dia), preserving original extension
     echo ""
     echo "=== Conversion Complete ==="
     ls -lh *.dia
@@ -96,14 +91,11 @@ process CONVERT_TO_DIA_BATCH {
             --threads ${task.cpus} \\
             --verbose 1
 
-        # Get base name without extension (case-insensitive)
-        base_name=\$(echo "\$filename" | sed -E 's/\\.[rR][aA][wW]\$|\\.[dD]\$|\\.[mM][zZ][mM][lL]\$|\\.[wW][iI][fF][fF]\$//')
-
-        # DIA-NN creates filename.raw.dia - move to sample directory
-        # Check for both the file and any .dia file that matches
+        # DIA-NN appends .dia (e.g. file.raw -> file.raw.dia), preserving original extension
+        # Move to sample directory
         if [ -f "\${filename}.dia" ]; then
-            mv "\${filename}.dia" "\${sample_id}/\${base_name}.dia"
-            echo "  -> \${sample_id}/\${base_name}.dia"
+            mv "\${filename}.dia" "\${sample_id}/"
+            echo "  -> \${sample_id}/\${filename}.dia"
         else
             echo "  WARNING: No .dia file created for \$filename"
             ls -la *.dia 2>/dev/null || echo "  No .dia files in current directory"

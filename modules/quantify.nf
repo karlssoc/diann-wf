@@ -65,15 +65,16 @@ process QUANTIFY {
     }
 
     // Get additional quantification parameters if specified
-    def individual_mass_acc = params.individual_mass_acc != null ?
+    // Boolean flags use truthy check (not != null) to respect false defaults in nextflow.config
+    def individual_mass_acc = params.individual_mass_acc ?
         "--individual-mass-acc" : ""
-    def smart_profiling = params.smart_profiling != null ?
+    def smart_profiling = params.smart_profiling ?
         "--smart-profiling" : ""
     def mass_acc_cal = params.mass_acc_cal != null ?
         "--mass-acc-cal ${params.mass_acc_cal}" : ""
     def pg_level = params.pg_level != null ?
         "--pg-level ${params.pg_level}" : ""
-    def matrices = params.matrices != null ?
+    def matrices = params.matrices ?
         "--matrices" : ""
 
     // Batch correction parameters (for multi-batch data from same instrument)

@@ -20,6 +20,7 @@ process GENERATE_LIBRARY {
     path fasta
     val library_name
     val subdir
+    val search_params   // Map of search space overrides (e.g., params.library ?: [:])
     path tokens, stageAs: 'tokens.txt'
     path rt_model, stageAs: 'rt_model.pt'
     path im_model, stageAs: 'im_model.pt'
@@ -41,20 +42,20 @@ process GENERATE_LIBRARY {
     // Check if using fasta filter
     def use_filter = (fasta_filter.getName() != 'NO_FILE') ? 'true' : 'false'
 
-    // Library generation parameters
-    def min_fr_mz = params.library?.min_fr_mz ?: 200
-    def max_fr_mz = params.library?.max_fr_mz ?: 1800
-    def min_pep_len = params.library?.min_pep_len ?: 7
-    def max_pep_len = params.library?.max_pep_len ?: 30
-    def min_pr_mz = params.library?.min_pr_mz ?: 350
-    def max_pr_mz = params.library?.max_pr_mz ?: 1650
-    def min_pr_charge = params.library?.min_pr_charge ?: 2
-    def max_pr_charge = params.library?.max_pr_charge ?: 3
-    def cut = params.library?.cut ?: 'K*,R*'
-    def missed_cleavages = params.library?.missed_cleavages ?: 1
+    // Library generation parameters (from search_params map, with defaults)
+    def min_fr_mz = search_params.min_fr_mz ?: 200
+    def max_fr_mz = search_params.max_fr_mz ?: 1800
+    def min_pep_len = search_params.min_pep_len ?: 7
+    def max_pep_len = search_params.max_pep_len ?: 30
+    def min_pr_mz = search_params.min_pr_mz ?: 350
+    def max_pr_mz = search_params.max_pr_mz ?: 1650
+    def min_pr_charge = search_params.min_pr_charge ?: 2
+    def max_pr_charge = search_params.max_pr_charge ?: 3
+    def cut = search_params.cut ?: 'K*,R*,!*P'
+    def missed_cleavages = search_params.missed_cleavages ?: 1
 
-    def met_excision = params.library?.met_excision ? "--met-excision" : ""
-    def unimod4 = params.library?.unimod4 ? "--unimod4" : ""
+    def met_excision = (search_params.met_excision != null ? search_params.met_excision : true) ? "--met-excision" : ""
+    def unimod4 = (search_params.unimod4 != null ? search_params.unimod4 : true) ? "--unimod4" : ""
 
     """
     # Build model parameters - check for NO_FILE placeholders and empty files

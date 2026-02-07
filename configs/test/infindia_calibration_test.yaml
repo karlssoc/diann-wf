@@ -39,7 +39,7 @@ library:
   max_pr_charge: 3
   min_fr_mz: 200
   max_fr_mz: 1800
-  cut: 'K*,R*'
+  cut: 'K*,R*,!*P'
   missed_cleavages: 1
 
 # Output

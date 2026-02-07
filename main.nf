@@ -103,6 +103,7 @@ workflow create_library {
         fasta_file,
         params.library_name,
         subdir,
+        params.library ?: [:],
         models.tokens,
         models.rt_model,
         models.im_model,

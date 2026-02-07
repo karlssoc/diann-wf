@@ -170,6 +170,7 @@ workflow {
         fasta_file,
         library_name_default,
         'default_library',
+        params.library ?: [:],
         file('NO_FILE'),  // no tokens
         file('NO_FILE'),  // no rt model
         file('NO_FILE'),  // no im model
@@ -185,6 +186,7 @@ workflow {
         fasta_file,
         library_name_tuned,
         'tuned_library',
+        params.library ?: [:],
         models.tokens,
         models.rt_model,
         models.im_model,

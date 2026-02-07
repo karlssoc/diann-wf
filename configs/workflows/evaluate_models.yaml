@@ -76,7 +76,7 @@ library:
   max_fr_mz: 1800
 
   # Enzyme settings
-  cut: 'K*,R*'
+  cut: 'K*,R*,!*P'
   missed_cleavages: 1
 
 # =============================================================================

@@ -76,7 +76,7 @@ library:
   max_pr_charge: 3
 
   # Enzyme specificity (trypsin: cleaves after K and R)
-  cut: 'K*,R*'
+  cut: 'K*,R*,!*P'
 
   # Allowed missed cleavages
   missed_cleavages: 1

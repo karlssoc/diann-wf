@@ -151,6 +151,7 @@ workflow {
         fasta_file,
         library_name_default,
         'default_library',
+        params.library ?: [:],
         file('NO_FILE'),  // no tokens
         file('NO_FILE'),  // no rt model
         file('NO_FILE'),  // no im model
@@ -175,6 +176,7 @@ workflow {
         fasta_file,
         library_name_tuned,
         'tuned_library',
+        params.library ?: [:],
         TUNE_MODELS.out.tokens,
         TUNE_MODELS.out.rt_model,
         TUNE_MODELS.out.im_model,

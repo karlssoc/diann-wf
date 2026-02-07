@@ -67,6 +67,7 @@ workflow LIBRARY_AND_QUANTIFY {
         fasta_file,
         library_name,
         library_subdir,
+        params.library ?: [:],
         models.tokens,
         models.rt_model,
         models.im_model,

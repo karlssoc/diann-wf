@@ -36,7 +36,7 @@ library:
   max_pr_mz: 1650
   min_pr_charge: 2
   max_pr_charge: 3
-  cut: 'K*,R*'
+  cut: 'K*,R*,!*P'
   missed_cleavages: 1
   met_excision: true
   unimod4: true

@@ -251,6 +251,7 @@ workflow {
         fasta_file,
         preset_with_filter_ch.map { it[0] + '_library' },  // library_name
         preset_with_filter_ch.map { it[0] + '/library' },  // subdir
+        params.library ?: [:],
         preset_with_filter_ch.map { it[1] },  // tokens
         preset_with_filter_ch.map { it[2] },  // rt
         preset_with_filter_ch.map { it[3] },  // im

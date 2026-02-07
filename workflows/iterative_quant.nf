@@ -47,7 +47,9 @@ include { QUANTIFY as QUANTIFY_FINAL } from '../modules/quantify'
 include { SUBSET_LIBRARY } from '../modules/subset_library'
 include { SUBSET_LIBRARY_PEPTIDE } from '../modules/subset_library_peptide'
 include { CONVERT_LIBRARY } from '../modules/convert_library'
+include { CONVERT_LIBRARY as CONVERT_LIBRARY_IDENTIFY } from '../modules/convert_library'
 include { GENERATE_LIBRARY } from '../modules/library'
+include { GENERATE_LIBRARY as GENERATE_LIBRARY_IDENTIFY } from '../modules/library'
 include { INFINDIA_PRESEARCH } from '../modules/infindia_presearch'
 include { CONVERT_TO_DIA; CONVERT_TO_DIA_BATCH } from '../modules/convert_to_dia'
 include { FILTER_LIBRARY_CHARGE } from '../modules/filter_library'
@@ -107,13 +109,31 @@ def helpMessage() {
                                  Example: [1] or [1, 4] to exclude charge 1 (and 4)
                                  Reduces search space without affecting final quantification
 
-    Library Generation Parameters (when --library not provided):
+    Library Generation Parameters (when --existing_library not provided):
       --library.min_fr_mz 200      Min fragment m/z
       --library.max_fr_mz 1800     Max fragment m/z
       --library.min_pep_len 7      Min peptide length
       --library.max_pep_len 30     Max peptide length
       --library.min_pr_mz 350      Min precursor m/z
       --library.max_pr_mz 1650     Max precursor m/z
+      --library.cut 'K*,R*,!*P'   Enzyme cleavage specificity
+      --library.missed_cleavages 1 Allowed missed cleavages
+
+    Dual Library Search Space (optional):
+      --identify_library MAP     Narrow search space for identification stage
+                                 Inherits from --library, overrides specified values
+                                 When set, generates TWO libraries in parallel:
+                                 - Narrow library for identification (faster, fewer FPs)
+                                 - Broad library for final quantification
+                                 Example YAML:
+                                   identify_library:
+                                     missed_cleavages: 0
+                                     min_pr_charge: 2
+                                     max_pr_charge: 4
+                                     min_pep_len: 7
+                                     max_pep_len: 25
+                                     min_pr_mz: 380
+                                     max_pr_mz: 1200
 
     Profiles:
       standard              Run locally with Singularity
@@ -191,6 +211,7 @@ workflow ITERATIVE_QUANT {
     // Note: params.library is a map for generation settings, params.existing_library is a path
     def generate_library = !params.existing_library
     def library_source = generate_library ? "generated from FASTA" : params.existing_library
+    def dual_library = generate_library && params.identify_library
 
     // Resolve model files for library generation
     def models = null
@@ -217,6 +238,9 @@ workflow ITERATIVE_QUANT {
         log.info "  Library    : ${params.calibration_library}"
     }
     log.info "Output dir   : ${params.outdir}"
+    if (dual_library) {
+        log.info "Dual library : enabled (narrow identify + broad final)"
+    }
     if (generate_library && models) {
         logModelInfo(models, params)
     }
@@ -331,36 +355,101 @@ workflow ITERATIVE_QUANT {
     // ========================================
     // LIBRARY GENERATION (if no library provided)
     // Must happen BEFORE calibration so we can subset the predicted library
+    //
+    // When identify_library params are set, generates TWO libraries in parallel:
+    //   - Narrow library for identification (fewer FPs, faster search)
+    //   - Broad library for final quantification (wider search space)
     // ========================================
-    def library_for_quantify = null
+    def library_for_identify = null
+    def library_for_final = null
 
     if (generate_library) {
-        log.info "Generating library from FASTA..."
+        def final_search_params = params.library ?: [:]
 
-        GENERATE_LIBRARY(
-            fasta_file,
-            library_name,
-            'library',
-            models.tokens,
-            models.rt_model,
-            models.im_model,
-            models.fr_model,
-            file('NO_FILE')  // No fasta filter
-        )
+        if (dual_library) {
+            // Dual library: narrow for identification, broad for final
+            def identify_search_params = (params.library ?: [:]) + (params.identify_library ?: [:])
 
-        // Convert generated .speclib to .parquet for subsetting
-        // Pass FASTA for proper proteotypic annotation
-        def cut = params.library?.cut ?: 'K*,R*'
-        def missed_cleavages = params.library?.missed_cleavages ?: 1
+            log.info "Generating dual libraries from FASTA..."
 
-        CONVERT_LIBRARY(
-            GENERATE_LIBRARY.out.library,
-            'library',
-            fasta_file,
-            cut,
-            missed_cleavages
-        )
-        library_for_quantify = CONVERT_LIBRARY.out.parquet_library
+            // Generate narrow (identification) library
+            GENERATE_LIBRARY_IDENTIFY(
+                fasta_file,
+                "${library_name}_identify",
+                'library/identify',
+                identify_search_params,
+                models.tokens,
+                models.rt_model,
+                models.im_model,
+                models.fr_model,
+                file('NO_FILE')
+            )
+
+            def identify_cut = identify_search_params.cut ?: 'K*,R*,!*P'
+            def identify_mc = identify_search_params.missed_cleavages ?: 1
+
+            CONVERT_LIBRARY_IDENTIFY(
+                GENERATE_LIBRARY_IDENTIFY.out.library,
+                'library/identify',
+                fasta_file,
+                identify_cut,
+                identify_mc
+            )
+            library_for_identify = CONVERT_LIBRARY_IDENTIFY.out.parquet_library
+
+            // Generate broad (final) library — runs in parallel with identification library
+            GENERATE_LIBRARY(
+                fasta_file,
+                library_name,
+                'library',
+                final_search_params,
+                models.tokens,
+                models.rt_model,
+                models.im_model,
+                models.fr_model,
+                file('NO_FILE')
+            )
+
+            def final_cut = final_search_params.cut ?: 'K*,R*,!*P'
+            def final_mc = final_search_params.missed_cleavages ?: 1
+
+            CONVERT_LIBRARY(
+                GENERATE_LIBRARY.out.library,
+                'library',
+                fasta_file,
+                final_cut,
+                final_mc
+            )
+            library_for_final = CONVERT_LIBRARY.out.parquet_library
+        } else {
+            // Single library: same for identification and final
+            log.info "Generating library from FASTA..."
+
+            GENERATE_LIBRARY(
+                fasta_file,
+                library_name,
+                'library',
+                final_search_params,
+                models.tokens,
+                models.rt_model,
+                models.im_model,
+                models.fr_model,
+                file('NO_FILE')
+            )
+
+            def cut = final_search_params.cut ?: 'K*,R*,!*P'
+            def missed_cleavages = final_search_params.missed_cleavages ?: 1
+
+            CONVERT_LIBRARY(
+                GENERATE_LIBRARY.out.library,
+                'library',
+                fasta_file,
+                cut,
+                missed_cleavages
+            )
+            library_for_final = CONVERT_LIBRARY.out.parquet_library
+            library_for_identify = library_for_final
+        }
     } else {
         // Use provided library
         def library_file = file(params.existing_library)
@@ -373,8 +462,7 @@ workflow ITERATIVE_QUANT {
         // Check if library needs conversion to parquet
         if (library_file.name.endsWith('.speclib')) {
             log.info "Converting .speclib to .parquet for subsetting compatibility"
-            // Pass FASTA for proper proteotypic annotation
-            def cut = params.library?.cut ?: 'K*,R*'
+            def cut = params.library?.cut ?: 'K*,R*,!*P'
             def missed_cleavages = params.library?.missed_cleavages ?: 1
 
             CONVERT_LIBRARY(
@@ -384,10 +472,11 @@ workflow ITERATIVE_QUANT {
                 cut,
                 missed_cleavages
             )
-            library_for_quantify = CONVERT_LIBRARY.out.parquet_library
+            library_for_final = CONVERT_LIBRARY.out.parquet_library
         } else {
-            library_for_quantify = Channel.value(library_file)
+            library_for_final = Channel.value(library_file)
         }
+        library_for_identify = library_for_final
     }
 
     // ========================================
@@ -491,7 +580,7 @@ workflow ITERATIVE_QUANT {
 
         SUBSET_LIBRARY_PEPTIDE(
             INFINDIA_PRESEARCH.out.report,
-            library_for_quantify,
+            library_for_identify,
             'calibration',
             'calibration_lib'
         )
@@ -536,13 +625,12 @@ workflow ITERATIVE_QUANT {
     // Use calibration library as --ref if available, otherwise use ref_library for batch correction
     def ref_for_identify = calibration_mode != 'none' ? calibration_library : Channel.value(ref_library_file)
 
-    // Optional: Filter library by precursor charge for identification stage
+    // Optional: Filter identification library by precursor charge
     // This reduces search space by excluding certain charge states (e.g., charge 1)
-    def library_for_identify = library_for_quantify
     if (params.exclude_charges) {
-        log.info "Filtering library: excluding charge states ${params.exclude_charges}"
+        log.info "Filtering identification library: excluding charge states ${params.exclude_charges}"
         FILTER_LIBRARY_CHARGE(
-            library_for_quantify,
+            library_for_identify,
             params.exclude_charges,
             'filtered_lib',
             'identification'
@@ -577,7 +665,7 @@ workflow ITERATIVE_QUANT {
 
     SUBSET_LIBRARY(
         all_identify_reports,
-        library_for_quantify,
+        library_for_final,
         'subset_library',
         'subset_lib'
     )
@@ -627,6 +715,9 @@ workflow.onComplete {
     }
     if (!params.existing_library) {
         log.info "  Generated library:    ${params.outdir}/library/"
+        if (params.identify_library) {
+            log.info "  Identify library:     ${params.outdir}/library/identify/"
+        }
     }
     log.info "  Identification stage: ${params.outdir}/identification/"
     log.info "  Subset library:       ${params.outdir}/subset_library/"

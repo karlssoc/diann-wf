@@ -75,10 +75,24 @@ library:
   max_pr_mz: 1650
   min_pr_charge: 2
   max_pr_charge: 3
-  cut: 'K*,R*'
+  cut: 'K*,R*,!*P'
   missed_cleavages: 1
   met_excision: true
   unimod4: true
+
+# === Dual Library Search Space (optional) ===
+# When set, generates a NARROW library for identification and uses the broad
+# library (above) for final quantification. Inherits from library settings,
+# overrides specified values. Both libraries are generated in parallel.
+#
+# identify_library:
+#   missed_cleavages: 0
+#   min_pr_charge: 2
+#   max_pr_charge: 4
+#   min_pep_len: 7
+#   max_pep_len: 25
+#   min_pr_mz: 380
+#   max_pr_mz: 1200
 
 # === MBR Settings ===
 

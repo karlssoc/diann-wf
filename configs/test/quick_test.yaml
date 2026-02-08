@@ -28,7 +28,7 @@ samples:
     recursive: false
 
 # Minimal resources for testing
-diann_version: '2.3.1'
+diann_version: '2.3.2'
 threads: 4  # Low thread count for local testing
 outdir: 'test_results'
 

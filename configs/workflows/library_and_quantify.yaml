@@ -32,7 +32,7 @@ outdir: 'results/library_and_quantify'
 # quantify_subdir: ''               # Default: '' (flat in outdir)
 
 # DIANN version
-diann_version: '2.3.1'
+diann_version: '2.3.2'
 
 # Thread configuration
 threads: 48  # Adjust for your system

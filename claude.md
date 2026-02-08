@@ -327,7 +327,7 @@ nextflow lint .
 ## Key Parameters Reference
 
 ### Common Across All Workflows
-- `diann_version`: DIA-NN version (default: 2.3.1)
+- `diann_version`: DIA-NN version (default: 2.3.2)
 - `threads`: CPU cores per job (default: 60)
 - `outdir`: Output directory
 - `slurm_account`: SLURM account name

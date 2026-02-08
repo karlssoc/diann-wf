@@ -34,7 +34,7 @@ model_preset: 'ttht-evos-30spd'
 # ============================================================================
 
 # DIA-NN version (should match model training version for best results)
-diann_version: '2.3.1'
+diann_version: '2.3.2'
 
 # Number of threads
 threads: 60

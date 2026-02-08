@@ -14,5 +14,5 @@ library: 'test_results/library/library/test_library.predicted.speclib'
 outdir: 'test_results/convert'
 
 # Minimal resources
-diann_version: '2.3.1'
+diann_version: '2.3.2'
 threads: 10

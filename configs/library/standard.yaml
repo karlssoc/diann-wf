@@ -8,7 +8,7 @@ fasta: 'idmapping_2025_11_20.fasta'
 library_name: 'idmapping_2025_11_20'
 
 # DIANN version
-diann_version: '2.3.1'
+diann_version: '2.3.2'
 
 # Number of threads
 threads: 60

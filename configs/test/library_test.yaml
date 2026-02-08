@@ -12,7 +12,7 @@ outdir: 'test_data/expected_outputs'
 subdir: ''  # Put directly in outdir (no subdirectory)
 
 # Minimal resources
-diann_version: '2.3.1'
+diann_version: '2.3.2'
 threads: 10
 
 

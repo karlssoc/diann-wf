@@ -23,7 +23,7 @@ samples:
 outdir: '/scratch/results/quantification'  # Use local/fast storage for output
 
 # DIANN version
-diann_version: '2.3.1'
+diann_version: '2.3.2'
 
 # Thread configuration
 threads: 48

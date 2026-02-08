@@ -37,7 +37,7 @@ pre_select: 5000
 mbr: true
 
 # DIA-NN version
-diann_version: '2.3.1'
+diann_version: '2.3.2'
 
 # Number of threads
 threads: 60

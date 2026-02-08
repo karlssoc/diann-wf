@@ -284,7 +284,7 @@ gradient_length_min: 0.0
 # TRAINING DETAILS
 # ============================================================================
 
-diann_version_trained: "2.3.1"
+diann_version_trained: "2.3.2"
 training_date: "$(date +%Y-%m-%d)"
 training_library: "LIBRARY_NAME"
 # Example: "UniProt Human 2025-11"

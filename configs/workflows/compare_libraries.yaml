@@ -24,7 +24,7 @@ samples:
 library_name: 'comparison'
 
 # DIANN version
-diann_version: '2.3.1'
+diann_version: '2.3.2'
 
 # Number of threads
 threads: 60

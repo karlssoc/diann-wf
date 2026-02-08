@@ -90,7 +90,7 @@ ultrafast: false
 # ============================================================================
 
 # DIA-NN version
-diann_version: '2.3.1'
+diann_version: '2.3.2'
 
 # Thread allocation
 threads: 60

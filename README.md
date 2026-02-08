@@ -331,7 +331,7 @@ samples:
     dir: 'input/exp01'
     file_type: 'd'
 outdir: 'results/exp01'
-diann_version: '2.3.1'
+diann_version: '2.3.2'
 threads: 60
 slurm_account: 'my_username'
 ```
@@ -395,7 +395,7 @@ fasta: '/path/to/protein.fasta'
 input_library: '/path/to/existing/library.predicted.speclib'
 library_name: 'repredicted_lib'
 outdir: 'results/repredicted_library'
-diann_version: '2.3.1'
+diann_version: '2.3.2'
 threads: 48
 slurm_account: 'my_username'
 
@@ -451,7 +451,7 @@ samples:
     file_type: 'raw'
 
 outdir: 'results/analysis'
-diann_version: '2.3.1'
+diann_version: '2.3.2'
 threads: 48
 slurm_account: 'my_username'
 
@@ -540,7 +540,7 @@ samples:
     dir: 'input/exp01'
     file_type: 'raw'
 library_name: 'comparison'
-diann_version: '2.3.1'
+diann_version: '2.3.2'
 threads: 60
 slurm_account: 'my_username'
 ```
@@ -612,7 +612,7 @@ library_name_default: 'library_default'
 library_name_tuned: 'library_tuned'
 outdir: 'results/tuning_comparison'
 
-diann_version: '2.3.1'
+diann_version: '2.3.2'
 threads: 48
 slurm_account: 'YOUR_PROJECT'
 
@@ -933,7 +933,7 @@ run_tune: true
 run_r2: true
 run_r3: true
 r2_diann_version: '2.2.0'
-r3_diann_version: '2.3.1'
+r3_diann_version: '2.3.2'
 threads: 60
 slurm_account: 'my_username'
 ```

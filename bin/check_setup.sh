@@ -58,7 +58,7 @@ echo ""
 
 # Test container pull (optional)
 echo "Testing container pull (this may take a moment)..."
-CONTAINER_URL="docker://quay.io/karlssoc/diann:2.3.1"
+CONTAINER_URL="docker://quay.io/karlssoc/diann:2.3.2"
 TEST_CONTAINER="/tmp/diann_test_$$.sif"
 
 if timeout 30s singularity pull --name "$TEST_CONTAINER" "$CONTAINER_URL" &> /dev/null; then
@@ -66,7 +66,7 @@ if timeout 30s singularity pull --name "$TEST_CONTAINER" "$CONTAINER_URL" &> /de
     rm -f "$TEST_CONTAINER"
 else
     echo "⚠ Could not pull container (may require authentication or VPN)"
-    echo "  Try manually: singularity pull docker://quay.io/karlssoc/diann:2.3.1"
+    echo "  Try manually: singularity pull docker://quay.io/karlssoc/diann:2.3.2"
 fi
 echo ""
 

@@ -17,7 +17,7 @@ samples:
     recursive: true  # Use --dir-all to find all .dia files
 
 # Resources
-diann_version: '2.3.1'
+diann_version: '2.3.2'
 threads: 4
 outdir: 'test_results_mbr'
 

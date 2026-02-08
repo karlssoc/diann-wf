@@ -16,7 +16,7 @@ outdir: 'results/repredicted_library'
 # subdir: 'library'
 
 # DIANN version
-diann_version: '2.3.1'
+diann_version: '2.3.2'
 
 # Thread configuration
 threads: 48  # Adjust for your system

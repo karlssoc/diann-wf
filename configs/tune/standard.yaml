@@ -19,4 +19,4 @@ slurm_queue: null    # Set to your SLURM queue if required
 
 # Container settings (should match your environment)
 container_registry: "quay.io/karlssoc/diann"
-diann_version: "2.3.1"
+diann_version: "2.3.2"

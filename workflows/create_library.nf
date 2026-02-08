@@ -68,7 +68,7 @@ def helpMessage() {
       --library.max_pr_mz 1650
       --library.min_pr_charge 2
       --library.max_pr_charge 3
-      --library.cut 'K*,R*'
+      --library.cut 'K*,R*,!*P'
       --library.missed_cleavages 1
       --library.met_excision true
       --library.unimod4 true

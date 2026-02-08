@@ -28,12 +28,12 @@ presets:
   #   description: "Standard configuration for HFX with µPAC column"
 
 # Preset naming convention:
-# {instrument}-{lc}-{method}
-# - lowercase
-# - hyphen-separated
-# - concise but descriptive
+# {instrument}-{lc}-{method}-{version}-{date}
+# - lowercase, hyphen-separated
+# - version: DIA-NN version used for tuning (e.g., 2.3.2)
+# - date: YYMMDD format
 #
 # Examples:
-# - ttht-evos-30spd (timsTOF HT + Evosep + 30 SPD)
-# - hfx-vneo-30spd (HFX + Vanquish Neo + 30 min)
-# - astral-evos-60spd (Astral + Evosep + 60 SPD)
+# - hfx-elc-120min-2.3.2-260208 (HFX + Easy nLC + 120 min + DIA-NN 2.3.2 + 2026-02-08)
+# - ttht-evos-30spd-2.3.2-260301 (timsTOF HT + Evosep + 30 SPD)
+# - hfx-vneo-30spd-2.3.2-260301 (HFX + Vanquish Neo + 30 min)

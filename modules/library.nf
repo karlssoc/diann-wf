@@ -31,6 +31,7 @@ process GENERATE_LIBRARY {
     path "${library_name}.predicted.speclib", emit: library
     path "${library_name}.tsv", emit: tsv, optional: true
     path "library_generation.log", emit: log
+    path "*.log.txt", emit: diann_log, optional: true
 
     script:
     // Use centralized DIA-NN binary path (container ENTRYPOINT interferes with PATH)

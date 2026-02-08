@@ -19,19 +19,19 @@ Options:
     -s SOURCE_DIR    Source directory containing DIA-NN output
                      Local:  /path/to/tuning
                      Remote: user@host:/path/to/tuning
-    -n NAME          Model preset name (e.g., 'ttht-evos-30spd')
+    -n NAME          Model preset name (e.g., 'hfx-elc-120min-2.3.2-260208')
     -o OUTPUT_DIR    Output directory (default: models/)
     -h               Show this help
 
 Examples:
     # Collect models from local DIA-NN tuning output
-    $0 -s results/tuning/ -n ttht-evos-30spd
+    $0 -s results/tuning/ -n hfx-elc-120min-2.3.2-260208
 
     # Collect models from remote server via SSH
-    $0 -s kraken:/home/karlssoc/results/tuning -n ttht-evos-30spd
+    $0 -s kraken:/home/karlssoc/results/tuning -n ttht-evos-30spd-2.3.2-260301
 
     # Specify custom output location
-    $0 -s user@server:/path/to/tuning -n hfx-vneo-30spd -o custom_models/
+    $0 -s user@server:/path/to/tuning -n hfx-vneo-30spd-2.3.2-260301 -o custom_models/
 
 The script will:
 1. Search for model files (dict.txt, tuned_*.pt) in SOURCE_DIR
@@ -45,10 +45,11 @@ Model files searched for:
 - *tuned_im.pt or tuned_im.pt     → tuned_im.pt (ion mobility model)
 - *tuned_fr.pt or tuned_fr.pt     → tuned_fr.pt (fragmentation model)
 - *tune*.log or tune.log          → tune.log (tuning log file, optional)
+- *tune_input.log* or *report.log.txt → tune_input.log.txt (quantification provenance)
 
 Naming convention for presets:
-Use lowercase with hyphens: {instrument}-{lc}-{method}
-Examples: ttht-evos-30spd, hfx-vneo-30spd, astral-evos-60spd
+Use lowercase with hyphens: {instrument}-{lc}-{method}-{version}-{date}
+Examples: hfx-elc-120min-2.3.2-260208, ttht-evos-30spd-2.3.2-260301
 EOF
     exit 1
 }
@@ -114,8 +115,8 @@ else
 fi
 
 # Validate preset naming convention
-if [[ ! "$MODEL_NAME" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]; then
-    echo "WARNING: Preset name should be lowercase with hyphens (e.g., 'ttht-evos-30spd')"
+if [[ ! "$MODEL_NAME" =~ ^[a-z0-9.]+(-[a-z0-9.]+)*$ ]]; then
+    echo "WARNING: Preset name should be lowercase with hyphens (e.g., 'hfx-elc-120min-2.3.2-260208')"
     echo "         Current name: $MODEL_NAME"
     read -p "Continue anyway? (y/n) " -n 1 -r
     echo
@@ -144,6 +145,7 @@ found_rt=false
 found_im=false
 found_fr=false
 found_log=false
+found_tune_input_log=false
 
 # Function to find and copy file (supports both local and remote sources)
 copy_model_file() {
@@ -197,7 +199,7 @@ copy_model_file() {
 
 # Search and copy model files
 # Tokens file (required)
-echo "[1/5] Searching for tokens/dictionary file..."
+echo "[1/6] Searching for tokens/dictionary file..."
 if copy_model_file "*.dict.txt" "dict.txt" false || copy_model_file "dict.txt" "dict.txt" false; then
     found_tokens=true
 else
@@ -212,7 +214,7 @@ fi
 echo ""
 
 # RT model (optional)
-echo "[2/5] Searching for retention time model..."
+echo "[2/6] Searching for retention time model..."
 if copy_model_file "*tuned_rt.pt" "tuned_rt.pt" true || copy_model_file "tuned_rt.pt" "tuned_rt.pt" true; then
     found_rt=true
 fi
@@ -220,7 +222,7 @@ fi
 echo ""
 
 # IM model (optional)
-echo "[3/5] Searching for ion mobility model..."
+echo "[3/6] Searching for ion mobility model..."
 if copy_model_file "*tuned_im.pt" "tuned_im.pt" true || copy_model_file "tuned_im.pt" "tuned_im.pt" true; then
     found_im=true
 fi
@@ -228,7 +230,7 @@ fi
 echo ""
 
 # FR model (optional)
-echo "[4/5] Searching for fragmentation model..."
+echo "[4/6] Searching for fragmentation model..."
 if copy_model_file "*tuned_fr.pt" "tuned_fr.pt" true || copy_model_file "tuned_fr.pt" "tuned_fr.pt" true; then
     found_fr=true
 fi
@@ -236,9 +238,17 @@ fi
 echo ""
 
 # Tuning log (optional but recommended)
-echo "[5/5] Searching for tuning log file..."
+echo "[5/6] Searching for tuning log file..."
 if copy_model_file "*tune*.log" "tune.log" true || copy_model_file "tune.log" "tune.log" true; then
     found_log=true
+fi
+
+echo ""
+
+# Tune input log (optional - provenance of quantification used for tuning)
+echo "[6/6] Searching for tune input log (quantification provenance)..."
+if copy_model_file "*tune_input.log*" "tune_input.log.txt" true || copy_model_file "*report.log.txt" "tune_input.log.txt" true; then
+    found_tune_input_log=true
 fi
 
 echo ""
@@ -251,6 +261,7 @@ echo "  RT model:           $([ "$found_rt" = true ] && echo "✓" || echo "✗"
 echo "  IM model:           $([ "$found_im" = true ] && echo "✓" || echo "✗")"
 echo "  FR model:           $([ "$found_fr" = true ] && echo "✓" || echo "✗")"
 echo "  Tuning log:         $([ "$found_log" = true ] && echo "✓" || echo "✗")"
+echo "  Tune input log:     $([ "$found_tune_input_log" = true ] && echo "✓" || echo "✗")"
 echo ""
 
 # Create metadata template
@@ -308,7 +319,7 @@ library_params:
   max_pr_mz: 1650
   min_pr_charge: 2
   max_pr_charge: 3
-  cut: "K*,R*"
+  cut: "K*,R*,!*P"
   missed_cleavages: 1
   met_excision: true
   unimod4: true
@@ -323,6 +334,7 @@ models_present:
   im_model: ${found_im}
   fr_model: ${found_fr}
   tune_log: ${found_log}
+  tune_input_log: ${found_tune_input_log}
 
 # ============================================================================
 # VALIDATION & NOTES

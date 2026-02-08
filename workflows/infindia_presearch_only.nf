@@ -58,7 +58,7 @@ def helpMessage() {
       --library.max_pr_charge 3
       --library.min_fr_mz 200
       --library.max_fr_mz 1800
-      --library.cut 'K*,R*'
+      --library.cut 'K*,R*,!*P'
       --library.missed_cleavages 1
 
     Examples:

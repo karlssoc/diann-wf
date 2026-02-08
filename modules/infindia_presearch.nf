@@ -36,6 +36,7 @@ process INFINDIA_PRESEARCH {
     path "calibration_presearch.log", emit: log
     path "calibration_report.parquet", emit: report  // Required for library subsetting
     path "calibration_report.stats.tsv", emit: stats, optional: true
+    path "calibration_report.log.txt", emit: report_log, optional: true
 
     script:
     def diann_cmd = params.diann_binary
@@ -68,7 +69,7 @@ process INFINDIA_PRESEARCH {
     def max_pr_charge = params.library?.max_pr_charge ?: 3
     def min_fr_mz = params.library?.min_fr_mz ?: 200
     def max_fr_mz = params.library?.max_fr_mz ?: 1800
-    def cut = params.library?.cut ?: 'K*,R*'
+    def cut = params.library?.cut ?: 'K*,R*,!*P'
     def missed_cleavages = params.library?.missed_cleavages ?: 1
 
     // Build --f parameters for each input file

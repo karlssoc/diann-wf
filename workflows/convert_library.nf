@@ -16,7 +16,7 @@
  *
  * Optional parameters:
  *   --fasta           Path to FASTA file (for proteotypic annotation)
- *   --cut             Digest specificity (default: 'K*,R*')
+ *   --cut             Digest specificity (default: 'K*,R*,!*P')
  *   --missed_cleavages Number of missed cleavages (default: 1)
  *
  * Example usage:
@@ -41,7 +41,7 @@ def helpMessage() {
 
     Optional Parameters:
       --fasta PATH          FASTA file for proteotypic annotation
-      --cut SPEC            Digest specificity (default: 'K*,R*')
+      --cut SPEC            Digest specificity (default: 'K*,R*,!*P')
       --missed_cleavages N  Number of missed cleavages (default: 1)
       --diann_version VER   DIANN version (default: ${params.diann_version})
       --threads N           Number of threads (default: ${params.threads})
@@ -97,7 +97,7 @@ workflow {
 
     // Optional FASTA for proteotypic annotation
     def fasta_file = params.fasta ? file(params.fasta) : file('NO_FILE')
-    def cut = params.cut ?: 'K*,R*'
+    def cut = params.cut ?: 'K*,R*,!*P'
     def missed_cleavages = params.missed_cleavages ?: 1
 
     // Validate FASTA if provided

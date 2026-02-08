@@ -237,7 +237,7 @@ workflow {
     // =========================================================================
     // Step 2: Generate library for each preset (with fasta-filter)
     // =========================================================================
-    def cut = params.library?.cut ?: 'K*,R*'
+    def cut = params.library?.cut ?: 'K*,R*,!*P'
     def missed_cleavages = params.library?.missed_cleavages ?: 1
 
     presets_ch

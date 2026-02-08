@@ -1,0 +1,134 @@
+
+DIA-NN 2.3.2 Academia  (Data-Independent Acquisition by Neural Networks)
+Compiled on Jan 22 2026 05:01:57
+Current date and time: Sun Feb  8 10:33:39 2026
+Logical CPU cores: 192
+Thread number set to 60
+WARNING: protein inference is enabled but no FASTA provided - is this intended?
+
+0 files will be processed
+[0:00] Loading spectral library outlib.tsv
+Library contains q-values but there are no decoys included; if the library was generated with an old version of DIA-NN, this might lead to less reliable run-specific protein FDR when using it; ideally, the library needs to be generated using DIA-NN 2.0 or later
+[0:02] Spectral library loaded: 8722 protein isoforms, 9486 protein groups and 117079 precursors in 91183 elution groups.
+[0:02] Initialising library
+Dictionary saved to outlib.dict.txt
+[0:05] Encoding peptides for fine-tuning
+[0:05] Fine-tuning the RT model
+0%: loss = 0.0136226
+1%: loss = 0.0118852
+3%: loss = 0.0112169
+4%: loss = 0.0105115
+4%: loss = 0.0101399
+6%: loss = 0.012247
+7%: loss = 0.0103918
+8%: loss = 0.0108323
+8%: loss = 0.0119688
+9%: loss = 0.0120295
+10%: loss = 0.0100897
+11%: loss = 0.0116659
+12%: loss = 0.00999326
+14%: loss = 0.0113651
+15%: loss = 0.0105382
+16%: loss = 0.0100207
+16%: loss = 0.00988306
+17%: loss = 0.0107017
+18%: loss = 0.0110073
+19%: loss = 0.0105079
+20%: loss = 0.0109229
+21%: loss = 0.0103918
+22%: loss = 0.0104326
+23%: loss = 0.0123919
+24%: loss = 0.0101026
+25%: loss = 0.010327
+26%: loss = 0.0109557
+27%: loss = 0.0104039
+28%: loss = 0.0110704
+29%: loss = 0.0119631
+30%: loss = 0.0131367
+31%: loss = 0.0106143
+32%: loss = 0.0110376
+33%: loss = 0.0102578
+34%: loss = 0.00971002
+35%: loss = 0.0100549
+36%: loss = 0.0109622
+37%: loss = 0.0100192
+38%: loss = 0.0097943
+39%: loss = 0.0129152
+40%: loss = 0.0102925
+41%: loss = 0.0123414
+42%: loss = 0.0106932
+43%: loss = 0.00997012
+44%: loss = 0.0107896
+45%: loss = 0.010633
+46%: loss = 0.0109741
+47%: loss = 0.00994742
+48%: loss = 0.00998196
+49%: loss = 0.0107045
+50%: loss = 0.0102226
+51%: loss = 0.0108904
+52%: loss = 0.00978279
+53%: loss = 0.0100717
+54%: loss = 0.0099632
+55%: loss = 0.0113243
+56%: loss = 0.0105612
+57%: loss = 0.0117487
+58%: loss = 0.0100882
+59%: loss = 0.00989991
+60%: loss = 0.00991772
+61%: loss = 0.0111525
+62%: loss = 0.010281
+63%: loss = 0.0107223
+64%: loss = 0.0105064
+65%: loss = 0.0108105
+66%: loss = 0.0100344
+67%: loss = 0.010985
+68%: loss = 0.0104365
+69%: loss = 0.00995507
+70%: loss = 0.0112609
+71%: loss = 0.0130002
+72%: loss = 0.0105135
+73%: loss = 0.0104053
+74%: loss = 0.00943164
+75%: loss = 0.00970935
+76%: loss = 0.0106983
+77%: loss = 0.0112964
+78%: loss = 0.00873299
+79%: loss = 0.0110115
+80%: loss = 0.0112667
+81%: loss = 0.0108459
+82%: loss = 0.0098133
+83%: loss = 0.0100206
+84%: loss = 0.00957676
+85%: loss = 0.0115161
+86%: loss = 0.0100898
+87%: loss = 0.00986378
+88%: loss = 0.00944725
+89%: loss = 0.0126091
+90%: loss = 0.00971886
+91%: loss = 0.0092031
+92%: loss = 0.0104452
+93%: loss = 0.00965891
+94%: loss = 0.0101197
+95%: loss = 0.0102915
+96%: loss = 0.0114518
+97%: loss = 0.0106011
+98%: loss = 0.0100926
+99%: loss = 0.0112057
+[3:22] Trained on 91183 samples
+Tuned RT model saved to outlib.tuned_rt.pt
+
+The following warnings or errors (in alphabetic order) were detected at least the indicated number of times:
+Library contains q-values but there are no decoys included; if the library was generated with an old version of DIA-NN, this might lead to less reliable run-specific protein FDR when using it; ideally, the library needs to be generated using DIA-NN 2.0 or later : 1
+WARNING: protein inference is enabled but no FASTA provided - is this intended? : 1
+Finished
+
+
+How to cite:
+using DIA-NN: Demichev et al, Nature Methods, 2020, https://www.nature.com/articles/s41592-019-0638-x
+analysing Scanning SWATH: Messner et al, Nature Biotechnology, 2021, https://www.nature.com/articles/s41587-021-00860-4
+analysing PTMs: Steger et al, Nature Communications, 2021, https://www.nature.com/articles/s41467-021-25454-1
+analysing dia-PASEF: Demichev et al, Nature Communications, 2022, https://www.nature.com/articles/s41467-022-31492-0
+analysing Slice-PASEF: Szyrwiel et al, biorxiv, 2022, https://doi.org/10.1101/2022.10.31.514544
+plexDIA / multiplexed DIA: Derks et al, Nature Biotechnology, 2023, https://www.nature.com/articles/s41587-022-01389-w
+CysQuant: Huang et al, Redox Biology, 2023, https://doi.org/10.1016/j.redox.2023.102908
+using QuantUMS: Kistner at al, biorxiv, 2023, https://doi.org/10.1101/2023.06.20.545604

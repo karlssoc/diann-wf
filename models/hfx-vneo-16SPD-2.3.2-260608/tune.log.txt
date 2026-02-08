@@ -1,0 +1,132 @@
+
+DIA-NN 2.3.2 Academia  (Data-Independent Acquisition by Neural Networks)
+Compiled on Jan 22 2026 05:01:57
+Current date and time: Sun Feb  8 15:01:17 2026
+Logical CPU cores: 192
+Thread number set to 60
+WARNING: protein inference is enabled but no FASTA provided - is this intended?
+
+0 files will be processed
+[0:00] Loading spectral library results/manual_tuning/hfx-16SPD/out-lib.parquet
+[0:02] Spectral library loaded: 11340 protein isoforms, 11257 protein groups and 128770 precursors in 112261 elution groups.
+[0:02] Initialising library
+Dictionary saved to results/manual_tuning/hfx-16SPD/out-lib.dict.txt
+[0:05] Encoding peptides for fine-tuning
+[0:06] Fine-tuning the RT model
+1%: loss = 0.0131897
+2%: loss = 0.00907275
+3%: loss = 0.00976339
+4%: loss = 0.00925104
+5%: loss = 0.00928683
+6%: loss = 0.00966699
+7%: loss = 0.00932619
+8%: loss = 0.00817894
+9%: loss = 0.00883742
+10%: loss = 0.00929039
+11%: loss = 0.00853958
+11%: loss = 0.00874567
+12%: loss = 0.00870899
+13%: loss = 0.00834886
+15%: loss = 0.00932424
+16%: loss = 0.00878104
+16%: loss = 0.00904
+17%: loss = 0.00990116
+18%: loss = 0.00895377
+19%: loss = 0.00900501
+20%: loss = 0.00841098
+21%: loss = 0.0089878
+22%: loss = 0.00841494
+24%: loss = 0.00997533
+24%: loss = 0.00893322
+25%: loss = 0.00812044
+26%: loss = 0.00974068
+27%: loss = 0.00767307
+28%: loss = 0.00811699
+29%: loss = 0.00830917
+30%: loss = 0.00920356
+31%: loss = 0.00979455
+32%: loss = 0.00855523
+33%: loss = 0.00881416
+34%: loss = 0.00855566
+35%: loss = 0.00965646
+36%: loss = 0.00850985
+37%: loss = 0.00858009
+38%: loss = 0.00849556
+39%: loss = 0.00902057
+40%: loss = 0.0105238
+41%: loss = 0.00991313
+42%: loss = 0.00962184
+43%: loss = 0.00791071
+44%: loss = 0.00940214
+45%: loss = 0.00993104
+46%: loss = 0.00859736
+47%: loss = 0.00875414
+48%: loss = 0.00930056
+49%: loss = 0.00821971
+50%: loss = 0.00890787
+51%: loss = 0.00831068
+52%: loss = 0.00839721
+53%: loss = 0.00770916
+54%: loss = 0.00848526
+55%: loss = 0.0087889
+56%: loss = 0.00859105
+57%: loss = 0.00932295
+58%: loss = 0.00936163
+59%: loss = 0.00852397
+60%: loss = 0.00913261
+61%: loss = 0.00880385
+62%: loss = 0.00848609
+63%: loss = 0.00777032
+64%: loss = 0.0090081
+65%: loss = 0.00818048
+66%: loss = 0.0097847
+67%: loss = 0.00813615
+68%: loss = 0.00842115
+69%: loss = 0.00927573
+70%: loss = 0.00834677
+71%: loss = 0.00795762
+72%: loss = 0.0086274
+73%: loss = 0.00924094
+74%: loss = 0.00886614
+75%: loss = 0.00858623
+76%: loss = 0.00894564
+77%: loss = 0.00803783
+78%: loss = 0.00855341
+79%: loss = 0.00903468
+80%: loss = 0.00893046
+81%: loss = 0.00806219
+82%: loss = 0.00783078
+83%: loss = 0.00928074
+84%: loss = 0.00849162
+85%: loss = 0.00905842
+86%: loss = 0.00874687
+87%: loss = 0.00784149
+88%: loss = 0.00864885
+89%: loss = 0.00788827
+90%: loss = 0.00838935
+91%: loss = 0.00880531
+92%: loss = 0.00853669
+93%: loss = 0.00913851
+94%: loss = 0.00939893
+95%: loss = 0.00924757
+96%: loss = 0.00831702
+97%: loss = 0.00879436
+98%: loss = 0.00785438
+99%: loss = 0.0089196
+[3:51] Trained on 112261 samples
+Tuned RT model saved to results/manual_tuning/hfx-16SPD/out-lib.tuned_rt.pt
+
+The following warnings or errors (in alphabetic order) were detected at least the indicated number of times:
+WARNING: protein inference is enabled but no FASTA provided - is this intended? : 1
+Finished
+
+
+How to cite:
+using DIA-NN: Demichev et al, Nature Methods, 2020, https://www.nature.com/articles/s41592-019-0638-x
+analysing Scanning SWATH: Messner et al, Nature Biotechnology, 2021, https://www.nature.com/articles/s41587-021-00860-4
+analysing PTMs: Steger et al, Nature Communications, 2021, https://www.nature.com/articles/s41467-021-25454-1
+analysing dia-PASEF: Demichev et al, Nature Communications, 2022, https://www.nature.com/articles/s41467-022-31492-0
+analysing Slice-PASEF: Szyrwiel et al, biorxiv, 2022, https://doi.org/10.1101/2022.10.31.514544
+plexDIA / multiplexed DIA: Derks et al, Nature Biotechnology, 2023, https://www.nature.com/articles/s41587-022-01389-w
+CysQuant: Huang et al, Redox Biology, 2023, https://doi.org/10.1016/j.redox.2023.102908
+using QuantUMS: Kistner at al, biorxiv, 2023, https://doi.org/10.1101/2023.06.20.545604

@@ -1,0 +1,303 @@
+
+DIA-NN 2.3.1 Academia  (Data-Independent Acquisition by Neural Networks)
+Compiled on Dec  5 2025 05:02:42
+Current date and time: Thu Jan  8 21:00:35 2026
+Logical CPU cores: 192
+/usr/bin/diann-2.3.1/diann-linux --fasta LFQB_4species.fasta --dir hfx-16SPD --lib lfqb_std.predicted.speclib --threads 30 --verbose 1 --temp temp_diann --out report.parquet --out-lib out-lib.parquet --reanalyse --pg-level 1 --mass-acc-cal 25 --smart-profiling --individual-mass-acc --matrices 
+
+Thread number set to 30
+MBR enabled; .quant files will only be saved to disk during the first pass
+Implicit protein grouping: protein names; this determines which peptides are considered 'proteotypic' and thus affects protein FDR calculation
+Calibration mass accuracy set to 2.5e-05
+When generating an empirical library, empirical spectra will be added to it only if they are high quality
+Mass accuracy will be determined separately for different runs
+Precursor/protein x samples expression level matrices will be saved along with the main report
+DIA-NN will automatically optimise the mass accuracy for each acquisition, use this mode only to determine the approximate optimal settings
+
+6 files will be processed
+[0:00] Loading spectral library lfqb_std.predicted.speclib
+[0:02] Library annotated with sequence database(s): LFQB_4species.fasta
+[0:02] Spectral library loaded: 20810 protein isoforms, 25501 protein groups and 2520239 precursors in 1422631 elution groups.
+[0:02] Loading protein annotations from FASTA LFQB_4species.fasta
+[0:02] Annotating library proteins with information from the FASTA database
+[0:02] Gene names missing for some isoforms
+[0:02] Library contains 20810 proteins, and 19617 genes
+[0:05] Initialising library
+
+First pass: generating a spectral library from DIA data
+
+[0:12] File #1/6
+[0:12] Loading run hfx-16SPD/CK_M2512_129.raw
+[0:25] Pre-processing...
+[0:26] 2360 MS1 and 66071 MS2 scans in 2360 (inferred) and 2360 (encoded) cycles, 2520239 precursors in range
+[0:26] Calibrating with mass accuracies 25 (MS1), 25 (MS2)
+[0:47] RT window set to 7.10265
+[0:47] Peak width: 3.984
+[0:47] Scan window radius set to 8
+[0:47] Recommended MS1 mass accuracy setting: 6 ppm
+[1:30] Optimised mass accuracy: 17 ppm
+[1:41] Main search
+[5:57] Removing low confidence identifications
+[6:12] Removing interfering precursors
+[6:17] Training neural networks on 175487 target and 106734 decoy PSMs
+[7:25] IDs at 0.01 FDR: 100743
+[7:27] Number of IDs at 0.01 FDR: 101762
+[7:27] Calculating protein q-values
+[7:27] Number of proteins identified at 1% FDR: 10217 (precursor-level), 9536 (protein-level) (inference performed using proteotypic peptides only)
+[7:27] Quantification
+[7:29] Quantification information saved to temp_diann/hfx-16SPD_CK_M2512_129_raw.quant
+
+[7:29] File #2/6
+[7:29] Loading run hfx-16SPD/CK_M2512_130.raw
+[7:40] Pre-processing...
+[7:41] 2360 MS1 and 66076 MS2 scans in 2360 (inferred) and 2360 (encoded) cycles, 2520239 precursors in range
+[7:41] Calibrating with mass accuracies 25 (MS1), 25 (MS2)
+[8:02] RT window set to 6.78471
+[8:02] Recommended MS1 mass accuracy setting: 6 ppm
+[8:38] Optimised mass accuracy: 8 ppm
+[8:48] Main search
+[11:29] Removing low confidence identifications
+[11:42] Removing interfering precursors
+[11:47] Training neural networks on 178315 target and 106586 decoy PSMs
+[12:55] IDs at 0.01 FDR: 95492
+[12:56] Number of IDs at 0.01 FDR: 96562
+[12:56] Calculating protein q-values
+[12:56] Number of proteins identified at 1% FDR: 10087 (precursor-level), 9430 (protein-level) (inference performed using proteotypic peptides only)
+[12:56] Quantification
+[12:58] Quantification information saved to temp_diann/hfx-16SPD_CK_M2512_130_raw.quant
+
+[12:58] File #3/6
+[12:58] Loading run hfx-16SPD/CK_M2512_131.raw
+[13:11] Pre-processing...
+[13:12] 2361 MS1 and 66081 MS2 scans in 2361 (inferred) and 2361 (encoded) cycles, 2520239 precursors in range
+[13:12] Calibrating with mass accuracies 25 (MS1), 25 (MS2)
+[13:33] RT window set to 6.67951
+[13:33] Recommended MS1 mass accuracy setting: 6 ppm
+[14:20] Optimised mass accuracy: 12 ppm
+[14:33] Main search
+[17:59] Removing low confidence identifications
+[18:14] Removing interfering precursors
+[18:19] Training neural networks on 184262 target and 113206 decoy PSMs
+[19:30] IDs at 0.01 FDR: 100406
+[19:32] Number of IDs at 0.01 FDR: 101405
+[19:32] Calculating protein q-values
+[19:32] Number of proteins identified at 1% FDR: 10214 (precursor-level), 9484 (protein-level) (inference performed using proteotypic peptides only)
+[19:32] Quantification
+[19:34] Quantification information saved to temp_diann/hfx-16SPD_CK_M2512_131_raw.quant
+
+[19:34] File #4/6
+[19:34] Loading run hfx-16SPD/CK_M2512_133.raw
+[19:45] Pre-processing...
+[19:46] 2359 MS1 and 66025 MS2 scans in 2359 (inferred) and 2359 (encoded) cycles, 2520239 precursors in range
+[19:46] Calibrating with mass accuracies 25 (MS1), 25 (MS2)
+[20:07] RT window set to 6.87741
+[20:07] Recommended MS1 mass accuracy setting: 6 ppm
+[20:43] Optimised mass accuracy: 10 ppm
+[20:53] Main search
+[23:51] Removing low confidence identifications
+[24:05] Removing interfering precursors
+[24:09] Training neural networks on 175124 target and 108164 decoy PSMs
+[25:17] IDs at 0.01 FDR: 95992
+[25:19] Number of IDs at 0.01 FDR: 97491
+[25:19] Calculating protein q-values
+[25:19] Number of proteins identified at 1% FDR: 8778 (precursor-level), 8147 (protein-level) (inference performed using proteotypic peptides only)
+[25:19] Quantification
+[25:21] Quantification information saved to temp_diann/hfx-16SPD_CK_M2512_133_raw.quant
+
+[25:21] File #5/6
+[25:21] Loading run hfx-16SPD/CK_M2512_134.raw
+[25:33] Pre-processing...
+[25:34] 2359 MS1 and 66030 MS2 scans in 2359 (inferred) and 2359 (encoded) cycles, 2520239 precursors in range
+[25:34] Calibrating with mass accuracies 25 (MS1), 25 (MS2)
+[25:55] RT window set to 6.9143
+[25:55] Recommended MS1 mass accuracy setting: 6 ppm
+[26:32] Optimised mass accuracy: 12 ppm
+[26:42] Main search
+[29:56] Removing low confidence identifications
+[30:11] Removing interfering precursors
+[30:16] Training neural networks on 173938 target and 107538 decoy PSMs
+[31:22] IDs at 0.01 FDR: 96598
+[31:24] Number of IDs at 0.01 FDR: 97955
+[31:24] Calculating protein q-values
+[31:24] Number of proteins identified at 1% FDR: 8835 (precursor-level), 8193 (protein-level) (inference performed using proteotypic peptides only)
+[31:24] Quantification
+[31:26] Quantification information saved to temp_diann/hfx-16SPD_CK_M2512_134_raw.quant
+
+[31:26] File #6/6
+[31:26] Loading run hfx-16SPD/CK_M2512_135.raw
+[31:38] Pre-processing...
+[31:39] 2359 MS1 and 66030 MS2 scans in 2359 (inferred) and 2359 (encoded) cycles, 2520239 precursors in range
+[31:40] Calibrating with mass accuracies 25 (MS1), 25 (MS2)
+[32:01] RT window set to 6.87415
+[32:01] Recommended MS1 mass accuracy setting: 6 ppm
+[32:36] Optimised mass accuracy: 10 ppm
+[32:46] Main search
+[35:45] Removing low confidence identifications
+[35:58] Removing interfering precursors
+[36:03] Training neural networks on 173699 target and 106259 decoy PSMs
+[37:11] IDs at 0.01 FDR: 95016
+[37:12] Number of IDs at 0.01 FDR: 96830
+[37:12] Calculating protein q-values
+[37:12] Number of proteins identified at 1% FDR: 8721 (precursor-level), 8178 (protein-level) (inference performed using proteotypic peptides only)
+[37:13] Quantification
+[37:14] Quantification information saved to temp_diann/hfx-16SPD_CK_M2512_135_raw.quant
+
+[37:14] Cross-run analysis
+[37:14] Reading quantification information: 6 files
+[37:21] Averaged recommended settings for this experiment: Mass accuracy = 17ppm, MS1 accuracy = 6ppm, Scan window = 8
+[37:26] Quantifying peptides
+[37:49] Assembling protein groups
+[37:51] Quantifying proteins
+[37:51] Calculating q-values for protein and gene groups
+[37:53] Calculating global q-values for protein and gene groups
+[37:53] Protein groups with global q-value <= 0.01: 10249
+[37:56] Compressed report saved to report-first-pass.parquet. Use R 'arrow' or Python 'PyArrow' package to process
+[37:56] Saving precursor levels matrix
+[37:56] Precursor levels matrix (1% precursor and protein group FDR) saved to report-first-pass.pr_matrix.tsv.
+[37:56] Manifest saved to report-first-pass.manifest.txt
+[37:56] Stats report saved to report-first-pass.stats.tsv
+[37:56] Generating spectral library:
+[37:59] 127494 target and 1276 decoy precursors saved
+[38:00] Spectral library saved to out-lib.parquet
+
+[38:00] Loading spectral library out-lib.parquet
+[38:02] Spectral library loaded: 11340 protein isoforms, 11257 protein groups and 128770 precursors in 112261 elution groups.
+[38:02] Loading protein annotations from FASTA LFQB_4species.fasta
+[38:02] Annotating library proteins with information from the FASTA database
+[38:02] Gene names missing for some isoforms
+[38:02] Library contains 11340 proteins, and 10827 genes
+[38:02] Initialising library
+[38:04] Saving the library to out-lib.parquet.skyline.speclib
+
+
+Second pass: using the newly created spectral library to reanalyse the data
+
+[38:04] File #1/6
+[38:04] Loading run hfx-16SPD/CK_M2512_129.raw
+[38:14] Pre-processing...
+[38:15] 2360 MS1 and 66071 MS2 scans in 2360 (inferred) and 2360 (encoded) cycles, 127494 precursors in range
+[38:15] Calibrating with mass accuracies 25 (MS1), 25 (MS2)
+[38:16] RT window set to 1.93583
+[38:16] Recommended MS1 mass accuracy setting: 6 ppm
+[38:17] Optimised mass accuracy: 17 ppm
+[38:18] Main search
+[38:24] Removing low confidence identifications
+[38:29] Removing interfering precursors
+[38:31] Training neural networks on 108313 target and 66453 decoy PSMs
+[39:12] IDs at 0.01 FDR: 110295
+[39:12] Number of IDs at 0.01 FDR: 110721
+[39:12] Calculating protein q-values
+[39:12] Number of proteins identified at 1% FDR: 10304 (precursor-level), 9802 (protein-level) (inference performed using proteotypic peptides only)
+[39:12] Quantification
+
+[39:13] File #2/6
+[39:13] Loading run hfx-16SPD/CK_M2512_130.raw
+[39:23] Pre-processing...
+[39:24] 2360 MS1 and 66076 MS2 scans in 2360 (inferred) and 2360 (encoded) cycles, 127494 precursors in range
+[39:24] Calibrating with mass accuracies 25 (MS1), 25 (MS2)
+[39:25] RT window set to 1.93466
+[39:25] Recommended MS1 mass accuracy setting: 7 ppm
+[39:27] Optimised mass accuracy: 12 ppm
+[39:28] Main search
+[39:32] Removing low confidence identifications
+[39:38] Removing interfering precursors
+[39:39] Training neural networks on 109119 target and 65126 decoy PSMs
+[40:19] IDs at 0.01 FDR: 110922
+[40:20] Number of IDs at 0.01 FDR: 111309
+[40:20] Calculating protein q-values
+[40:20] Number of proteins identified at 1% FDR: 10330 (precursor-level), 9877 (protein-level) (inference performed using proteotypic peptides only)
+[40:20] Quantification
+
+[40:21] File #3/6
+[40:21] Loading run hfx-16SPD/CK_M2512_131.raw
+[40:34] Pre-processing...
+[40:34] 2361 MS1 and 66081 MS2 scans in 2361 (inferred) and 2361 (encoded) cycles, 127494 precursors in range
+[40:34] Calibrating with mass accuracies 25 (MS1), 25 (MS2)
+[40:35] RT window set to 1.9388
+[40:35] Recommended MS1 mass accuracy setting: 6 ppm
+[40:37] Optimised mass accuracy: 12 ppm
+[40:38] Main search
+[40:42] Removing low confidence identifications
+[40:48] Removing interfering precursors
+[40:49] Training neural networks on 109091 target and 66561 decoy PSMs
+[41:30] IDs at 0.01 FDR: 110617
+[41:31] Number of IDs at 0.01 FDR: 110900
+[41:31] Calculating protein q-values
+[41:31] Number of proteins identified at 1% FDR: 10322 (precursor-level), 9842 (protein-level) (inference performed using proteotypic peptides only)
+[41:31] Quantification
+
+[41:32] File #4/6
+[41:32] Loading run hfx-16SPD/CK_M2512_133.raw
+[41:42] Pre-processing...
+[41:42] 2359 MS1 and 66025 MS2 scans in 2359 (inferred) and 2359 (encoded) cycles, 127494 precursors in range
+[41:42] Calibrating with mass accuracies 25 (MS1), 25 (MS2)
+[41:43] RT window set to 1.91904
+[41:43] Recommended MS1 mass accuracy setting: 7 ppm
+[41:45] Optimised mass accuracy: 7 ppm
+[41:45] Main search
+[41:49] Removing low confidence identifications
+[41:54] Removing interfering precursors
+[41:55] Training neural networks on 105887 target and 64320 decoy PSMs
+[42:35] IDs at 0.01 FDR: 100773
+[42:36] Number of IDs at 0.01 FDR: 101064
+[42:36] Calculating protein q-values
+[42:36] Number of proteins identified at 1% FDR: 8977 (precursor-level), 8763 (protein-level) (inference performed using proteotypic peptides only)
+[42:36] Quantification
+
+[42:37] File #5/6
+[42:37] Loading run hfx-16SPD/CK_M2512_134.raw
+[42:49] Pre-processing...
+[42:50] 2359 MS1 and 66030 MS2 scans in 2359 (inferred) and 2359 (encoded) cycles, 127494 precursors in range
+[42:50] Calibrating with mass accuracies 25 (MS1), 25 (MS2)
+[42:51] RT window set to 1.91942
+[42:51] Recommended MS1 mass accuracy setting: 6 ppm
+[42:52] Optimised mass accuracy: 14 ppm
+[42:53] Main search
+[42:58] Removing low confidence identifications
+[43:03] Removing interfering precursors
+[43:04] Training neural networks on 106445 target and 63438 decoy PSMs
+[43:44] IDs at 0.01 FDR: 104386
+[43:45] Number of IDs at 0.01 FDR: 104718
+[43:45] Calculating protein q-values
+[43:45] Number of proteins identified at 1% FDR: 9192 (precursor-level), 8988 (protein-level) (inference performed using proteotypic peptides only)
+[43:45] Quantification
+
+[43:46] File #6/6
+[43:46] Loading run hfx-16SPD/CK_M2512_135.raw
+[43:58] Pre-processing...
+[43:58] 2359 MS1 and 66030 MS2 scans in 2359 (inferred) and 2359 (encoded) cycles, 127494 precursors in range
+[43:58] Calibrating with mass accuracies 25 (MS1), 25 (MS2)
+[43:59] RT window set to 1.92794
+[43:59] Recommended MS1 mass accuracy setting: 7 ppm
+[44:01] Optimised mass accuracy: 14 ppm
+[44:01] Main search
+[44:06] Removing low confidence identifications
+[44:12] Removing interfering precursors
+[44:13] Training neural networks on 106440 target and 63396 decoy PSMs
+[44:53] IDs at 0.01 FDR: 104871
+[44:54] Number of IDs at 0.01 FDR: 105024
+[44:54] Calculating protein q-values
+[44:54] Number of proteins identified at 1% FDR: 9225 (precursor-level), 8953 (protein-level) (inference performed using proteotypic peptides only)
+[44:54] Quantification
+
+[44:55] Cross-run analysis
+[44:55] Reading quantification information: 6 files
+[44:56] Averaged recommended settings for this experiment: Mass accuracy = 12ppm, MS1 accuracy = 6ppm, Scan window = 8
+[44:57] Quantifying peptides
+[46:59] Quantification parameters: 0.271706, 0.00131813, 0.000460736, 0.0116475, 0.013655, 0.0124418, 0.125703, 0.0258472, 0.0215051, 0.0133329, 0.0419184, 0.0169451, 0.32899, 0.0520031, 0.0694325, 0.0104596
+[47:11] Quantifying proteins
+[47:12] Calculating q-values for protein and gene groups
+[47:12] Calculating global q-values for protein and gene groups
+[47:12] Protein groups with global q-value <= 0.01: 10073
+[47:16] Compressed report saved to report.parquet. Use R 'arrow' or Python 'PyArrow' package to process
+[47:16] Saving precursor levels matrix
+[47:16] Precursor levels matrix (1% precursor and protein group FDR) saved to report.pr_matrix.tsv.
+[47:16] Saving protein group levels matrix
+[47:16] Protein groups matrix saved to report.pg_matrix.tsv.
+[47:16] Saving gene group levels matrix
+[47:16] Gene groups matrix saved to report.gg_matrix.tsv.
+[47:16] Saving unique genes levels matrix
+[47:17] Unique genes matrix saved to report.unique_genes_matrix.tsv.
+[47:17] Manifest saved to report.manifest.txt
+[47:17] Stats report saved to report.stats.tsv
+

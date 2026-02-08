@@ -1,5 +1,5 @@
 # Library Generation + Quantification Configuration
-# Simple workflow: Generate library from FASTA, then quantify samples
+# Generate library from FASTA, then quantify samples
 
 # FASTA file
 fasta: '/path/to/protein.fasta'
@@ -8,7 +8,7 @@ fasta: '/path/to/protein.fasta'
 samples:
   - id: 'sample1'
     dir: '/path/to/ms_data/sample1'
-    file_type: 'd'        # or 'raw' or 'mzML'
+    file_type: 'd'        # 'd' for .d folders (Bruker), 'raw' for Thermo, 'mzML'
     recursive: false
 
   - id: 'sample2'
@@ -31,7 +31,7 @@ outdir: 'results/library_and_quantify'
 # library_subdir: 'library'        # Default: 'library'
 # quantify_subdir: ''               # Default: '' (flat in outdir)
 
-# DIANN version
+# DIA-NN version
 diann_version: '2.3.2'
 
 # Thread configuration
@@ -43,6 +43,10 @@ parallel_mode: false
 # SLURM settings
 slurm_account: 'YOUR_PROJECT'
 slurm_queue: 'lu'  # For COSMOS, or 'work' for other clusters
+
+# Optional: Dynamic time allocation for quantification
+# time_base_hours: 2
+# time_per_file_minutes: 10
 
 # Library generation parameters
 library:
@@ -66,15 +70,16 @@ smart_profiling: true
 individual_mass_acc: true
 matrices: true
 
-# Optional: Use pre-tuned models for library generation
-# If you have tuned models from a previous run, you can use them:
-# tokens: 'results/previous_tuning/out-lib.dict.txt'
-# rt_model: 'results/previous_tuning/out-lib.tuned_rt.pt'
-# im_model: 'results/previous_tuning/out-lib.tuned_im.pt'
-# fr_model: 'results/previous_tuning/out-lib.tuned_fr.pt'
+# Optional: Pre-trained model preset (see models/README.md for available presets)
+# model_preset: 'ttht-evos-30spd'
+# tuning_mode: 'skip'              # 'skip' = use preset directly, 'from_scratch' = tune from defaults
+
+# Optional: Explicit model file paths (overrides model_preset)
+# tokens: 'path/to/dict.txt'
+# rt_model: 'path/to/tuned_rt.pt'
+# im_model: 'path/to/tuned_im.pt'
+# fr_model: 'path/to/tuned_fr.pt'
 
 # Optional: Reference library for batch correction
 # ref_library: '/path/to/reference/library.predicted.speclib'
-
-# Optional: Batch correction parameters
 # individual_windows: true

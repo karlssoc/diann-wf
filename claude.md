@@ -53,7 +53,6 @@ diann-wf/
 ├── configs/                # Configuration files
 │   ├── workflows/             # Multi-module workflows
 │   │   ├── library_and_quantify.yaml
-│   │   ├── library_and_quantify_preset.yaml
 │   │   ├── iterative_quant.yaml
 │   │   ├── compare_libraries.yaml
 │   │   ├── compare_with_models.yaml

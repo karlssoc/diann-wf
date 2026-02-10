@@ -16,11 +16,13 @@ process QUANTIFY {
     // Dynamic time allocation based on file count
     // Formula: base_hours + (file_count * minutes_per_file)
     // Configurable via params.time_base_hours and params.time_per_file_minutes
-    // Default: 2h + (file_count * 10 min) - generous buffer for file variability
+    // Default: 2h + (file_count * 15 min)
+    // Based on: 2.3M precursor library, 81 .dia files, 96 threads → 7.3 min/file mean
+    //   Scaled to 60 threads: 11.6 min/file mean, 14.3 min/file max → 15 min buffer
     // Ultrafast mode: reduces time by ~50% due to simplified algorithms
     time {
         def base_hours = params.time_base_hours ?: 2
-        def minutes_per_file = params.time_per_file_minutes ?: 10
+        def minutes_per_file = params.time_per_file_minutes ?: 15
         def total_minutes = (base_hours * 60) + (file_count.toInteger() * minutes_per_file)
 
         // Ultrafast mode is significantly faster - reduce time estimate by 50%

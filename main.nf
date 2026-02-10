@@ -7,14 +7,16 @@
  * Use the -entry flag to select which workflow to run.
  *
  * Available workflows:
- *   - ITERATIVE_QUANT:     Iterative quantification (library gen -> identify -> subset -> final)
- *   - LIBRARY_AND_QUANTIFY: Generate library + quantify samples in one go
- *   - create_library:       Create a spectral library from FASTA
- *   - quantify_only:        Quantify samples using an existing library
+ *   - ITERATIVE_QUANT:          Iterative quantification (library gen -> identify -> subset -> final)
+ *   - LIBRARY_AND_QUANTIFY:     Generate library + quantify samples in one go
+ *   - PRESEARCH_AND_QUANTIFY:   Presearch N largest files -> subset library -> quantify all
+ *   - create_library:           Create a spectral library from FASTA
+ *   - quantify_only:            Quantify samples using an existing library
  *
  * Examples:
  *   nextflow run karlssoc/diann-wf -entry ITERATIVE_QUANT -params-file config.yaml -profile slurm
  *   nextflow run karlssoc/diann-wf -entry LIBRARY_AND_QUANTIFY -params-file config.yaml -profile slurm
+ *   nextflow run karlssoc/diann-wf -entry PRESEARCH_AND_QUANTIFY -params-file config.yaml -profile slurm
  *   nextflow run karlssoc/diann-wf -entry create_library -params-file configs/library.yaml -profile slurm
  *   nextflow run karlssoc/diann-wf -entry quantify_only -params-file configs/quantify.yaml -profile slurm
  */
@@ -28,6 +30,7 @@ include { QUANTIFY } from './modules/quantify'
 // Import workflows
 include { ITERATIVE_QUANT } from './workflows/iterative_quant'
 include { LIBRARY_AND_QUANTIFY } from './workflows/library_and_quantify'
+include { PRESEARCH_AND_QUANTIFY } from './workflows/presearch_and_quantify'
 
 // Import shared utilities
 include { parseSamples; createSamplesChannel } from './lib/samples'
@@ -191,10 +194,11 @@ workflow {
     ERROR: No workflow specified.
 
     Please use the -entry flag to select a workflow:
-      -entry ITERATIVE_QUANT      : Iterative quantification (recommended)
-      -entry LIBRARY_AND_QUANTIFY : Generate library + quantify samples
-      -entry create_library       : Create spectral library from FASTA
-      -entry quantify_only        : Quantify samples using existing library
+      -entry ITERATIVE_QUANT        : Iterative quantification (all files for identification)
+      -entry PRESEARCH_AND_QUANTIFY : Presearch N largest files -> subset -> quantify all (recommended)
+      -entry LIBRARY_AND_QUANTIFY   : Generate library + quantify samples (no search space reduction)
+      -entry create_library         : Create spectral library from FASTA
+      -entry quantify_only          : Quantify samples using existing library
 
     Example:
       nextflow run karlssoc/diann-wf -entry ITERATIVE_QUANT -params-file config.yaml -profile slurm

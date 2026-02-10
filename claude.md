@@ -16,10 +16,11 @@ A Nextflow DSL2 workflow for DIA-NN (Data-Independent Acquisition by Neural Netw
 
 ```
 diann-wf/
-├── main.nf                 # Entry point (ITERATIVE_QUANT, LIBRARY_AND_QUANTIFY, create_library, quantify_only)
+├── main.nf                 # Entry point (ITERATIVE_QUANT, PRESEARCH_AND_QUANTIFY, LIBRARY_AND_QUANTIFY, create_library, quantify_only)
 │
 ├── workflows/              # Complete workflow definitions
 │   ├── library_and_quantify.nf     # Generate library + quantify (core)
+│   ├── presearch_and_quantify.nf   # Presearch N files -> subset -> quantify all (core)
 │   ├── iterative_quant.nf          # Iterative quant with calibration (core)
 │   ├── quantify_only.nf            # Quantify with existing library
 │   ├── create_library.nf           # Generate spectral library
@@ -53,6 +54,7 @@ diann-wf/
 ├── configs/                # Configuration files
 │   ├── workflows/             # Multi-module workflows
 │   │   ├── library_and_quantify.yaml
+│   │   ├── presearch_and_quantify.yaml
 │   │   ├── iterative_quant.yaml
 │   │   ├── compare_libraries.yaml
 │   │   ├── compare_with_models.yaml

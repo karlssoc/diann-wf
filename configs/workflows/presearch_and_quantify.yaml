@@ -1,0 +1,71 @@
+# Presearch + Quantification Configuration
+# Search N largest files against full library, subset by detected proteins,
+# then quantify all samples against the subset library.
+
+# FASTA file
+fasta: '/path/to/protein.fasta'
+
+# Sample definitions
+samples:
+  - id: 'sample1'
+    dir: '/path/to/ms_data/sample1'
+    file_type: 'dia'       # 'dia', 'd' (Bruker), 'raw' (Thermo), 'mzML'
+    recursive: false
+
+  - id: 'sample2'
+    dir: '/path/to/ms_data/sample2'
+    file_type: 'dia'
+    recursive: false
+
+# Library name
+library_name: 'generated_lib'
+
+# Output directory
+outdir: 'results/presearch_and_quantify'
+
+# Presearch settings
+presearch_files: 5          # Number of largest files for presearch (5-7 recommended)
+qvalue_presearch: 0.05      # Relaxed FDR for presearch (captures ~15-30% more PGs)
+
+# DIA-NN version
+diann_version: '2.3.2'
+
+# Thread configuration
+threads: 48  # Adjust for your system
+
+# Parallel execution mode (for SLURM/COSMOS)
+parallel_mode: false
+
+# SLURM settings
+slurm_account: 'YOUR_PROJECT'
+slurm_queue: 'lu'
+
+# Library generation parameters
+library:
+  min_fr_mz: 200
+  max_fr_mz: 1800
+  min_pep_len: 7
+  max_pep_len: 30
+  min_pr_mz: 350
+  max_pr_mz: 1650
+  min_pr_charge: 2
+  max_pr_charge: 3
+  cut: 'K*,R*,!*P'
+  missed_cleavages: 1
+  met_excision: true
+  unimod4: true
+
+# Quantification parameters (applied to both presearch and final)
+pg_level: 1
+mass_acc_cal: 25
+smart_profiling: true
+individual_mass_acc: true
+matrices: true
+
+# Optional: Pre-trained model preset (see models/README.md for available presets)
+# model_preset: 'hfx-vneo-16SPD-2.3.2-260608'
+# tuning_mode: 'skip'
+
+# Optional: Reference library for batch correction (final quantification only)
+# ref_library: '/path/to/reference/library.predicted.speclib'
+# individual_windows: true

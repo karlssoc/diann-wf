@@ -43,11 +43,20 @@ process QUANTIFY {
     val qvalue   // Precursor q-value threshold (0 = DIA-NN default 0.01)
 
     output:
+    // Main report and library
     tuple val(sample_id), path("report.parquet"), emit: report
     tuple val(sample_id), path("out-lib.parquet"), emit: out_lib, optional: true
     tuple val(sample_id), path("out-lib.parquet.skyline.speclib"), emit: skyline_lib, optional: true
-    tuple val(sample_id), path("*.tsv"), emit: matrices, optional: true
+    // Matrices (--matrices flag)
+    tuple val(sample_id), path("report.*_matrix.tsv"), emit: matrices, optional: true
+    tuple val(sample_id), path("report-first-pass.*_matrix.tsv"), emit: first_pass_matrices, optional: true
+    // Stats and protein descriptions
+    tuple val(sample_id), path("report.stats.tsv"), emit: stats, optional: true
+    tuple val(sample_id), path("report-first-pass.stats.tsv"), emit: first_pass_stats, optional: true
+    tuple val(sample_id), path("report.protein_description.tsv"), emit: protein_description, optional: true
+    // First-pass report (MBR mode)
     tuple val(sample_id), path("report-first-pass.parquet"), emit: first_pass_report, optional: true
+    // Manifests and logs
     tuple val(sample_id), path("report-first-pass.manifest.txt"), emit: first_pass_manifest, optional: true
     tuple val(sample_id), path("report.manifest.txt"), emit: manifest, optional: true
     path "report.log.txt", emit: report_log, optional: true

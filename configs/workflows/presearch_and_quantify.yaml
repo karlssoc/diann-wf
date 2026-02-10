@@ -40,7 +40,7 @@ parallel_mode: false
 slurm_account: 'YOUR_PROJECT'
 slurm_queue: 'lu'
 
-# Library generation parameters
+# Library generation parameters (used for final quantification library)
 library:
   min_fr_mz: 200
   max_fr_mz: 1800
@@ -54,6 +54,15 @@ library:
   missed_cleavages: 1
   met_excision: true
   unimod4: true
+
+# Optional: Presearch library overrides (inherits from library, overrides specified values)
+# When set, generates TWO libraries in parallel:
+#   - Presearch library (narrow): for fast protein identification
+#   - Final library (broad): subset by detected proteins for quantification
+# Example: use charge 2-3 for presearch, charge 1-4 for final
+# presearch_library:
+#   min_pr_charge: 2
+#   max_pr_charge: 3
 
 # Quantification parameters (applied to both presearch and final)
 pg_level: 1

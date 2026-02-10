@@ -24,7 +24,9 @@ nextflow.enable.dsl = 2
 
 // Include modules
 include { GENERATE_LIBRARY } from '../modules/library'
+include { GENERATE_LIBRARY as GENERATE_LIBRARY_PRESEARCH } from '../modules/library'
 include { CONVERT_LIBRARY } from '../modules/convert_library'
+include { CONVERT_LIBRARY as CONVERT_LIBRARY_PRESEARCH } from '../modules/convert_library'
 include { QUANTIFY as QUANTIFY_PRESEARCH } from '../modules/quantify'
 include { QUANTIFY as QUANTIFY_FINAL } from '../modules/quantify'
 include { SUBSET_LIBRARY } from '../modules/subset_library'
@@ -87,6 +89,7 @@ workflow PRESEARCH_AND_QUANTIFY {
     def library_subdir = params.library_subdir ?: 'library'
     def presearch_n = params.presearch_files ?: 5
     def qvalue_presearch = params.qvalue_presearch ?: 0.05
+    def dual_library = params.presearch_library ? true : false
 
     // Create file objects
     def fasta_file = file(params.fasta)
@@ -144,6 +147,9 @@ workflow PRESEARCH_AND_QUANTIFY {
     log.info "Total MS files: ${all_ms_files.size()}"
     log.info "Presearch     : ${n_select} largest files (of ${all_ms_files.size()})"
     log.info "Q-value (pre) : ${qvalue_presearch}"
+    if (dual_library) {
+        log.info "Dual library  : enabled (presearch_library overrides for presearch)"
+    }
     log.info "Output dir    : ${params.outdir}"
     logModelInfo(models, params)
     log.info ""
@@ -155,39 +161,97 @@ workflow PRESEARCH_AND_QUANTIFY {
 
     /*
     ========================================================================================
-        STEP 1: Generate Library from FASTA
+        STEP 1-2: Generate and Convert Libraries
+        When presearch_library is set, generates TWO libraries in parallel:
+          - Presearch library (narrow, e.g. charge 2-3): for fast protein identification
+          - Final library (broad, e.g. charge 1-4): subset by detected proteins for quant
+        When presearch_library is not set, generates a single library for both stages.
     ========================================================================================
     */
 
-    GENERATE_LIBRARY(
-        fasta_file,
-        library_name,
-        library_subdir,
-        params.library ?: [:],
-        models.tokens,
-        models.rt_model,
-        models.im_model,
-        models.fr_model,
-        file('NO_FILE')  // No fasta filter
-    )
+    def final_search_params = params.library ?: [:]
+    def final_cut = final_search_params.cut ?: 'K*,R*,!*P'
+    def final_mc = final_search_params.missed_cleavages ?: 1
 
-    /*
-    ========================================================================================
-        STEP 2: Convert Library to Parquet (needed for subsetting)
-    ========================================================================================
-    */
+    // Library channels (set below based on single/dual mode)
+    def library_for_presearch = null
+    def library_for_final = null
 
-    def search_params = params.library ?: [:]
-    def cut = search_params.cut ?: 'K*,R*,!*P'
-    def missed_cleavages = search_params.missed_cleavages ?: 1
+    if (dual_library) {
+        // Dual library mode: presearch_library overrides library for presearch
+        def presearch_search_params = (params.library ?: [:]) + (params.presearch_library ?: [:])
+        def presearch_cut = presearch_search_params.cut ?: 'K*,R*,!*P'
+        def presearch_mc = presearch_search_params.missed_cleavages ?: 1
 
-    CONVERT_LIBRARY(
-        GENERATE_LIBRARY.out.library,
-        library_subdir,
-        fasta_file,
-        cut,
-        missed_cleavages
-    )
+        log.info "Generating dual libraries from FASTA..."
+
+        // Generate presearch (narrow) library
+        GENERATE_LIBRARY_PRESEARCH(
+            fasta_file,
+            "${library_name}_presearch",
+            'library/presearch',
+            presearch_search_params,
+            models.tokens,
+            models.rt_model,
+            models.im_model,
+            models.fr_model,
+            file('NO_FILE')
+        )
+
+        CONVERT_LIBRARY_PRESEARCH(
+            GENERATE_LIBRARY_PRESEARCH.out.library,
+            'library/presearch',
+            fasta_file,
+            presearch_cut,
+            presearch_mc
+        )
+        library_for_presearch = CONVERT_LIBRARY_PRESEARCH.out.parquet_library
+
+        // Generate final (broad) library — runs in parallel with presearch library
+        GENERATE_LIBRARY(
+            fasta_file,
+            library_name,
+            library_subdir,
+            final_search_params,
+            models.tokens,
+            models.rt_model,
+            models.im_model,
+            models.fr_model,
+            file('NO_FILE')
+        )
+
+        CONVERT_LIBRARY(
+            GENERATE_LIBRARY.out.library,
+            library_subdir,
+            fasta_file,
+            final_cut,
+            final_mc
+        )
+        library_for_final = CONVERT_LIBRARY.out.parquet_library
+    } else {
+        // Single library mode: same library for presearch and final
+        GENERATE_LIBRARY(
+            fasta_file,
+            library_name,
+            library_subdir,
+            final_search_params,
+            models.tokens,
+            models.rt_model,
+            models.im_model,
+            models.fr_model,
+            file('NO_FILE')
+        )
+
+        CONVERT_LIBRARY(
+            GENERATE_LIBRARY.out.library,
+            library_subdir,
+            fasta_file,
+            final_cut,
+            final_mc
+        )
+        library_for_presearch = CONVERT_LIBRARY.out.parquet_library
+        library_for_final = CONVERT_LIBRARY.out.parquet_library
+    }
 
     /*
     ========================================================================================
@@ -211,7 +275,7 @@ workflow PRESEARCH_AND_QUANTIFY {
 
     QUANTIFY_PRESEARCH(
         presearch_sample,
-        CONVERT_LIBRARY.out.parquet_library.first(),
+        library_for_presearch.first(),
         fasta_file,
         file('NO_FILE'),  // No ref library for presearch
         false,            // No MBR for presearch
@@ -230,7 +294,7 @@ workflow PRESEARCH_AND_QUANTIFY {
 
     SUBSET_LIBRARY(
         presearch_reports,
-        CONVERT_LIBRARY.out.parquet_library.first(),
+        library_for_final.first(),  // Subset the FINAL (broad) library
         'subset_library',
         'subset_lib'
     )
@@ -243,7 +307,9 @@ workflow PRESEARCH_AND_QUANTIFY {
 
     def subdir = params.quantify_subdir ?: ''
     def samples_ch = createSamplesChannel(samples_list, subdir)
-    def mbr = params.mbr != null ? params.mbr : true
+    // Use mbr_final for the final stage (params.mbr defaults to false in nextflow.config
+    // for identification stages; mbr_final defaults to true for final quantification)
+    def mbr = params.mbr_final != null ? params.mbr_final : true
 
     QUANTIFY_FINAL(
         samples_ch,
@@ -257,7 +323,7 @@ workflow PRESEARCH_AND_QUANTIFY {
     // Emit outputs
     emit:
     library = GENERATE_LIBRARY.out.library
-    library_parquet = CONVERT_LIBRARY.out.parquet_library
+    library_parquet = library_for_final
     presearch_report = QUANTIFY_PRESEARCH.out.report
     subset_library = SUBSET_LIBRARY.out.subset_library
     quantify_reports = QUANTIFY_FINAL.out.report

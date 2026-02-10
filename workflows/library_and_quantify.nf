@@ -86,7 +86,8 @@ workflow LIBRARY_AND_QUANTIFY {
     def samples_ch = createSamplesChannel(samples_list, subdir)
 
     // Quantify all samples with the generated library (MBR enabled by default)
-    def mbr = params.mbr != null ? params.mbr : true
+    // Use mbr_final (params.mbr defaults to false in nextflow.config for identification stages)
+    def mbr = params.mbr_final != null ? params.mbr_final : true
     QUANTIFY(
         samples_ch,
         GENERATE_LIBRARY.out.library.first(),  // Broadcast library to all samples

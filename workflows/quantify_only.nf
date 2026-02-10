@@ -151,7 +151,8 @@ workflow {
     log.info ""
 
     // Run quantification with MBR (match-between-runs) enabled by default
-    def mbr = params.mbr != null ? params.mbr : true
+    // Use mbr_final (params.mbr defaults to false in nextflow.config for identification stages)
+    def mbr = params.mbr_final != null ? params.mbr_final : true
     QUANTIFY(
         samples_ch,
         library_file,

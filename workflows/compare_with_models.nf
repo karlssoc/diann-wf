@@ -198,7 +198,8 @@ workflow {
     // Step 3: Quantify with default library
     log.info "Step 3: Quantifying samples with default library"
     def samples_ch_default = createSamplesChannel(samples_list, 'quant/default')
-    def mbr = params.mbr != null ? params.mbr : true
+    // Use mbr_final (params.mbr defaults to false in nextflow.config for identification stages)
+    def mbr = params.mbr_final != null ? params.mbr_final : true
 
     QUANTIFY_DEFAULT(
         samples_ch_default,

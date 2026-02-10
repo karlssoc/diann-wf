@@ -140,7 +140,8 @@ workflow {
     }
 
     // Settings
-    def mbr = params.mbr != null ? params.mbr : true
+    // Use mbr_final (params.mbr defaults to false in nextflow.config for identification stages)
+    def mbr = params.mbr_final != null ? params.mbr_final : true
     def instrument_type = params.instrument_type ?: ''
     def pre_select = params.pre_select ?: 0
     def calibration_files_count = params.calibration_files ?: 5

@@ -64,10 +64,12 @@ library:
   unimod4: true
 
 # Quantification parameters
+qvalue: 0  # 0 = DIA-NN default (0.01 = 1% FDR)
+
 pg_level: 1
 mass_acc_cal: 25
 smart_profiling: true
-individual_mass_acc: true
+individual_mass_acc: false
 matrices: true
 
 # Optional: Pre-trained model preset (see models/README.md for available presets)

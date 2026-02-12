@@ -8,7 +8,7 @@ A Nextflow DSL2 workflow for DIA-NN (Data-Independent Acquisition by Neural Netw
 
 **Key Technology Stack:**
 - **Nextflow** (DSL2) - Workflow orchestration
-- **DIA-NN 2.3.1** - MS analysis tool (runs in Singularity containers)
+- **DIA-NN 2.3.2** - MS analysis tool (runs in Singularity containers)
 - **SLURM** - HPC job scheduler
 - **Singularity/Apptainer** - Container runtime
 
@@ -16,12 +16,12 @@ A Nextflow DSL2 workflow for DIA-NN (Data-Independent Acquisition by Neural Netw
 
 ```
 diann-wf/
-├── main.nf                 # Entry point (ITERATIVE_QUANT, PRESEARCH_AND_QUANTIFY, LIBRARY_AND_QUANTIFY, create_library, quantify_only)
+├── main.nf                 # Single entry point for all workflows (use -entry flag)
 │
-├── workflows/              # Complete workflow definitions
-│   ├── library_and_quantify.nf     # Generate library + quantify (core)
-│   ├── presearch_and_quantify.nf   # Presearch N files -> subset -> quantify all (core)
-│   ├── iterative_quant.nf          # Iterative quant with calibration (core)
+├── workflows/              # Workflow definitions
+│   ├── presearch_and_quantify.nf   # PRODUCTION: Presearch N files -> subset -> quantify all
+│   ├── library_and_quantify.nf     # PRODUCTION: Generate library + quantify
+│   ├── iterative_quant.nf          # DEVELOPMENT: Iterative quant with calibration
 │   ├── quantify_only.nf            # Quantify with existing library
 │   ├── create_library.nf           # Generate spectral library
 │   ├── convert_library.nf          # Convert .speclib to .parquet
@@ -44,40 +44,33 @@ diann-wf/
 │   ├── subset_library_peptide.nf # SUBSET_LIBRARY_PEPTIDE (by Modified.Sequence)
 │   ├── extract_sequences.nf    # EXTRACT_SEQUENCES
 │   ├── filter_library.nf       # FILTER_LIBRARY_CHARGE
+│   ├── compare_matrices.nf     # COMPARE_MATRICES (DuckDB pg_matrix comparison)
 │   └── model_accuracy_report.nf # MODEL_ACCURACY_REPORT
 │
-├── lib/                    # Shared utility functions
+├── bin/                    # Utility scripts
+│   ├── diann-wf                # Wrapper script (abstracts Nextflow for users)
+│   ├── compare_pg_matrices.py  # Standalone pg_matrix comparison CLI (DuckDB)
+│   ├── extract_metrics.py      # Extract metrics from DIA-NN reports
+│   ├── collect_models.sh       # Organize tuning outputs into model presets
+│   └── ...
+│
+├── lib/                    # Shared Nextflow utility functions
 │   ├── samples.nf             # parseSamples(), createSamplesChannel()
 │   ├── models.nf              # resolveModelFiles(), logModelInfo()
 │   └── files.nf               # countMSFiles()
 │
-├── configs/                # Configuration files
+├── configs/                # Configuration templates
 │   ├── workflows/             # Multi-module workflows
-│   │   ├── library_and_quantify.yaml
-│   │   ├── presearch_and_quantify.yaml
-│   │   ├── iterative_quant.yaml
-│   │   ├── compare_libraries.yaml
-│   │   ├── compare_with_models.yaml
-│   │   └── evaluate_models.yaml
 │   ├── quantify/              # Single module configs
-│   │   ├── basic.yaml
-│   │   ├── ultrafast.yaml
-│   │   ├── batch_correction.yaml
-│   │   └── smb_storage.yaml
-│   ├── library/
-│   │   ├── standard.yaml
-│   │   ├── repredict.yaml
-│   │   └── ttht-evos-30spd.yaml
-│   ├── tune/
-│   │   └── standard.yaml
-│   ├── presearch/
-│   │   └── standard.yaml
+│   ├── library/               # Library generation configs
+│   ├── tune/                  # Model tuning configs
+│   ├── presearch/             # Presearch configs
 │   ├── test/                  # Test configurations
 │   └── cosmos/                # COSMOS HPC examples
 │
 ├── models/                 # Pre-trained model presets
 │
-└── nextflow.config         # Main configuration (profiles, resources)
+└── nextflow.config         # Main configuration (profiles, resources, param defaults)
 ```
 
 ## Core Concepts
@@ -151,6 +144,15 @@ executor {
 
 ## Important Patterns
 
+### DIA-NN Binary Path (Runtime Resolution)
+`params.diann_binary` is `null` in nextflow.config. Modules compute the path at runtime:
+```groovy
+def diann_cmd = params.diann_binary ?: "/usr/bin/diann-${params.diann_version}/diann-linux"
+```
+**Why?** GString interpolation in `nextflow.config` params block evaluates at parse time,
+before YAML overrides are applied. Setting `diann_binary` to a GString there would lock in
+the default `diann_version` and ignore YAML overrides.
+
 ### Dynamic CPU Allocation
 Modules use `${task.cpus}` (NOT `${params.threads}`):
 ```bash
@@ -169,8 +171,12 @@ def use_tuned = condition  # Wrong - becomes groovy boolean
 // Wrong - channel consumed by first sample
 QUANTIFY(samples_ch, library, ...)
 
-// Correct - library broadcasts to all samples
-QUANTIFY(samples_ch, library.first(), ...)
+// Wrong - .first() inline produces Nextflow WARN
+QUANTIFY(samples_ch, GENERATE_LIBRARY.out.library.first(), ...)
+
+// Correct - convert at assignment time, then use variable
+def generated_library = GENERATE_LIBRARY.out.library.first()
+QUANTIFY(samples_ch, generated_library, ...)
 ```
 
 ### Optional File Outputs
@@ -190,7 +196,7 @@ Follow this format (enforced in project):
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
-Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
 ```
 
 ## Testing Strategy
@@ -205,16 +211,21 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 
 **Local testing (standard profile):**
 ```bash
-nextflow run workflows/quantify_only.nf \
+nextflow run karlssoc/diann-wf -entry quantify_only \
   -params-file configs/quantify/basic.yaml \
   -profile standard
 ```
 
 **SLURM testing:**
 ```bash
-nextflow -bg run workflows/quantify_only.nf \
+nextflow -bg run karlssoc/diann-wf -entry quantify_only \
   -params-file configs/quantify/basic.yaml \
   -profile slurm
+```
+
+**Using the wrapper script:**
+```bash
+diann-wf quantify_only configs/quantify/basic.yaml slurm
 ```
 
 **Key test cases:**
@@ -250,6 +261,18 @@ nextflow -bg run workflows/quantify_only.nf \
 4. ✅ Closure syntax in config directives
 5. ✅ Multi-sample channel broadcasting
 6. ✅ Config reorganization (workflows/ vs modules/)
+
+## Recent Major Fixes (Feb 2026)
+
+1. ✅ `diann_binary` GString self-reference bug (all 7 modules use runtime fallback)
+2. ✅ Undefined params warnings (all params declared in nextflow.config)
+3. ✅ `.first()` warnings (moved to assignment time in production workflows)
+4. ✅ `individual_mass_acc` default changed to `false` (was causing ~12% systematic intensity decrease)
+5. ✅ All configs/docs updated for `nextflow pull` compatibility (`-entry` syntax)
+6. ✅ New entry points: `convert_library`, `tune_models` in main.nf
+7. ✅ Wrapper script `bin/diann-wf` for non-Nextflow users
+8. ✅ Restructured workflows: removed broken `full_pipeline.nf`, `compare_library_tuning.nf`, `evaluate_methods.nf` (14 → 11 workflows)
+9. ✅ Sanity comparison tool: `bin/compare_pg_matrices.py` + `modules/compare_matrices.nf`
 
 ## Development Guidelines
 
@@ -340,10 +363,14 @@ nextflow lint .
 - `library`: Path to spectral library (.predicted.speclib or .parquet)
 - `fasta`: Path to FASTA file
 - `samples`: List of sample definitions (id, dir, file_type, recursive)
+- `qvalue`: Precursor q-value threshold (0 = DIA-NN default 0.01)
 - `pg_level`: Protein group level (1=proteins, 0=genes)
 - `mass_acc_cal`: Mass accuracy calibration threshold
-- `smart_profiling`: Use smart profiling (default: true)
+- `smart_profiling`: Use smart profiling (default: false)
+- `individual_mass_acc`: Per-file mass accuracy (default: false, causes ~12% intensity decrease)
 - `matrices`: Generate result matrices (default: true)
+- `mbr`: Match-between-runs for identification stage (default: false)
+- `mbr_final`: Match-between-runs for final quantification (default: true)
 - `ultrafast`: Enable ultrafast mode (reduced accuracy, faster)
 
 ### Library Generation Specific
@@ -360,6 +387,31 @@ nextflow lint .
 - `tune_rt`: Tune retention time model (default: true)
 - `tune_im`: Tune ion mobility model (default: false)
 - `tune_fr`: Tune fragmentation model (default: true, requires 2.3.1+)
+
+## Entry Points (main.nf -entry)
+
+All workflows are accessible via `nextflow run karlssoc/diann-wf -entry <NAME>`:
+
+| Entry | Type | Description |
+|-------|------|-------------|
+| `PRESEARCH_AND_QUANTIFY` | Production | Presearch N files → subset library → quantify all (recommended) |
+| `LIBRARY_AND_QUANTIFY` | Production | Generate library + quantify (no search space reduction) |
+| `create_library` | Standalone | Create spectral library from FASTA |
+| `quantify_only` | Standalone | Quantify with existing library |
+| `convert_library` | Standalone | Convert .speclib to .parquet |
+| `tune_models` | Standalone | Tune prediction models |
+| `ITERATIVE_QUANT` | Development | Iterative quantification (experimental) |
+
+**Wrapper script** (`bin/diann-wf`) abstracts Nextflow for end users:
+```bash
+diann-wf presearch_and_quantify config.yaml slurm        # Production
+diann-wf quantify_only quant.yaml docker -resume          # With extra args
+diann-wf list                                              # Show all workflows
+```
+
+**Workflows NOT in main.nf** (run directly for development/comparison):
+- `compare_libraries.nf`, `compare_with_models.nf`, `evaluate_models.nf`
+- `infindia_presearch_only.nf`, `repredict_library.nf`, `tune_only.nf`
 
 ## Design Patterns
 
@@ -379,9 +431,14 @@ publishDir "${params.outdir}${subdir ? '/' + subdir : ''}/${sample_id}"
 **Module signatures with subdir:**
 
 ```groovy
-// QUANTIFY
+// QUANTIFY (6-element tuple + 5 separate inputs)
 input:
-tuple val(sample_id), path(ms_dir), val(file_type), val(subdir)
+tuple val(sample_id), path(ms_dir), val(file_type), val(subdir), val(recursive), val(file_count)
+path library
+path fasta
+path ref_library
+val mbr
+val qvalue
 
 // GENERATE_LIBRARY
 input:
@@ -516,5 +573,5 @@ Use `bin/collect_models.sh` to organize tuning outputs into repository structure
 
 ---
 
-*Last updated: 2026-02-01*
+*Last updated: 2026-02-11*
 *This file is specifically for AI assistants working on the project*

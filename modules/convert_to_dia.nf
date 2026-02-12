@@ -27,7 +27,7 @@ process CONVERT_TO_DIA {
     tuple val(sample_id), path("*.dia"), emit: dia_file
 
     script:
-    def diann_cmd = params.diann_binary
+    def diann_cmd = params.diann_binary ?: "/usr/bin/diann-${params.diann_version}/diann-linux"
 
     """
     echo "=== Converting to .dia format ==="
@@ -68,7 +68,7 @@ process CONVERT_TO_DIA_BATCH {
     path("output_manifest.csv"), emit: manifest
 
     script:
-    def diann_cmd = params.diann_binary
+    def diann_cmd = params.diann_binary ?: "/usr/bin/diann-${params.diann_version}/diann-linux"
 
     """
     echo "=== Batch Converting ${ms_files.size()} files to .dia format ==="

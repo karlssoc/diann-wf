@@ -27,7 +27,7 @@ process CONVERT_LIBRARY {
     path "convert_library.log", emit: log
 
     script:
-    def diann_cmd = params.diann_binary
+    def diann_cmd = params.diann_binary ?: "/usr/bin/diann-${params.diann_version}/diann-linux"
     def out_name = "${library.baseName}.parquet"
 
     // Build FASTA parameters if FASTA is provided

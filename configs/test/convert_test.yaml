@@ -2,10 +2,10 @@
 # Converts a .speclib library to .parquet format
 #
 # Prerequisites: Generate the test library first:
-#   nextflow run workflows/create_library.nf -params-file configs/test/library_test.yaml -profile docker
+#   nextflow run karlssoc/diann-wf -entry create_library -params-file configs/test/library_test.yaml -profile docker
 #
 # Usage:
-#   nextflow run workflows/convert_library.nf -params-file configs/test/convert_test.yaml -profile docker
+#   nextflow run karlssoc/diann-wf -entry convert_library -params-file configs/test/convert_test.yaml -profile docker
 
 # Input library (.speclib format)
 library: 'test_results/library/library/test_library.predicted.speclib'

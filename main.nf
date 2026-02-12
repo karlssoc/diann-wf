@@ -3,22 +3,20 @@
 /*
  * DIANN Workflow - Main Entry Point
  *
- * This file provides named workflow entry points for the different DIANN workflows.
- * Use the -entry flag to select which workflow to run.
+ * Use: nextflow run karlssoc/diann-wf -entry <WORKFLOW> -params-file config.yaml -profile <PROFILE>
  *
- * Available workflows:
- *   - ITERATIVE_QUANT:          Iterative quantification (library gen -> identify -> subset -> final)
- *   - LIBRARY_AND_QUANTIFY:     Generate library + quantify samples in one go
- *   - PRESEARCH_AND_QUANTIFY:   Presearch N largest files -> subset library -> quantify all
- *   - create_library:           Create a spectral library from FASTA
- *   - quantify_only:            Quantify samples using an existing library
+ * Production workflows (FASTA + MS data -> quantified proteins):
+ *   PRESEARCH_AND_QUANTIFY   Presearch N largest files -> subset library -> quantify all (recommended)
+ *   LIBRARY_AND_QUANTIFY     Generate library + quantify samples (no search space reduction)
  *
- * Examples:
- *   nextflow run karlssoc/diann-wf -entry ITERATIVE_QUANT -params-file config.yaml -profile slurm
- *   nextflow run karlssoc/diann-wf -entry LIBRARY_AND_QUANTIFY -params-file config.yaml -profile slurm
- *   nextflow run karlssoc/diann-wf -entry PRESEARCH_AND_QUANTIFY -params-file config.yaml -profile slurm
- *   nextflow run karlssoc/diann-wf -entry create_library -params-file configs/library.yaml -profile slurm
- *   nextflow run karlssoc/diann-wf -entry quantify_only -params-file configs/quantify.yaml -profile slurm
+ * Standalone modules (single step):
+ *   create_library           Create spectral library from FASTA
+ *   quantify_only            Quantify samples using an existing library
+ *   convert_library          Convert .speclib to .parquet format
+ *   tune_models              Tune prediction models from an existing library
+ *
+ * Development:
+ *   ITERATIVE_QUANT          Iterative quantification (all files for identification)
  */
 
 nextflow.enable.dsl = 2
@@ -26,6 +24,8 @@ nextflow.enable.dsl = 2
 // Import modules
 include { GENERATE_LIBRARY } from './modules/library'
 include { QUANTIFY } from './modules/quantify'
+include { CONVERT_LIBRARY } from './modules/convert_library'
+include { TUNE_MODELS } from './modules/tune'
 
 // Import workflows
 include { ITERATIVE_QUANT } from './workflows/iterative_quant'
@@ -188,20 +188,109 @@ workflow quantify_only {
     )
 }
 
+// Convert Library Workflow
+workflow convert_library {
+    checkPlatformWarning()
+
+    if (!params.library) {
+        log.error "ERROR: --library parameter is required (path to .speclib or .predicted.speclib)"
+        exit 1
+    }
+
+    def library_file = file(params.library)
+    if (!library_file.exists()) {
+        log.error "ERROR: Library file not found: ${params.library}"
+        exit 1
+    }
+
+    def subdir = params.subdir ?: ''
+    def fasta_file = params.fasta ? file(params.fasta) : file('NO_FILE')
+    def cut = params.cut ?: 'K*,R*,!*P'
+    def missed_cleavages = params.missed_cleavages ?: 1
+
+    if (params.fasta && !fasta_file.exists()) {
+        log.error "ERROR: FASTA file not found: ${params.fasta}"
+        exit 1
+    }
+
+    log.info ""
+    log.info "DIANN Library Conversion"
+    log.info "========================"
+    log.info "Library      : ${params.library}"
+    log.info "FASTA        : ${params.fasta ?: 'not provided (proteotypic annotation disabled)'}"
+    if (params.fasta) {
+        log.info "Digest       : cut=${cut}, missed_cleavages=${missed_cleavages}"
+    }
+    log.info "Output dir   : ${params.outdir}"
+    log.info ""
+
+    CONVERT_LIBRARY(
+        library_file,
+        subdir,
+        fasta_file,
+        cut,
+        missed_cleavages
+    )
+}
+
+// Tune Models Workflow
+workflow tune_models {
+    checkPlatformWarning()
+
+    if (!params.tune_library) {
+        log.error "ERROR: --tune_library parameter is required (path to spectral library for tuning)"
+        exit 1
+    }
+
+    def tune_lib_file = file(params.tune_library)
+    if (!tune_lib_file.exists()) {
+        log.error "ERROR: Tune library not found: ${params.tune_library}"
+        exit 1
+    }
+
+    def subdir = params.subdir ?: 'tuning'
+
+    log.info ""
+    log.info "DIANN Model Tuning"
+    log.info "==================="
+    log.info "Library      : ${params.tune_library}"
+    log.info "Tune RT      : ${params.tuning?.tune_rt ?: false}"
+    log.info "Tune IM      : ${params.tuning?.tune_im ?: false}"
+    log.info "Tune FR      : ${params.tuning?.tune_fr ?: false}"
+    log.info "Output dir   : ${params.outdir}"
+    log.info ""
+
+    def tune_lib_ch = Channel.fromPath(params.tune_library, checkIfExists: true)
+
+    TUNE_MODELS(
+        tune_lib_ch,
+        params.library_name ?: 'tuned',
+        subdir
+    )
+}
+
 // Default workflow (no entry specified)
 workflow {
     log.error """
     ERROR: No workflow specified.
 
-    Please use the -entry flag to select a workflow:
-      -entry ITERATIVE_QUANT        : Iterative quantification (all files for identification)
-      -entry PRESEARCH_AND_QUANTIFY : Presearch N largest files -> subset -> quantify all (recommended)
-      -entry LIBRARY_AND_QUANTIFY   : Generate library + quantify samples (no search space reduction)
+    Usage: nextflow run karlssoc/diann-wf -entry <WORKFLOW> -params-file config.yaml -profile <PROFILE>
+
+    Production workflows:
+      -entry PRESEARCH_AND_QUANTIFY : Presearch N files -> subset -> quantify all (recommended)
+      -entry LIBRARY_AND_QUANTIFY   : Generate library + quantify samples
+
+    Standalone modules:
       -entry create_library         : Create spectral library from FASTA
-      -entry quantify_only          : Quantify samples using existing library
+      -entry quantify_only          : Quantify with existing library
+      -entry convert_library        : Convert .speclib to .parquet
+      -entry tune_models            : Tune prediction models
+
+    Development:
+      -entry ITERATIVE_QUANT        : Iterative quantification
 
     Example:
-      nextflow run karlssoc/diann-wf -entry ITERATIVE_QUANT -params-file config.yaml -profile slurm
+      nextflow run karlssoc/diann-wf -entry PRESEARCH_AND_QUANTIFY -params-file config.yaml -profile slurm
     """
     exit 1
 }

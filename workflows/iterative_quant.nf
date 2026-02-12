@@ -72,7 +72,7 @@ def helpMessage() {
     5. Final stage: WITH MBR on subset library for improved quantification
 
     Usage:
-      nextflow run workflows/iterative_quant.nf -params-file <config.yaml> -profile <profile>
+      nextflow run karlssoc/diann-wf -entry ITERATIVE_QUANT -params-file <config.yaml> -profile <profile>
 
     Required Parameters:
       --fasta PATH          FASTA sequence database
@@ -160,26 +160,31 @@ def helpMessage() {
     """.stripIndent()
 }
 
-// Show help message if requested
-if (params.help) {
-    helpMessage()
-    exit 0
-}
-
-// Validate required parameters
-if (!params.fasta) {
-    log.error "ERROR: --fasta parameter is required"
-    helpMessage()
-    exit 1
-}
-if (!params.samples) {
-    log.error "ERROR: --samples parameter is required"
-    helpMessage()
-    exit 1
-}
-
 // Main workflow
 workflow ITERATIVE_QUANT {
+    log.warn ""
+    log.warn "NOTE: ITERATIVE_QUANT is a development/experimental workflow."
+    log.warn "For production use, consider PRESEARCH_AND_QUANTIFY instead."
+    log.warn ""
+
+    // Show help message if requested
+    if (params.help) {
+        helpMessage()
+        exit 0
+    }
+
+    // Validate required parameters (inside workflow block so they only run when this entry is selected)
+    if (!params.fasta) {
+        log.error "ERROR: --fasta parameter is required"
+        helpMessage()
+        exit 1
+    }
+    if (!params.samples) {
+        log.error "ERROR: --samples parameter is required"
+        helpMessage()
+        exit 1
+    }
+
     // Validate input files
     def fasta_file = file(params.fasta)
 
@@ -193,7 +198,7 @@ workflow ITERATIVE_QUANT {
 
     // MBR settings
     def mbr_identify = params.mbr != null ? params.mbr : false
-    def mbr_final = params.mbr_final != null ? params.mbr_final : (params.mbr_second_pass != null ? params.mbr_second_pass : true)
+    def mbr_final = params.mbr_final != null ? params.mbr_final : true
 
     // Q-value threshold for identification stage (default 0.05 to capture more PGs for subsetting)
     def qvalue_identify = params.qvalue_identify ?: 0

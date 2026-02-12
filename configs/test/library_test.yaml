@@ -32,4 +32,4 @@ library:
   unimod4: true
 
 # Expected runtime: 30-60 seconds
-# Usage: nextflow run workflows/create_library.nf -params-file configs/test/library_test.yaml -profile standard
+# Usage: nextflow run karlssoc/diann-wf -entry create_library -params-file configs/test/library_test.yaml -profile standard

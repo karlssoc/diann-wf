@@ -76,7 +76,7 @@ This configures Git LFS to handle the mzML files efficiently.
 Pre-generate a library for faster testing:
 
 ```bash
-nextflow run workflows/create_library.nf \
+nextflow run karlssoc/diann-wf -entry create_library \
   -params-file configs/test/library_test.yaml \
   -profile standard
 ```
@@ -89,7 +89,7 @@ This creates `test_data/expected_outputs/test_library.predicted.speclib`.
 
 ```bash
 # Test quantification workflow (uses 2 samples)
-nextflow run workflows/quantify_only.nf \
+nextflow run karlssoc/diann-wf -entry quantify_only \
   -params-file configs/test/quick_test.yaml \
   -profile standard
 ```
@@ -99,7 +99,7 @@ nextflow run workflows/quantify_only.nf \
 ### Test Library Generation
 
 ```bash
-nextflow run workflows/create_library.nf \
+nextflow run karlssoc/diann-wf -entry create_library \
   -params-file configs/test/library_test.yaml \
   -profile standard
 ```
@@ -171,7 +171,7 @@ jobs:
       - uses: nf-core/setup-nextflow@v1
       - name: Run quick test
         run: |
-          nextflow run workflows/quantify_only.nf \
+          nextflow run karlssoc/diann-wf -entry quantify_only \
             -params-file configs/test/quick_test.yaml \
             -profile standard
 ```
@@ -199,7 +199,7 @@ head -100 test_data/raw/sample1/test_sample1.mzML
 grep "^>" test_data/fasta/minimal_proteome.fasta | head -10
 
 # Run test workflow
-nextflow run workflows/quantify_only.nf \
+nextflow run karlssoc/diann-wf -entry quantify_only \
   -params-file configs/test/quick_test.yaml \
   -profile standard
 ```

@@ -19,7 +19,7 @@ See individual `metadata.yaml` files in each preset directory for detailed prove
 Specify a preset name with the `model_preset` parameter:
 
 ```bash
-nextflow run workflows/create_library.nf \
+nextflow run karlssoc/diann-wf -entry create_library \
   --fasta protein.fasta \
   --library_name mylib \
   --model_preset ttht-evos-30spd \
@@ -31,7 +31,7 @@ nextflow run workflows/create_library.nf \
 Reference individual model files directly:
 
 ```bash
-nextflow run workflows/create_library.nf \
+nextflow run karlssoc/diann-wf -entry create_library \
   --fasta protein.fasta \
   --library_name mylib \
   --tokens models/ttht-evos-30spd/dict.txt \
@@ -138,7 +138,7 @@ nano models/my-instrument-method/metadata.yaml
 Test your new preset with a small library generation run:
 
 ```bash
-nextflow run workflows/create_library.nf \
+nextflow run karlssoc/diann-wf -entry create_library \
   --fasta test.fasta \
   --library_name test_lib \
   --model_preset my-instrument-method \

@@ -13,7 +13,7 @@
  *   --samples         Path to YAML/JSON file with sample definitions, or inline JSON
  *
  * Example usage:
- *   nextflow run workflows/quantify_only.nf -params-file configs/simple_quant.yaml -profile slurm
+ *   nextflow run karlssoc/diann-wf -entry quantify_only -params-file configs/simple_quant.yaml -profile slurm
  */
 
 nextflow.enable.dsl = 2
@@ -30,7 +30,7 @@ def helpMessage() {
     DIANN Quantification-Only Workflow
 
     Usage:
-      nextflow run workflows/quantify_only.nf -params-file <config.yaml> -profile <profile>
+      nextflow run karlssoc/diann-wf -entry quantify_only -params-file <config.yaml> -profile <profile>
 
     Required Parameters:
       --library PATH        Spectral library file
@@ -60,10 +60,10 @@ def helpMessage() {
 
     Examples:
       # Using config file
-      nextflow run workflows/quantify_only.nf -params-file configs/simple_quant.yaml -profile slurm
+      nextflow run karlssoc/diann-wf -entry quantify_only -params-file configs/simple_quant.yaml -profile slurm
 
       # Using command line
-      nextflow run workflows/quantify_only.nf \\
+      nextflow run karlssoc/diann-wf -entry quantify_only \\
         --library libs/mylib.predicted.speclib \\
         --fasta mydata.fasta \\
         --samples '[{"id":"exp01","dir":"input/exp01","file_type":"d"}]' \\

@@ -130,7 +130,7 @@ outdir: 'results/evaluation/default'
 ```
 
 ```bash
-nextflow run workflows/quantify_only.nf \
+nextflow run karlssoc/diann-wf -entry quantify_only \
   -params-file configs/evaluation/validation_default.yaml \
   -profile slurm
 ```
@@ -147,7 +147,7 @@ outdir: 'results/evaluation/tuned'
 ```
 
 ```bash
-nextflow run workflows/quantify_only.nf \
+nextflow run karlssoc/diann-wf -entry quantify_only \
   -params-file configs/evaluation/validation_tuned.yaml \
   -profile slurm
 ```

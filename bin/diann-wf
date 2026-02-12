@@ -1,0 +1,150 @@
+#!/bin/bash
+#
+# diann-wf — Wrapper for DIA-NN Nextflow workflows
+#
+# Simplifies running workflows so users don't need to remember Nextflow syntax.
+#
+# Usage:
+#   diann-wf <workflow> <config.yaml> [profile] [extra nextflow args...]
+#
+# Examples:
+#   diann-wf presearch_and_quantify my_config.yaml slurm
+#   diann-wf quantify_only quant.yaml docker
+#   diann-wf create_library lib.yaml slurm -resume
+#   diann-wf list                              # Show available workflows
+#   diann-wf help                              # Show this help
+#
+# Prerequisites:
+#   - Nextflow installed (https://www.nextflow.io)
+#   - Container runtime: Singularity/Apptainer (HPC) or Docker (local)
+#   - Run 'nextflow pull karlssoc/diann-wf' once to download the workflow
+#
+
+set -eo pipefail
+
+REPO="karlssoc/diann-wf"
+
+# Map workflow name to Nextflow -entry value
+resolve_entry() {
+    case "$1" in
+        presearch_and_quantify) echo "PRESEARCH_AND_QUANTIFY" ;;
+        library_and_quantify)   echo "LIBRARY_AND_QUANTIFY" ;;
+        create_library)         echo "create_library" ;;
+        quantify_only)          echo "quantify_only" ;;
+        convert_library)        echo "convert_library" ;;
+        tune_models)            echo "tune_models" ;;
+        iterative_quant)        echo "ITERATIVE_QUANT" ;;
+        *)                      echo "" ;;
+    esac
+}
+
+usage() {
+    cat <<'EOF'
+diann-wf — DIA-NN Nextflow Workflow Runner
+
+Usage:
+  diann-wf <workflow> <config.yaml> [profile] [extra args...]
+  diann-wf list                    Show available workflows
+  diann-wf help                    Show this help
+
+Arguments:
+  workflow      Workflow name (see 'diann-wf list')
+  config.yaml   Path to YAML configuration file
+  profile       Execution profile: standard, slurm, cosmos, docker (default: standard)
+  extra args    Additional Nextflow arguments (e.g., -resume, -bg)
+
+Examples:
+  diann-wf presearch_and_quantify config.yaml slurm
+  diann-wf quantify_only quant.yaml docker
+  diann-wf create_library lib.yaml slurm -resume
+  diann-wf presearch_and_quantify config.yaml slurm -bg    # Run in background
+
+Equivalent Nextflow command:
+  nextflow run karlssoc/diann-wf -entry PRESEARCH_AND_QUANTIFY \
+    -params-file config.yaml -profile slurm
+EOF
+}
+
+list_workflows() {
+    cat <<'EOF'
+Available workflows:
+
+  Production (FASTA + MS data -> quantified proteins):
+    presearch_and_quantify   Presearch N largest files -> subset library -> quantify all (recommended)
+    library_and_quantify     Generate library + quantify samples (no search space reduction)
+
+  Standalone modules (single step):
+    create_library           Create spectral library from FASTA
+    quantify_only            Quantify samples using an existing library
+    convert_library          Convert .speclib to .parquet format
+    tune_models              Tune prediction models from an existing library
+
+  Development:
+    iterative_quant          Iterative quantification (all files for identification)
+
+Usage:
+  diann-wf <workflow> <config.yaml> [profile]
+EOF
+}
+
+# Handle special commands
+case "${1:-}" in
+    help|--help|-h|"")
+        usage
+        exit 0
+        ;;
+    list|--list|-l)
+        list_workflows
+        exit 0
+        ;;
+esac
+
+WORKFLOW="$1"
+shift
+
+# Validate workflow name
+ENTRY=$(resolve_entry "$WORKFLOW")
+if [ -z "$ENTRY" ]; then
+    echo "Error: Unknown workflow '$WORKFLOW'" >&2
+    echo "" >&2
+    echo "Available workflows:" >&2
+    echo "  presearch_and_quantify  library_and_quantify" >&2
+    echo "  create_library          quantify_only" >&2
+    echo "  convert_library         tune_models" >&2
+    echo "  iterative_quant" >&2
+    echo "" >&2
+    echo "Run 'diann-wf list' for details." >&2
+    exit 1
+fi
+
+# Config file (required)
+if [ $# -eq 0 ]; then
+    echo "Error: Config file required." >&2
+    echo "Usage: diann-wf $WORKFLOW <config.yaml> [profile]" >&2
+    exit 1
+fi
+
+CONFIG="$1"
+shift
+
+if [ ! -f "$CONFIG" ]; then
+    echo "Error: Config file not found: $CONFIG" >&2
+    exit 1
+fi
+
+# Profile (optional, default: standard)
+PROFILE="${1:-standard}"
+if [ $# -gt 0 ]; then
+    shift
+fi
+
+# Check nextflow is available
+if ! command -v nextflow &> /dev/null; then
+    echo "Error: Nextflow not found. Install from https://www.nextflow.io" >&2
+    exit 1
+fi
+
+# Build and run the command
+echo "Running: nextflow run $REPO -entry $ENTRY -params-file $CONFIG -profile $PROFILE $*"
+echo ""
+exec nextflow run "$REPO" -entry "$ENTRY" -params-file "$CONFIG" -profile "$PROFILE" "$@"

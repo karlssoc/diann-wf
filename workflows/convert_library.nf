@@ -20,7 +20,7 @@
  *   --missed_cleavages Number of missed cleavages (default: 1)
  *
  * Example usage:
- *   nextflow run workflows/convert_library.nf -params-file configs/library/convert.yaml -profile docker
+ *   nextflow run karlssoc/diann-wf -entry convert_library -params-file configs/library/convert.yaml -profile docker
  */
 
 nextflow.enable.dsl = 2
@@ -34,7 +34,7 @@ def helpMessage() {
     DIANN Library Conversion Workflow
 
     Usage:
-      nextflow run workflows/convert_library.nf -params-file <config.yaml> -profile <profile>
+      nextflow run karlssoc/diann-wf -entry convert_library -params-file <config.yaml> -profile <profile>
 
     Required Parameters:
       --library PATH        Spectral library file (.speclib or .predicted.speclib)
@@ -55,13 +55,13 @@ def helpMessage() {
 
     Examples:
       # Basic conversion (without proteotypic annotation)
-      nextflow run workflows/convert_library.nf \\
+      nextflow run karlssoc/diann-wf -entry convert_library \\
         --library libs/mylib.predicted.speclib \\
         --outdir results \\
         -profile docker
 
       # With FASTA for proper proteotypic annotation
-      nextflow run workflows/convert_library.nf \\
+      nextflow run karlssoc/diann-wf -entry convert_library \\
         --library libs/mylib.predicted.speclib \\
         --fasta refs/proteome.fasta \\
         --outdir results \\

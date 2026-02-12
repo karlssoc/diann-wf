@@ -17,10 +17,10 @@
  *
  * Example usage:
  *   # Create library with default models
- *   nextflow run workflows/create_library.nf -params-file configs/library_creation.yaml -profile slurm
+ *   nextflow run karlssoc/diann-wf -entry create_library -params-file configs/library_creation.yaml -profile slurm
  *
  *   # Create library with tuned models
- *   nextflow run workflows/create_library.nf \\
+ *   nextflow run karlssoc/diann-wf -entry create_library \\
  *     --fasta mydata.fasta \\
  *     --library_name mylib_tuned \\
  *     --tokens tuning/out-lib.dict.txt \\
@@ -43,7 +43,7 @@ def helpMessage() {
     DIANN Library Creation Workflow
 
     Usage:
-      nextflow run workflows/create_library.nf -params-file <config.yaml> -profile <profile>
+      nextflow run karlssoc/diann-wf -entry create_library -params-file <config.yaml> -profile <profile>
 
     Required Parameters:
       --fasta PATH          FASTA file
@@ -75,20 +75,20 @@ def helpMessage() {
 
     Examples:
       # Create library with default models
-      nextflow run workflows/create_library.nf \\
+      nextflow run karlssoc/diann-wf -entry create_library \\
         --fasta mydata.fasta \\
         --library_name mylib \\
         -profile slurm
 
       # Create library with pre-trained model preset
-      nextflow run workflows/create_library.nf \\
+      nextflow run karlssoc/diann-wf -entry create_library \\
         --fasta mydata.fasta \\
         --library_name mylib_preset \\
         --model_preset ttht-evos-30spd \\
         -profile slurm
 
       # Create library with explicit model files (overrides preset)
-      nextflow run workflows/create_library.nf \\
+      nextflow run karlssoc/diann-wf -entry create_library \\
         --fasta mydata.fasta \\
         --library_name mylib_custom \\
         --tokens results/tuning/out-lib.dict.txt \\

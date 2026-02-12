@@ -133,7 +133,7 @@ Have models for a new instrument combination? Add them to the repository:
 nano models/my-instrument-method/metadata.yaml
 
 # Test and validate
-nextflow run workflows/create_library.nf \
+nextflow run karlssoc/diann-wf -entry create_library \
   --model_preset my-instrument-method \
   --fasta test.fasta --library_name test \
   -profile standard
@@ -347,7 +347,7 @@ nextflow -bg run karlssoc/diann-wf -params-file configs/my_quant.yaml -profile s
 #### Option A: Default Models
 
 ```bash
-nextflow run karlssoc/diann-wf/workflows/create_library.nf \
+nextflow run karlssoc/diann-wf -entry create_library \
   --fasta mydata.fasta \
   --library_name mylib \
   --outdir results/library \
@@ -359,7 +359,7 @@ nextflow run karlssoc/diann-wf/workflows/create_library.nf \
 If you have pre-tuned models from a previous run:
 
 ```bash
-nextflow run karlssoc/diann-wf/workflows/create_library.nf \
+nextflow run karlssoc/diann-wf -entry create_library \
   --fasta mydata.fasta \
   --library_name mylib_tuned \
   --tokens results/tuning/out-lib.dict.txt \
@@ -427,7 +427,7 @@ nextflow -bg run karlssoc/diann-wf/workflows/repredict_library.nf \
 - Simpler alternative to full_pipeline when you don't need model tuning
 
 ```bash
-nextflow run karlssoc/diann-wf/workflows/library_and_quantify.nf \
+nextflow run karlssoc/diann-wf -entry LIBRARY_AND_QUANTIFY \
   --fasta mydata.fasta \
   --samples '[{"id":"sample1","dir":"input/sample1","file_type":"d"}]' \
   --library_name generated_lib \
@@ -472,7 +472,7 @@ matrices: true
 ```
 
 ```bash
-nextflow -bg run karlssoc/diann-wf/workflows/library_and_quantify.nf \
+nextflow -bg run karlssoc/diann-wf -entry LIBRARY_AND_QUANTIFY \
   -params-file configs/workflows/library_and_quantify.yaml \
   -profile slurm
 ```

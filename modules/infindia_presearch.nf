@@ -39,7 +39,7 @@ process INFINDIA_PRESEARCH {
     path "calibration_report.log.txt", emit: report_log, optional: true
 
     script:
-    def diann_cmd = params.diann_binary
+    def diann_cmd = params.diann_binary ?: "/usr/bin/diann-${params.diann_version}/diann-linux"
 
     // Mass accuracy presets based on instrument type
     // HFX (Orbitrap): MS1 5 ppm, MS2 15 ppm

@@ -27,7 +27,7 @@ process TUNE_MODELS {
 
     script:
     // Use centralized DIA-NN binary path (container ENTRYPOINT interferes with PATH)
-    def diann_cmd = params.diann_binary
+    def diann_cmd = params.diann_binary ?: "/usr/bin/diann-${params.diann_version}/diann-linux"
 
     // Determine which models to tune
     def tune_rt = params.tuning?.tune_rt ? "--tune-rt" : ""

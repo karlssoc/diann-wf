@@ -63,8 +63,8 @@ process QUANTIFY {
     path "diann.log", emit: log
 
     script:
-    // Use centralized DIA-NN binary path (container ENTRYPOINT interferes with PATH)
-    def diann_cmd = params.diann_binary
+    // DIA-NN binary path (auto-computed from version if not explicitly set)
+    def diann_cmd = params.diann_binary ?: "/usr/bin/diann-${params.diann_version}/diann-linux"
 
     // Directory parameter: use --dir-all for recursive, --dir for non-recursive
     def dir_param = recursive ? "--dir-all" : "--dir"

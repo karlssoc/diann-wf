@@ -35,14 +35,6 @@ include { SUBSET_LIBRARY } from '../modules/subset_library'
 include { parseSamples; createSamplesChannel } from '../lib/samples'
 include { resolveModelFiles; logModelInfo } from '../lib/models'
 
-// Validate required parameters
-if (!params.fasta) {
-    error "ERROR: Missing required parameter --fasta"
-}
-if (!params.samples) {
-    error "ERROR: Missing required parameter --samples"
-}
-
 /*
 ========================================================================================
     LOCAL PROCESS: Create presearch directory from selected files
@@ -81,6 +73,14 @@ process SELECT_PRESEARCH_FILES {
 */
 
 workflow PRESEARCH_AND_QUANTIFY {
+    // Validate required parameters (inside workflow block so they only run when this entry is selected)
+    if (!params.fasta) {
+        error "ERROR: Missing required parameter --fasta"
+    }
+    if (!params.samples) {
+        error "ERROR: Missing required parameter --samples"
+    }
+
     // Parse samples using shared utility
     def samples_list = parseSamples(params.samples)
 
@@ -205,7 +205,7 @@ workflow PRESEARCH_AND_QUANTIFY {
             presearch_cut,
             presearch_mc
         )
-        library_for_presearch = CONVERT_LIBRARY_PRESEARCH.out.parquet_library
+        library_for_presearch = CONVERT_LIBRARY_PRESEARCH.out.parquet_library.first()
 
         // Generate final (broad) library — runs in parallel with presearch library
         GENERATE_LIBRARY(
@@ -227,7 +227,7 @@ workflow PRESEARCH_AND_QUANTIFY {
             final_cut,
             final_mc
         )
-        library_for_final = CONVERT_LIBRARY.out.parquet_library
+        library_for_final = CONVERT_LIBRARY.out.parquet_library.first()
     } else {
         // Single library mode: same library for presearch and final
         GENERATE_LIBRARY(
@@ -249,8 +249,10 @@ workflow PRESEARCH_AND_QUANTIFY {
             final_cut,
             final_mc
         )
-        library_for_presearch = CONVERT_LIBRARY.out.parquet_library
-        library_for_final = CONVERT_LIBRARY.out.parquet_library
+        // Convert once to value channel for broadcasting to multiple consumers
+        def single_lib = CONVERT_LIBRARY.out.parquet_library.first()
+        library_for_presearch = single_lib
+        library_for_final = single_lib
     }
 
     /*
@@ -275,7 +277,7 @@ workflow PRESEARCH_AND_QUANTIFY {
 
     QUANTIFY_PRESEARCH(
         presearch_sample,
-        library_for_presearch.first(),
+        library_for_presearch,
         fasta_file,
         file('NO_FILE'),  // No ref library for presearch
         false,            // No MBR for presearch
@@ -294,7 +296,7 @@ workflow PRESEARCH_AND_QUANTIFY {
 
     SUBSET_LIBRARY(
         presearch_reports,
-        library_for_final.first(),  // Subset the FINAL (broad) library
+        library_for_final,  // Subset the FINAL (broad) library
         'subset_library',
         'subset_lib'
     )
@@ -311,9 +313,12 @@ workflow PRESEARCH_AND_QUANTIFY {
     // for identification stages; mbr_final defaults to true for final quantification)
     def mbr = params.mbr_final != null ? params.mbr_final : true
 
+    // Convert to value channel at assignment time (avoids .first() warning downstream)
+    def subset_lib = SUBSET_LIBRARY.out.subset_library.first()
+
     QUANTIFY_FINAL(
         samples_ch,
-        SUBSET_LIBRARY.out.subset_library.first(),
+        subset_lib,
         fasta_file,
         ref_library_file,
         mbr,

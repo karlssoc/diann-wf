@@ -23,14 +23,6 @@ include { QUANTIFY } from '../modules/quantify'
 include { parseSamples; createSamplesChannel } from '../lib/samples'
 include { resolveModelFiles; logModelInfo } from '../lib/models'
 
-// Validate required parameters
-if (!params.fasta) {
-    error "ERROR: Missing required parameter --fasta"
-}
-if (!params.samples) {
-    error "ERROR: Missing required parameter --samples"
-}
-
 /*
 ========================================================================================
     WORKFLOW
@@ -38,6 +30,14 @@ if (!params.samples) {
 */
 
 workflow LIBRARY_AND_QUANTIFY {
+    // Validate required parameters (inside workflow block so they only run when this entry is selected)
+    if (!params.fasta) {
+        error "ERROR: Missing required parameter --fasta"
+    }
+    if (!params.samples) {
+        error "ERROR: Missing required parameter --samples"
+    }
+
     // Parse samples using shared utility
     def samples_list = parseSamples(params.samples)
 
@@ -85,12 +85,14 @@ workflow LIBRARY_AND_QUANTIFY {
     def subdir = params.quantify_subdir ?: ''
     def samples_ch = createSamplesChannel(samples_list, subdir)
 
+    // Convert library output to value channel for multi-sample broadcasting
+    def generated_library = GENERATE_LIBRARY.out.library.first()
+
     // Quantify all samples with the generated library (MBR enabled by default)
-    // Use mbr_final (params.mbr defaults to false in nextflow.config for identification stages)
     def mbr = params.mbr_final != null ? params.mbr_final : true
     QUANTIFY(
         samples_ch,
-        GENERATE_LIBRARY.out.library.first(),  // Broadcast library to all samples
+        generated_library,
         fasta_file,
         ref_library_file,
         mbr,

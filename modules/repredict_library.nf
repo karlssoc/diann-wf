@@ -29,7 +29,7 @@ process REPREDICT_LIBRARY {
 
     script:
     // Use centralized DIA-NN binary path
-    def diann_cmd = params.diann_binary
+    def diann_cmd = params.diann_binary ?: "/usr/bin/diann-${params.diann_version}/diann-linux"
 
     // Check if using tuned models
     def use_tuned = (tokens.getName() != 'NO_FILE') ? 'true' : 'false'

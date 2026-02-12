@@ -56,10 +56,10 @@ echo ""
 read -p "Run library generation test? [Y/n] " -n 1 -r
 echo
 if [[ ! $REPLY =~ ^[Nn]$ ]]; then
-    echo "Running: nextflow run workflows/create_library.nf -params-file configs/test/library_test.yaml -profile standard"
+    echo "Running: nextflow run karlssoc/diann-wf -entry create_library -params-file configs/test/library_test.yaml -profile standard"
     echo ""
 
-    nextflow run workflows/create_library.nf \
+    nextflow run karlssoc/diann-wf -entry create_library \
         -params-file configs/test/library_test.yaml \
         -profile standard
 
@@ -114,10 +114,10 @@ sed -i.bak 's|# library:|library:|' configs/test/quick_test.yaml
 read -p "Run quantification test (2 samples)? [Y/n] " -n 1 -r
 echo
 if [[ ! $REPLY =~ ^[Nn]$ ]]; then
-    echo "Running: nextflow run workflows/quantify_only.nf -params-file configs/test/quick_test.yaml -profile standard"
+    echo "Running: nextflow run karlssoc/diann-wf -entry quantify_only -params-file configs/test/quick_test.yaml -profile standard"
     echo ""
 
-    nextflow run workflows/quantify_only.nf \
+    nextflow run karlssoc/diann-wf -entry quantify_only \
         -params-file configs/test/quick_test.yaml \
         -profile standard
 

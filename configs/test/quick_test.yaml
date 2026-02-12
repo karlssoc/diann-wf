@@ -46,6 +46,6 @@ time_per_file_minutes: 5
 slurm_account: 'test_account'
 
 # Notes:
-# - Use with: nextflow run workflows/quantify_only.nf -params-file configs/test/quick_test.yaml -profile standard
-# - First generate library with: nextflow run workflows/create_library.nf -params-file configs/test/library_test.yaml
+# - Use with: nextflow run karlssoc/diann-wf -entry quantify_only -params-file configs/test/quick_test.yaml -profile standard
+# - First generate library with: nextflow run karlssoc/diann-wf -entry create_library -params-file configs/test/library_test.yaml
 # - Or use an existing library from your data

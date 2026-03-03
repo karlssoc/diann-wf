@@ -174,10 +174,12 @@ workflow quantify_only {
     if (params.ref_library) {
         log.info "Ref library  : ${params.ref_library}"
     }
-    log.info ""
 
-    // Run quantification (MBR enabled by default)
-    def mbr = params.mbr != null ? params.mbr : true
+    // MBR: quantify_only is a single-pass workflow, so mbr_final controls --reanalyse
+    // (params.mbr is for identification stages in multi-pass workflows, default false)
+    def mbr = params.mbr_final != null ? params.mbr_final : true
+    log.info "MBR          : ${mbr}"
+    log.info ""
     QUANTIFY(
         samples_ch,
         library_file,

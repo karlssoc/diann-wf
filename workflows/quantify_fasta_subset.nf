@@ -182,11 +182,12 @@ workflow QUANTIFY_FASTA_SUBSET {
     def mbr       = params.mbr_final != null ? params.mbr_final : true
 
     // Convert to value channel at assignment time
-    def subset_library = GENERATE_LIBRARY_FINAL.out.library.first()
+    // Note: use different name from emit output 'subset_library' to avoid Nextflow name collision
+    def subset_lib = GENERATE_LIBRARY_FINAL.out.library.first()
 
     QUANTIFY_FINAL(
         samples_final_ch,
-        subset_library,
+        subset_lib,
         subset_fasta_ch,    // Subset FASTA for consistent protein annotations
         ref_library_file,
         mbr,

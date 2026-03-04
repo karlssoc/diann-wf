@@ -6,7 +6,8 @@
  * Use: nextflow run karlssoc/diann-wf -entry <WORKFLOW> -params-file config.yaml -profile <PROFILE>
  *
  * Production workflows (FASTA + MS data -> quantified proteins):
- *   PRESEARCH_AND_QUANTIFY   Presearch N largest files -> subset library -> quantify all (recommended)
+ *   QUANTIFY_FASTA_SUBSET    Presearch N files -> subset FASTA -> new speclib -> quantify all (recommended)
+ *   PRESEARCH_AND_QUANTIFY   Presearch N largest files -> subset library -> quantify all
  *   LIBRARY_AND_QUANTIFY     Generate library + quantify samples (no search space reduction)
  *
  * Standalone modules (single step):
@@ -31,6 +32,7 @@ include { TUNE_MODELS } from './modules/tune'
 include { ITERATIVE_QUANT } from './workflows/iterative_quant'
 include { LIBRARY_AND_QUANTIFY } from './workflows/library_and_quantify'
 include { PRESEARCH_AND_QUANTIFY } from './workflows/presearch_and_quantify'
+include { QUANTIFY_FASTA_SUBSET } from './workflows/quantify_fasta_subset'
 
 // Import shared utilities
 include { parseSamples; createSamplesChannel } from './lib/samples'
@@ -279,7 +281,8 @@ workflow {
     Usage: nextflow run karlssoc/diann-wf -entry <WORKFLOW> -params-file config.yaml -profile <PROFILE>
 
     Production workflows:
-      -entry PRESEARCH_AND_QUANTIFY : Presearch N files -> subset -> quantify all (recommended)
+      -entry QUANTIFY_FASTA_SUBSET  : Presearch N files -> subset FASTA -> new speclib -> quantify all (recommended)
+      -entry PRESEARCH_AND_QUANTIFY : Presearch N files -> subset library -> quantify all
       -entry LIBRARY_AND_QUANTIFY   : Generate library + quantify samples
 
     Standalone modules:

@@ -37,12 +37,12 @@ process SUBSET_FASTA {
     PG_LIST=\$(echo "${pg_source}" | tr ' ' '\\n' | sed "s/.*/'&'/" | paste -sd, -)
 
     # Extract unique protein accessions (split semicolon-delimited Protein.Group values)
+    # Note: avoid '' (empty string literal) in script blocks - triggers Nextflow DSL2 lexer bug
     /duckdb -csv -noheader -c "
         SELECT DISTINCT \\\"Protein.Group\\\"
         FROM read_parquet([\$PG_LIST])
         WHERE \\\"Protein.Group\\\" IS NOT NULL
-          AND \\\"Protein.Group\\\" != ''
-    " | tr ';' '\\n' | grep -v '^$' | sort -u > protein_ids.txt
+    " | tr ';' '\\n' | grep -v "^$" | sort -u > protein_ids.txt
 
     ID_COUNT=\$(wc -l < protein_ids.txt | tr -d ' ')
     echo "Unique protein IDs: \$ID_COUNT" | tee -a subset_fasta.log

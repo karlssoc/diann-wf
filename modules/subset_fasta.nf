@@ -42,7 +42,7 @@ process SUBSET_FASTA {
         SELECT DISTINCT \\\"Protein.Group\\\"
         FROM read_parquet([\$PG_LIST])
         WHERE \\\"Protein.Group\\\" IS NOT NULL
-    " | tr ';' '\\n' | grep -v "^$" | sort -u > protein_ids.txt
+    " | tr ';' '\\n' | awk NF | sort -u > protein_ids.txt
 
     ID_COUNT=\$(wc -l < protein_ids.txt | tr -d ' ')
     echo "Unique protein IDs: \$ID_COUNT" | tee -a subset_fasta.log

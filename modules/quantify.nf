@@ -69,9 +69,18 @@ process QUANTIFY {
     // Directory parameter: use --dir-all for recursive, --dir for non-recursive
     def dir_param = recursive ? "--dir-all" : "--dir"
 
-    // File-type specific parameters
+    // Mass accuracy parameters:
+    // - Explicit params.mass_acc / params.mass_acc_ms1 take priority
+    // - Fall back to Bruker .d default (15 ppm) when file_type == 'd'
+    // - Otherwise omitted (DIA-NN auto-calibrates)
     def mass_acc_params = ""
-    if (file_type == 'd') {
+    if (params.mass_acc != null && params.mass_acc_ms1 != null) {
+        mass_acc_params = "--mass-acc ${params.mass_acc} --mass-acc-ms1 ${params.mass_acc_ms1}"
+    } else if (params.mass_acc != null) {
+        mass_acc_params = "--mass-acc ${params.mass_acc}"
+    } else if (params.mass_acc_ms1 != null) {
+        mass_acc_params = "--mass-acc-ms1 ${params.mass_acc_ms1}"
+    } else if (file_type == 'd') {
         mass_acc_params = "--mass-acc 15 --mass-acc-ms1 15"
     }
 

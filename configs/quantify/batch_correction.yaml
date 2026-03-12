@@ -51,6 +51,8 @@ individual_windows: true
 # Standard quantification parameters
 pg_level: 1
 mass_acc_cal: 25
+# mass_acc: 15      # MS2 mass accuracy in ppm (default: 15 for Bruker .d, DIA-NN auto otherwise)
+# mass_acc_ms1: 15  # MS1 mass accuracy in ppm (default: 15 for Bruker .d, DIA-NN auto otherwise)
 smart_profiling: true
 matrices: true
 

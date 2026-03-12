@@ -40,7 +40,9 @@ slurm_queue: 'lu'                     # Default COSMOS partition
 
 # Quantification parameters
 pg_level: 1                   # Protein group level
-mass_acc_cal: 25              # Mass accuracy calibration threshold
+mass_acc_cal: 25
+# mass_acc: 15      # MS2 mass accuracy in ppm (default: 15 for Bruker .d, DIA-NN auto otherwise)
+# mass_acc_ms1: 15  # MS1 mass accuracy in ppm (default: 15 for Bruker .d, DIA-NN auto otherwise)              # Mass accuracy calibration threshold
 smart_profiling: true         # Use smart profiling
 individual_mass_acc: true     # Individual mass accuracy per run
 matrices: true                # Generate result matrices

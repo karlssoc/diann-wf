@@ -68,6 +68,8 @@ qvalue: 0  # 0 = DIA-NN default (0.01 = 1% FDR)
 
 pg_level: 1
 mass_acc_cal: 25
+# mass_acc: 15      # MS2 mass accuracy in ppm (default: 15 for Bruker .d, DIA-NN auto otherwise)
+# mass_acc_ms1: 15  # MS1 mass accuracy in ppm (default: 15 for Bruker .d, DIA-NN auto otherwise)
 smart_profiling: true
 individual_mass_acc: false
 matrices: true

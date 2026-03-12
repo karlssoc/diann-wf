@@ -43,6 +43,8 @@ slurm_account: 'my_username'
 # Optional: Quantification parameters
 pg_level: 1
 mass_acc_cal: 25
+# mass_acc: 15      # MS2 mass accuracy in ppm (default: 15 for Bruker .d, DIA-NN auto otherwise)
+# mass_acc_ms1: 15  # MS1 mass accuracy in ppm (default: 15 for Bruker .d, DIA-NN auto otherwise)
 smart_profiling: true
 individual_mass_acc: true
 matrices: true

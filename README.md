@@ -4,126 +4,111 @@ Modular Nextflow workflows for DIA-NN mass spectrometry analysis with SLURM inte
 
 ## Overview
 
-This workflow system provides seven flexible entry points for different use cases:
+Available entry points (via `nextflow run karlssoc/diann-wf -entry <NAME>`):
 
-1. **[quantify_only.nf](workflows/quantify_only.nf)** - Simple quantification with existing library (90% of use cases)
-2. **[create_library.nf](workflows/create_library.nf)** - Create spectral library from FASTA
-3. **[repredict_library.nf](workflows/repredict_library.nf)** - Generate new spectral library using DIA-NN predictor based on peptides from existing library
-4. **[library_and_quantify.nf](workflows/library_and_quantify.nf)** - Generate library from FASTA, then quantify samples (all-in-one)
-5. **[full_pipeline.nf](workflows/full_pipeline.nf)** - Complete multi-round pipeline with model tuning
-6. **[compare_libraries.nf](workflows/compare_libraries.nf)** - Compare default vs tuned library quantification (requires external library for tuning)
-7. **[compare_library_tuning.nf](workflows/compare_library_tuning.nf)** - Self-contained tuning comparison: default → tune → tuned (no external library needed)
+| Entry | Description | When to use |
+|-------|-------------|-------------|
+| **`QUANTIFY_FASTA_SUBSET`** | **Full FASTA → Pass 1 → subset FASTA → new speclib → Pass 2** | **Recommended for most cohorts** |
+| `PRESEARCH_AND_QUANTIFY` | Full FASTA → Pass 1 → subset library (parquet) → Pass 2 | Alternative; no new library generation |
+| `LIBRARY_AND_QUANTIFY` | Generate library from FASTA + quantify (single pass) | Simple all-in-one |
+| `quantify_only` | Quantify with an existing spectral library | Existing library available |
+| `create_library` | Generate spectral library from FASTA only | Library generation step only |
+| `repredict_library` | Repredict existing library with new/tuned models | Transfer library to new instrument |
+| `tune_models` | Tune RT/IM/FR prediction models | Model optimization |
+| `convert_library` | Convert `.speclib` → `.parquet` | Library format conversion |
+
+Development/comparison workflows (run directly, not via `main.nf -entry`):
+`compare_libraries.nf`, `compare_with_models.nf`, `evaluate_models.nf`, `infindia_presearch_only.nf`, `tune_only.nf`
 
 ## Quick Start
 
-### 1. Simple Quantification (Most Common)
+### Recommended: FASTA Subset + Quantification
 
-When you have an existing library and just need to quantify samples:
+Two-pass workflow that reduces the search space by subsetting the FASTA to proteins
+detected in pass 1, then generating a fresh spectral library from the subset. This
+improves FDR calibration and makes pass 2 ~5x faster.
 
 ```bash
 # Pull the workflow from GitHub (first time only)
 nextflow pull karlssoc/diann-wf
 
 # Edit the config file with your paths
-nano configs/quantify/basic.yaml
+nano configs/workflows/quantify_fasta_subset.yaml
 
-# Run locally for testing
-nextflow run karlssoc/diann-wf -entry quantify_only \
-  -params-file configs/quantify/basic.yaml
+# Run on SLURM (background)
+nextflow -bg run karlssoc/diann-wf -entry QUANTIFY_FASTA_SUBSET \
+  -params-file configs/workflows/quantify_fasta_subset.yaml \
+  -profile slurm
 
-# Submit to SLURM (recommended - runs in background)
+# Or use the wrapper script
+diann-wf QUANTIFY_FASTA_SUBSET configs/workflows/quantify_fasta_subset.yaml slurm
+```
+
+**Output:**
+```
+results/
+├── library/<library_name>.predicted.speclib       # Full library (pass 1)
+├── pass1/<sample>/report-first-pass.parquet        # Pass 1 results
+├── subset_fasta/subset.fasta                       # Subset FASTA
+├── library/subset/<library_name>_subset.predicted.speclib  # Subset library
+├── <sample>/report.parquet                         # Final quantification results
+└── pipeline_info/                                  # Nextflow execution reports
+```
+
+### Simple Quantification (Existing Library)
+
+```bash
 nextflow -bg run karlssoc/diann-wf -entry quantify_only \
   -params-file configs/quantify/basic.yaml -profile slurm
 ```
 
-### 2. Create Library
-
-Generate a spectral library from a FASTA file:
+### Create Library
 
 ```bash
-# Edit the config file
-nano configs/library/standard.yaml
-
-# Run with SLURM (in background)
 nextflow -bg run karlssoc/diann-wf -entry create_library \
   -params-file configs/library/standard.yaml -profile slurm
 ```
 
-### 3. Full Pipeline
+## Using the Wrapper Script
 
-Complete multi-round analysis with model tuning (rare, for comprehensive studies):
-
-```bash
-# Edit the config file
-nano configs/workflows/full_pipeline.yaml
-
-# Run with SLURM (specify workflow explicitly for full pipeline)
-nextflow -bg run karlssoc/diann-wf/workflows/full_pipeline.nf \
-  -params-file configs/workflows/full_pipeline.yaml -profile slurm
-```
-
-### 4. Compare Libraries
-
-Compare quantification using default vs tuned libraries side-by-side:
+The `bin/diann-wf` wrapper simplifies execution for non-Nextflow users:
 
 ```bash
-# Edit the config file
-nano configs/workflows/compare_libraries.yaml
-
-# Run with SLURM (specify workflow explicitly)
-nextflow -bg run karlssoc/diann-wf/workflows/compare_libraries.nf \
-  -params-file configs/workflows/compare_libraries.yaml -profile slurm
+diann-wf QUANTIFY_FASTA_SUBSET config.yaml slurm        # Production
+diann-wf quantify_only quant.yaml docker -resume          # With extra args
+diann-wf list                                              # Show all workflows
 ```
-
-**Use when:** You want to evaluate the impact of model tuning on quantification results.
 
 ## Using Pre-Trained Models
 
-Pre-trained DIA-NN models for common instrument/LC/method combinations are available in the [models/](models/) directory. These models can improve library quality without extensive tuning on your own data.
+Pre-trained DIA-NN models for common instrument/LC/method combinations are available
+in the [models/](models/) directory.
 
 ### Available Presets
 
-See [models/README.md](models/README.md) for the current list of available presets and detailed usage instructions.
+See [models/README.md](models/README.md) for the current list of presets.
 
 Example presets:
 - `ttht-evos-30spd` - Bruker timsTOF HT + Evosep 30 SPD
 - `hfx-vneo-30spd` - Thermo HFX + Vanquish Neo µPAC
-- More presets added as they become available
 
 ### Quick Example
 
-Generate a library using pre-trained models:
-
-```bash
-# Option 1: Use model preset (recommended)
-nextflow run karlssoc/diann-wf -entry create_library \
-  --fasta protein.fasta \
-  --library_name mylib \
-  --model_preset ttht-evos-30spd \
-  -profile slurm
-
-# Option 2: Use config file with preset
-nano configs/library/ttht-evos-30spd.yaml  # Edit with your paths
-nextflow run karlssoc/diann-wf -entry create_library \
-  -params-file configs/library/ttht-evos-30spd.yaml \
-  -profile slurm
+```yaml
+# In your config YAML
+model_preset: 'ttht-evos-30spd'
+tuning_mode: 'skip'   # Use preset directly, no tuning step
 ```
 
-### When to Use Pre-Trained Models
-
-**Use pre-trained models when:**
-- Your instrument/LC/method matches an available preset
-- You want faster library generation (skip tuning step)
-- You need consistent models across multiple projects
-
-**Train from scratch when:**
-- No preset matches your setup
-- You want maximum customization for your specific data
-- Your samples are significantly different from typical proteomics
+Or with explicit paths:
+```yaml
+tokens: 'path/to/dict.txt'
+rt_model: 'path/to/tuned_rt.pt'
+im_model: 'path/to/tuned_im.pt'
+fr_model: 'path/to/tuned_fr.pt'
+```
 
 ### Adding Your Own Models
-
-Have models for a new instrument combination? Add them to the repository:
 
 ```bash
 # Collect models from DIA-NN tuning output
@@ -132,18 +117,12 @@ Have models for a new instrument combination? Add them to the repository:
 # Edit metadata
 nano models/my-instrument-method/metadata.yaml
 
-# Test and validate
-nextflow run karlssoc/diann-wf -entry create_library \
-  --model_preset my-instrument-method \
-  --fasta test.fasta --library_name test \
-  -profile standard
-
 # Commit to repository
 git add models/my-instrument-method
-git commit -m "Add models for my-instrument-method"
+git commit -m "feat: Add models for my-instrument-method"
 ```
 
-See [models/README.md](models/README.md) for detailed contribution guidelines.
+See [models/README.md](models/README.md) for contribution guidelines.
 
 ## Requirements
 
@@ -151,181 +130,120 @@ See [models/README.md](models/README.md) for detailed contribution guidelines.
 - Container runtime (choose one):
   - Singularity/Apptainer (recommended for HPC)
   - Docker or OrbStack (for local development)
-  - Podman (alternative to Docker)
+  - Podman
 - Access to DIANN containers: `quay.io/karlssoc/diann`
 
-Available DIANN versions:
-- `2.3.1` (latest, includes FR tuning)
-- `2.3.0-beta`
-- `2.2.0` (stable)
-- `1.8.1`
+Available DIANN versions: `2.3.2` (default), `2.3.1`, `2.3.0-beta`, `2.2.0`, `1.8.1`
 
 ## Execution Profiles
 
-The workflow supports multiple container runtimes and execution environments. Choose the profile that matches your setup:
-
-### Local Execution
-
-- **`-profile standard`** - Singularity with local executor (default)
-- **`-profile docker`** - Docker with local executor
-- **`-profile podman`** - Podman with local executor
-
-### SLURM Cluster Execution
-
-- **`-profile slurm`** - Singularity with SLURM executor (generic HPC)
-- **`-profile cosmos`** - Optimized for LUNARC COSMOS HPC (48 cores, local disk staging)
-- **`-profile docker_slurm`** - Docker with SLURM executor
-- **`-profile podman_slurm`** - Podman with SLURM executor
+| Profile | Environment | Cores | Container | Local Disk |
+|---------|------------|-------|-----------|------------|
+| `standard` | Local | Variable | Singularity | No |
+| `docker` | Local | Variable | Docker | No |
+| `podman` | Local | Variable | Podman | No |
+| `slurm` | Generic HPC | 60 (default) | Singularity | No |
+| `cosmos` | LUNARC HPC | 48 (fixed) | Singularity | Yes ($SNIC_TMP) |
+| `docker_slurm` | Generic HPC | Variable | Docker | No |
+| `podman_slurm` | Generic HPC | Variable | Podman | No |
 
 ### COSMOS HPC Profile
 
 The `cosmos` profile is optimized for the [LUNARC COSMOS cluster](https://www.lunarc.lu.se/systems/cosmos):
 
-**Key optimizations:**
-- ✅ **48 cores** per node (AMD Milan) - automatically configured
-- ✅ **Local disk staging** - MS files copied to 2 TB node-local disk for 10-50x faster I/O
-- ✅ **Optimal parallel mode** - 2×24 core jobs for better throughput
-- ✅ **SLURM tuning** - Timeouts and poll intervals optimized for shared cluster
+- **48 cores** per node (AMD Milan) - automatically configured
+- **Local disk staging** - MS files copied to 2 TB node-local disk for 10-50x faster I/O
+- **Optimal parallel mode** - 2×24 core jobs for better throughput
+- **SLURM tuning** - Timeouts optimized for shared cluster
 
-**Usage:**
 ```bash
-# Simple quantification on COSMOS
-nextflow -bg run karlssoc/diann-wf -entry quantify_only \
-  -params-file configs/cosmos/quantify_example.yaml \
-  -profile cosmos
-
-# Full pipeline on COSMOS
-nextflow -bg run karlssoc/diann-wf/workflows/full_pipeline.nf \
-  -params-file configs/cosmos/full_pipeline_example.yaml \
+nextflow -bg run karlssoc/diann-wf -entry QUANTIFY_FASTA_SUBSET \
+  -params-file configs/workflows/quantify_fasta_subset.yaml \
   -profile cosmos
 ```
 
-**Important:** Set your LUNARC project in the config:
+Required config:
 ```yaml
-slurm_account: 'YOUR_LUNARC_PROJECT'  # Required for COSMOS
-slurm_queue: 'lu'                     # Default partition
+slurm_account: 'YOUR_LUNARC_PROJECT'
+slurm_queue: 'lu'
 ```
 
-**Local disk benefits:**
-- Bruker `.d` files (many small files): **Massive speedup**
-- Large RAW files (repeated reads): **10-50x faster**
-- Reduces network filesystem contention
+### ARM/Apple Silicon Warning
 
-### Examples
+**The DIANN container is x86-64 only.** On ARM Macs, the container runs via Rosetta 2
+emulation which can produce different scientific results (lower ID rates, altered
+quantification). Use native x86-64 hardware or HPC for production runs.
 
-```bash
-# Local with Docker (macOS/OrbStack)
-nextflow run karlssoc/diann-wf -entry quantify_only \
-  -params-file configs/simple_quant.yaml -profile docker
+## Detailed Workflow Descriptions
 
-# Local with Podman
-nextflow run karlssoc/diann-wf -entry create_library \
-  -params-file configs/library_creation.yaml -profile podman
+### QUANTIFY_FASTA_SUBSET (Recommended)
 
-# SLURM with Singularity (HPC)
-nextflow run karlssoc/diann-wf -entry quantify_only \
-  -params-file configs/simple_quant.yaml -profile slurm
+Two-pass search space reduction via FASTA subsetting:
 
-# SLURM with Docker
-nextflow run karlssoc/diann-wf -entry quantify_only \
-  -params-file configs/simple_quant.yaml -profile docker_slurm
-```
+1. **Generate library** from full FASTA
+2. **Pass 1:** Quantify all samples, full library, MBR enabled
+   → `report-first-pass.parquet` = union of per-run 1% FDR IDs across all samples
+3. **Subset FASTA** to Protein.Groups detected in pass 1
+4. **Generate new library** from subset FASTA (native speclib, no `--reannotate`)
+5. **Pass 2:** Quantify all samples, subset library, MBR enabled
 
-### ⚠️ Important: ARM/Apple Silicon Warning
+**Advantages over PRESEARCH_AND_QUANTIFY:**
+- Fresh speclib from subset FASTA: full predicted spectral quality preserved
+- Native speclib used as-is in pass 2 (no `--reannotate`)
+- ~78% smaller library: faster pass 2, less decoy competition, better FDR calibration
+- Total time ≈ 1.2x a standard single-pass run
 
-**The DIANN container is x86-64 only.** When running on ARM Macs (Apple Silicon) with Docker or Podman, the container runs via Rosetta 2 emulation.
-
-**Rosetta 2 emulation can produce different scientific results:**
-- Lower identification rates
-- Altered quantification values
-- Differences in floating-point precision
-- Changes in numeric calculations
-
-**Recommendations:**
-- **Testing/Development:** Docker/Podman on ARM Macs is acceptable for workflow development and testing
-- **Production/Publication:** Use native x86-64 hardware or SLURM cluster with Singularity for reproducible results
-- The workflow automatically displays a warning when running on ARM with Docker/Podman
-
-## Project Structure
-
-```
-diann-wf/
-├── nextflow.config          # Base configuration
-├── workflows/
-│   ├── quantify_only.nf     # Simple quantification
-│   ├── create_library.nf    # Library creation
-│   └── full_pipeline.nf     # Complete multi-round pipeline
-├── modules/
-│   ├── quantify.nf          # Quantification process
-│   ├── library.nf           # Library generation process
-│   └── tune.nf              # Model tuning process
-└── configs/
-    ├── simple_quant.yaml    # Example: quantification
-    ├── library_creation.yaml # Example: library creation
-    └── full_pipeline.yaml   # Example: full pipeline
-```
-
-## Configuration
-
-### Sample Definition
-
-Samples are defined in YAML format with automatic file-type detection:
+Config file: [configs/workflows/quantify_fasta_subset.yaml](configs/workflows/quantify_fasta_subset.yaml)
 
 ```yaml
+fasta: '/path/to/protein.fasta'
 samples:
   - id: 'sample1'
-    dir: 'input/sample1'
-    file_type: 'd'          # Bruker .d files
-
+    dir: '/path/to/ms_data/sample1'
+    file_type: 'dia'
+    recursive: false
   - id: 'sample2'
-    dir: 'input/sample2'
-    file_type: 'raw'        # Thermo .raw files
-
-  - id: 'sample3'
-    dir: 'input/sample3'
-    file_type: 'mzML'       # mzML files
+    dir: '/path/to/ms_data/sample2'
+    file_type: 'dia'
+    recursive: false
+library_name: 'generated_lib'
+outdir: 'results/quantify_fasta_subset'
+diann_version: '2.3.2'
+threads: 48
+slurm_account: 'YOUR_PROJECT'
+slurm_queue: 'lu'
 ```
 
-**Important:** `.d` files automatically get `--mass-acc 15 --mass-acc-ms1 15` parameters.
+### PRESEARCH_AND_QUANTIFY
 
-### SLURM Configuration
+Alternative two-pass workflow that subsets the library parquet (not the FASTA):
 
-Configure SLURM settings in your config file:
+1. Quantify N presearch samples against full library (Pass 1)
+2. Subset library to identified Protein.Groups
+3. Quantify all samples against subset library (Pass 2)
 
-```yaml
-slurm_account: 'my_username'
-slurm_queue: 'normal'        # Optional
-threads: 60
-```
+**When to use:** Faster if you can select a representative presearch subset.
+**Disadvantage:** Uses `--reannotate` in pass 2 (library intensities/RTs reset).
 
-Resource allocation is automatic based on process type:
-- **Tuning:** 10 CPUs, 10 GB RAM, 2h
-- **Library:** 60 CPUs, 30 GB RAM, 4h
-- **Quantification:** 60 CPUs, 30 GB RAM, 8h
+Config file: [configs/workflows/presearch_and_quantify.yaml](configs/workflows/presearch_and_quantify.yaml)
 
-Override in `nextflow.config` if needed.
+### LIBRARY_AND_QUANTIFY
 
-## Detailed Usage
-
-### Workflow 1: Quantify Only
-
-**Use when:** You have an existing spectral library and need to quantify samples.
+Single-pass: generate library from FASTA, then quantify all samples.
 
 ```bash
-nextflow run karlssoc/diann-wf \
-  --library /path/to/library.predicted.speclib \
-  --fasta mydata.fasta \
-  --samples '[{"id":"exp01","dir":"input/exp01","file_type":"d"}]' \
-  --outdir results/exp01 \
-  -profile slurm
+nextflow -bg run karlssoc/diann-wf -entry LIBRARY_AND_QUANTIFY \
+  -params-file configs/workflows/library_and_quantify.yaml -profile slurm
 ```
 
-Or use a config file:
+### quantify_only
+
+Simple quantification when you already have a spectral library.
 
 ```yaml
-# configs/my_quant.yaml
-library: '/srv/data1/karlssoc/libraries/mylib.predicted.speclib'
-fasta: 'mydata.fasta'
+# configs/quantify/basic.yaml
+library: '/path/to/library.predicted.speclib'
+fasta: '/path/to/protein.fasta'
 samples:
   - id: 'exp01'
     dir: 'input/exp01'
@@ -337,57 +255,37 @@ slurm_account: 'my_username'
 ```
 
 ```bash
-nextflow -bg run karlssoc/diann-wf -params-file configs/my_quant.yaml -profile slurm
+nextflow -bg run karlssoc/diann-wf -entry quantify_only \
+  -params-file configs/quantify/basic.yaml -profile slurm
 ```
 
-### Workflow 2: Create Library
+**Output:**
+```
+results/
+├── sample1/
+│   ├── report.parquet          # Main quantification results
+│   ├── out-lib.parquet         # Output library
+│   ├── *.tsv                   # Matrix files (if matrices: true)
+│   └── diann.log
+└── pipeline_info/
+```
 
-**Use when:** You need to generate a new spectral library from a FASTA file.
+### create_library
 
-#### Option A: Default Models
+Generate a spectral library from a FASTA file.
 
 ```bash
-nextflow run karlssoc/diann-wf -entry create_library \
+nextflow -bg run karlssoc/diann-wf -entry create_library \
   --fasta mydata.fasta \
   --library_name mylib \
   --outdir results/library \
   -profile slurm
 ```
 
-#### Option B: With Tuned Models
+### repredict_library
 
-If you have pre-tuned models from a previous run:
-
-```bash
-nextflow run karlssoc/diann-wf -entry create_library \
-  --fasta mydata.fasta \
-  --library_name mylib_tuned \
-  --tokens results/tuning/out-lib.dict.txt \
-  --rt_model results/tuning/out-lib.tuned_rt.pt \
-  --im_model results/tuning/out-lib.tuned_im.pt \
-  --fr_model results/tuning/out-lib.tuned_fr.pt \
-  -profile slurm
-```
-
-### Workflow 3: Repredict Library
-
-**Use when:** You have an existing spectral library (e.g., from a previous search or run) and want to generate a new predicted library using DIA-NN's predictor, optionally with tuned models, while keeping the same peptide identifications.
-
-**What it does:**
-- Takes an existing spectral library as input (e.g., `.predicted.speclib`, `.parquet`, `.tsv`)
-- Generates new spectral library predictions for those peptides using current/tuned models
-- Useful for transferring a library to a different instrument or updating predictions with better models
-
-```bash
-nextflow run karlssoc/diann-wf/workflows/repredict_library.nf \
-  --fasta mydata.fasta \
-  --input_library results/previous_run/sample1/out-lib.parquet \
-  --library_name repredicted_lib \
-  --outdir results/repredicted_library \
-  -profile slurm
-```
-
-Or use a config file:
+Repredict an existing library with current/tuned models. Useful for transferring
+a library to a different instrument or updating predictions.
 
 ```yaml
 # configs/library/repredict.yaml
@@ -395,338 +293,65 @@ fasta: '/path/to/protein.fasta'
 input_library: '/path/to/existing/library.predicted.speclib'
 library_name: 'repredicted_lib'
 outdir: 'results/repredicted_library'
-diann_version: '2.3.2'
-threads: 48
-slurm_account: 'my_username'
-
-# Optional: Use tuned models
-# tokens: 'results/tuning/out-lib.dict.txt'
-# rt_model: 'results/tuning/out-lib.tuned_rt.pt'
-# im_model: 'results/tuning/out-lib.tuned_im.pt'
-# fr_model: 'results/tuning/out-lib.tuned_fr.pt'
 ```
 
 ```bash
 nextflow -bg run karlssoc/diann-wf/workflows/repredict_library.nf \
-  -params-file configs/library/repredict.yaml \
-  -profile slurm
+  -params-file configs/library/repredict.yaml -profile slurm
 ```
 
-### Workflow 4: Library Generation + Quantification
+## Configuration
 
-**Use when:** You only have a FASTA file and MS data - need both library and quantification in one simple workflow.
-
-**What it does:**
-- Generates spectral library from FASTA file
-- Quantifies all samples using the newly generated library
-- Single workflow, no tuning or multiple rounds
-
-**Perfect for:**
-- Initial analysis of new datasets
-- When you don't have an existing library
-- Simpler alternative to full_pipeline when you don't need model tuning
-
-```bash
-nextflow run karlssoc/diann-wf -entry LIBRARY_AND_QUANTIFY \
-  --fasta mydata.fasta \
-  --samples '[{"id":"sample1","dir":"input/sample1","file_type":"d"}]' \
-  --library_name generated_lib \
-  --outdir results/analysis \
-  -profile slurm
-```
-
-Or use a config file:
+### Sample Definition
 
 ```yaml
-# configs/workflows/library_and_quantify.yaml
-fasta: '/path/to/protein.fasta'
-library_name: 'my_library'
-
 samples:
   - id: 'sample1'
-    dir: '/path/to/ms_data/sample1'
-    file_type: 'd'
+    dir: 'input/sample1'
+    file_type: 'd'          # Bruker .d files
+    recursive: false
+
   - id: 'sample2'
-    dir: '/path/to/ms_data/sample2'
-    file_type: 'raw'
+    dir: 'input/sample2'
+    file_type: 'raw'        # Thermo .raw files
 
-outdir: 'results/analysis'
-diann_version: '2.3.2'
-threads: 48
-slurm_account: 'my_username'
-
-# Library generation parameters (optional)
-library:
-  min_fr_mz: 200
-  max_fr_mz: 1800
-  min_pep_len: 7
-  max_pep_len: 30
-  cut: 'K*,R*'
-  missed_cleavages: 1
-
-# Quantification parameters
-pg_level: 1
-mass_acc_cal: 25
-smart_profiling: true
-matrices: true
+  - id: 'sample3'
+    dir: 'input/sample3'
+    file_type: 'mzML'
 ```
 
-```bash
-nextflow -bg run karlssoc/diann-wf -entry LIBRARY_AND_QUANTIFY \
-  -params-file configs/workflows/library_and_quantify.yaml \
-  -profile slurm
-```
+### File Type Parameters
 
-**Output structure:**
-```
-results/analysis/
-├── library/
-│   └── my_library.predicted.speclib   # Generated library
-├── sample1/
-│   ├── report.parquet                 # Quantification results
-│   └── out-lib.parquet
-└── sample2/
-    ├── report.parquet
-    └── out-lib.parquet
-```
+| File Type | Parameters Applied |
+|-----------|-------------------|
+| `.d` (Bruker) | `--mass-acc 15 --mass-acc-ms1 15` (configurable) |
+| `.raw` (Thermo) | DIA-NN auto-calibration |
+| `.mzML` | DIA-NN auto-calibration |
+| `.dia` | DIA-NN auto-calibration |
 
-### Workflow 5: Full Pipeline
-
-**Use when:** You need comprehensive analysis with model optimization across multiple rounds.
-
-This workflow performs:
-1. **Round 1:** Generate library with default models → Quantify all samples
-2. **Tuning:** Fine-tune RT/IM/FR models using specified sample
-3. **Round 2:** Generate library with RT+IM models → Quantify all samples
-4. **Round 3:** Generate library with RT+IM+FR models → Quantify all samples
-
-```bash
-nextflow -bg run karlssoc/diann-wf/workflows/full_pipeline.nf -params-file configs/full_pipeline.yaml -profile slurm
-```
-
-#### Control Which Rounds to Run
-
-```bash
-# Only R1 and tuning (skip R2/R3)
-nextflow -bg run karlssoc/diann-wf/workflows/full_pipeline.nf \
-  -params-file configs/full_pipeline.yaml \
-  --run_r2 false \
-  --run_r3 false \
-  -profile slurm
-
-# Skip R1, only R2 and R3 (if you already have tuned models)
-nextflow -bg run karlssoc/diann-wf/workflows/full_pipeline.nf \
-  -params-file configs/full_pipeline.yaml \
-  --run_r1 false \
-  -profile slurm
-```
-
-### Workflow 6: Compare Libraries
-
-**Use when:** You want to evaluate the impact of model tuning by comparing quantification results side-by-side.
-
-This workflow performs:
-1. **Generate default library:** Create library with default DIANN models
-2. **Tune models:** Use external library to tune RT/IM/FR prediction models
-3. **Generate tuned library:** Create library with tuned models
-4. **Quantify with both:** Run quantification using both libraries for direct comparison
+### Key Parameters
 
 ```yaml
-# configs/compare_libraries.yaml
-tune_library: 'results/previous_run/sample1/out-lib.parquet'
-fasta: 'mydata.fasta'
-samples:
-  - id: 'exp01'
-    dir: 'input/exp01'
-    file_type: 'raw'
-library_name: 'comparison'
+# Common
 diann_version: '2.3.2'
 threads: 60
-slurm_account: 'my_username'
-```
+outdir: 'results'
+slurm_account: 'username'
+slurm_queue: 'work'
+parallel_mode: false        # Split into 2x30-core jobs
 
-```bash
-nextflow -bg run karlssoc/diann-wf/workflows/compare_libraries.nf \
-  -params-file configs/compare_libraries.yaml \
-  -profile slurm
-```
+# Quantification
+qvalue: 0                   # 0 = DIA-NN default (1% FDR)
+pg_level: 1                 # 1=proteins, 0=genes
+mass_acc: 15                # MS2 ppm (Bruker .d default)
+mass_acc_ms1: 15            # MS1 ppm (Bruker .d default)
+individual_mass_acc: false  # Per-file (causes ~12% intensity decrease)
+smart_profiling: true
+matrices: true
+mbr: false                  # MBR for identification stage
+mbr_final: true             # MBR for final quantification
 
-**Output organization:**
-```
-results/library_comparison/
-├── default_library/         # Library with default models
-├── tuned_library/           # Library with tuned models
-├── tuning/                  # Tuned model files
-├── default/                 # Quantification using default library
-│   └── exp01/
-│       ├── report.parquet
-│       └── out-lib.parquet
-└── tuned/                   # Quantification using tuned library
-    └── exp01/
-        ├── report.parquet
-        └── out-lib.parquet
-```
-
-**Use cases:**
-- Benchmark the improvement from model tuning
-- Validate tuning effectiveness for your dataset
-- A/B testing of library generation strategies
-
-### Workflow 7: Compare Library Tuning (Self-Contained)
-
-**Use when:** You want to evaluate tuning impact but don't have an external library - this workflow generates everything from just FASTA + MS files.
-
-**What it does:**
-1. **Generate default library + quantify:** Create library from FASTA with default models, quantify all samples
-2. **Tune models:** Use out-lib.parquet from one of your samples to train models
-3. **Generate tuned library + quantify:** Create library from same FASTA with tuned models, quantify all samples
-
-**Difference from compare_libraries:**
-- `compare_libraries`: Requires external library for tuning
-- `compare_library_tuning`: Self-contained - uses your own data for tuning
-
-**Perfect for:**
-- Evaluating whether tuning helps your specific dataset
-- Don't have an external library for tuning
-- Want fully automated comparison
-
-```yaml
-# configs/workflows/compare_library_tuning.yaml
-fasta: '/path/to/protein.fasta'
-
-samples:
-  - id: 'sample1'
-    dir: '/path/to/ms_data/sample1'
-    file_type: 'd'
-  - id: 'sample2'
-    dir: '/path/to/ms_data/sample2'
-    file_type: 'd'
-  - id: 'sample3'
-    dir: '/path/to/ms_data/sample3'
-    file_type: 'raw'
-
-# Which sample to use for tuning (default: first sample)
-tune_sample: 'sample1'
-
-library_name_default: 'library_default'
-library_name_tuned: 'library_tuned'
-outdir: 'results/tuning_comparison'
-
-diann_version: '2.3.2'
-threads: 48
-slurm_account: 'YOUR_PROJECT'
-
-tuning:
-  tune_rt: true
-  tune_im: true
-  tune_fr: true
-
-# Library and quantification parameters...
-```
-
-```bash
-nextflow -bg run karlssoc/diann-wf/workflows/compare_library_tuning.nf \
-  -params-file configs/workflows/compare_library_tuning.yaml \
-  -profile cosmos
-```
-
-**Output structure:**
-```
-results/tuning_comparison/
-├── default/
-│   ├── library/
-│   │   └── library_default.predicted.speclib
-│   └── quantify/
-│       ├── sample1/
-│       │   ├── report.parquet
-│       │   └── out-lib.parquet      # Used for tuning
-│       ├── sample2/
-│       └── sample3/
-├── tuning/
-│   ├── out-lib.dict.txt
-│   ├── out-lib.tuned_rt.pt
-│   ├── out-lib.tuned_im.pt
-│   └── out-lib.tuned_fr.pt
-└── tuned/
-    ├── library/
-    │   └── library_tuned.predicted.speclib
-    └── quantify/
-        ├── sample1/
-        │   └── report.parquet
-        ├── sample2/
-        └── sample3/
-```
-
-**Comparison workflow:**
-```bash
-# After workflow completes, compare results:
-# 1. Compare identifications
-ls -lh results/tuning_comparison/default/quantify/sample1/report.parquet
-ls -lh results/tuning_comparison/tuned/quantify/sample1/report.parquet
-
-# 2. Analyze if tuning improved results (more IDs, better CVs, etc.)
-# 3. Decide whether to use tuned models for future runs
-```
-
-## Advanced Features
-
-### Background Execution (`-bg` Flag)
-
-**Important for SLURM users:** Use the `-bg` flag to run Nextflow in the background. This ensures your workflow continues even if your terminal session disconnects (e.g., SSH timeout, network issues, or closing your laptop).
-
-```bash
-# Run in background - workflow persists even if you disconnect
-nextflow -bg run karlssoc/diann-wf \
-  -params-file configs/simple_quant.yaml \
-  -profile slurm
-```
-
-**What `-bg` does:**
-- Runs Nextflow in the background (similar to `nohup`)
-- Detaches from your terminal
-- Saves logs to `.nextflow.log` automatically
-- Perfect for long-running SLURM workflows
-
-**Monitor your background workflow:**
-```bash
-# Find the Nextflow process
-ps aux | grep nextflow
-
-# Monitor the log file
-tail -f .nextflow.log
-
-# Check SLURM jobs
-squeue -u $USER
-```
-
-**Alternative:** You can also use `tmux` or `screen` to create persistent terminal sessions, but `-bg` is simpler and built into Nextflow.
-
-### Resume Failed Runs
-
-Nextflow can resume interrupted workflows:
-
-```bash
-nextflow -bg run karlssoc/diann-wf -params-file configs/simple_quant.yaml -resume
-```
-
-### Use Different DIANN Versions
-
-```bash
-# Command line override
-nextflow -bg run karlssoc/diann-wf \
-  -params-file configs/simple_quant.yaml \
-  --diann_version 2.2.0 \
-  -profile slurm
-
-# Or in config file
-diann_version: '2.2.0'
-```
-
-### Custom Library Parameters
-
-Modify library generation parameters in your config:
-
-```yaml
+# Library generation
 library:
   min_fr_mz: 200
   max_fr_mz: 1800
@@ -742,298 +367,142 @@ library:
   unimod4: true
 ```
 
-### File Type Detection
+### SLURM Configuration
 
-The workflow automatically applies appropriate parameters based on file type:
+Resource allocation by process type:
+- **Tuning:** 10 CPUs, 10 GB RAM, 2h
+- **Library:** 30-60 CPUs, 20-30 GB, 4h
+- **Quantification:** 30-60 CPUs, dynamic RAM, dynamic time
 
-| File Type | Parameters Applied |
-|-----------|-------------------|
-| `.d` (Bruker) | `--mass-acc 15 --mass-acc-ms1 15` |
-| `.raw` (Thermo) | Default DIANN parameters |
-| `.mzML` | Default DIANN parameters |
+## Remote Storage (SMB/NFS)
+
+The workflow reads input data from any mounted filesystem:
+
+```yaml
+library: '/mnt/imp_arch/libraries/mylib.predicted.speclib'
+fasta: '/mnt/imp_arch/fasta/proteome.fasta'
+samples:
+  - id: 'sample1'
+    dir: '/mnt/imp_arch/raw_data/sample1'
+    file_type: 'd'
+outdir: '/scratch/results/quantification'  # Local output is faster
+```
+
+**Performance tip:** Use `-profile cosmos` for automatic local disk staging (10-50x
+faster for Bruker `.d` files).
+
+## Advanced Features
+
+### Background Execution
+
+Always use `-bg` for SLURM to persist through terminal disconnections:
+
+```bash
+nextflow -bg run karlssoc/diann-wf -entry QUANTIFY_FASTA_SUBSET \
+  -params-file config.yaml -profile slurm
+```
+
+Monitor:
+```bash
+tail -f .nextflow.log
+squeue -u $USER
+nextflow log
+```
+
+### Resume Failed Runs
+
+```bash
+nextflow -bg run karlssoc/diann-wf -params-file config.yaml -resume -profile slurm
+```
+
+### Override DIA-NN Version
+
+```bash
+nextflow run karlssoc/diann-wf -entry quantify_only \
+  -params-file config.yaml --diann_version 2.2.0 -profile slurm
+```
 
 ## Execution Reports
 
-Nextflow automatically generates execution reports in `results/pipeline_info/`:
+Nextflow generates reports in `results/pipeline_info/`:
 
 - `execution_timeline.html` - Timeline of process execution
 - `execution_report.html` - Resource usage statistics
 - `execution_trace.txt` - Detailed execution trace
-- `pipeline_dag.svg` - Visual workflow diagram
+- `pipeline_dag.dot` - Workflow DAG
 
-## Working with Remote Storage (SMB/CIFS, Network Mounts)
+## Project Structure
 
-The workflow **already supports** reading input data from SMB shares and network mounts. Simply specify the mounted path in your config.
-
-### Example: Using SMB Mount on kraken
-
-```yaml
-# configs/quantify/smb_example.yaml
-library: '/mnt/imp_arch/libraries/mylib.predicted.speclib'
-fasta: '/mnt/imp_arch/fasta/proteome.fasta'
-
-samples:
-  - id: 'sample1'
-    dir: '/mnt/imp_arch/raw_data/experiment1/sample1'  # SMB path
-    file_type: 'd'
-
-# Output to local storage (faster than SMB)
-outdir: '/scratch/results/quantification'
 ```
+diann-wf/
+├── main.nf                          # Single entry point (-entry flag)
+├── workflows/                       # Workflow definitions
+│   ├── quantify_fasta_subset.nf     # FASTA subset + quantify (recommended)
+│   ├── presearch_and_quantify.nf    # Library subset + quantify
+│   ├── library_and_quantify.nf      # Library generation + quantify
+│   ├── quantify_only.nf             # Quantify with existing library
+│   ├── create_library.nf            # Library generation
+│   ├── repredict_library.nf         # Repredict library with new models
+│   ├── convert_library.nf           # Convert .speclib to .parquet
+│   ├── tune_only.nf                 # Tune models only
+│   ├── iterative_quant.nf           # Iterative quant (experimental)
+│   ├── compare_libraries.nf         # Compare default vs tuned libraries
+│   ├── compare_with_models.nf       # Compare default vs preset models
+│   └── evaluate_models.nf           # Multi-preset accuracy comparison
+├── modules/                         # Reusable process modules
+├── configs/                         # Configuration templates
+│   ├── workflows/                   # Multi-step workflow configs
+│   ├── quantify/                    # Single quantify configs
+│   ├── library/                     # Library generation configs
+│   └── tune/                        # Model tuning configs
+├── models/                          # Pre-trained model presets
+├── bin/                             # Utility scripts
+│   ├── diann-wf                     # Wrapper script
+│   ├── compare_pg_matrices.py       # PG matrix comparison CLI
+│   └── collect_models.sh            # Organize tuning outputs
+└── nextflow.config                  # Profiles, resources, param defaults
+```
+
+## Deployment
+
+### GitHub
 
 ```bash
-nextflow -bg run karlssoc/diann-wf \
-  -params-file configs/quantify/smb_example.yaml \
-  -profile slurm
+# Pull latest
+nextflow pull karlssoc/diann-wf
+
+# Run from GitHub
+nextflow -bg run karlssoc/diann-wf -entry QUANTIFY_FASTA_SUBSET \
+  -params-file configs/workflows/quantify_fasta_subset.yaml -profile cosmos
+
+# Pin a version for reproducibility
+nextflow run karlssoc/diann-wf -r v1.0.0 \
+  -params-file config.yaml -profile cosmos
 ```
-
-### How Nextflow Handles Remote Storage
-
-**Automatic staging:**
-1. Nextflow reads your input paths (can be SMB, NFS, any mounted filesystem)
-2. Stages files to the work directory before processing
-3. **With `-profile cosmos`:** Stages to `$SNIC_TMP` (2 TB local disk) for maximum I/O performance
-4. DIA-NN processes from fast local disk
-5. Results written back to `outdir` (can be SMB or local)
-
-### Performance Considerations
-
-#### ✅ Best Performance (COSMOS with local disk staging)
-
-```bash
-nextflow -bg run karlssoc/diann-wf \
-  -params-file configs/quantify/smb_example.yaml \
-  -profile cosmos  # Automatic local disk staging
-```
-
-**What happens:**
-- Input MS files copied from SMB → `$SNIC_TMP` (local disk)
-- DIA-NN reads from local disk (10-50x faster than SMB)
-- Only initial copy is over network
-
-#### ⚠️ Slower but Still Works (Direct SMB access)
-
-```bash
-nextflow -bg run karlssoc/diann-wf \
-  -params-file configs/quantify/smb_example.yaml \
-  -profile slurm  # No local disk staging on kraken
-```
-
-**What happens:**
-- Nextflow stages files to work directory (still on network FS)
-- DIA-NN reads directly from SMB mount
-- Slower due to network latency on random access
-
-### Recommendations
-
-| Scenario | Recommendation |
-|----------|---------------|
-| **COSMOS HPC** | Use `-profile cosmos` (automatic local disk staging) |
-| **kraken server** | Consider pre-copying large datasets to local storage |
-| **Small datasets** | Direct SMB access is fine |
-| **Bruker .d files** | **Always** use local disk staging (many small files) |
-
-### Pre-staging Data (Optional)
-
-For very large datasets on kraken without local disk staging:
-
-```bash
-# Option 1: rsync to local storage before running
-rsync -avP /mnt/imp_arch/raw_data/experiment1/ /scratch/staged_data/
-
-# Then use local path in config
-dir: '/scratch/staged_data/sample1'
-
-# Option 2: Let Nextflow handle it (automatic with scratch)
-```
-
-### Supported Storage Types
-
-The workflow works with any filesystem mounted on your system:
-
-- ✅ **SMB/CIFS** (Windows shares, e.g., `/mnt/imp_arch`)
-- ✅ **NFS** (Unix/Linux network shares)
-- ✅ **Local filesystems** (ext4, xfs, etc.)
-- ✅ **Lustre/GPFS** (HPC parallel filesystems)
-- ✅ **Object storage with FUSE** (if mounted)
-
-**Note:** Path must be accessible from all compute nodes. On SLURM clusters, ensure SMB mount is available on all nodes, or use COSMOS with local disk staging.
 
 ## Troubleshooting
 
 ### Check Workflow Status
 
 ```bash
-# List running workflows
 nextflow log
-
-# View specific run details
 nextflow log <run_name> -f status,name,exit,duration
 ```
 
 ### Test Locally Before SLURM
 
 ```bash
-# Run with minimal resources for testing
-nextflow run karlssoc/diann-wf \
-  -params-file configs/simple_quant.yaml \
-  -profile test
+nextflow run karlssoc/diann-wf -entry QUANTIFY_FASTA_SUBSET \
+  -params-file configs/workflows/quantify_fasta_subset.yaml \
+  -profile standard
 ```
 
 ### Container Issues
 
-If containers fail to download:
-
 ```bash
 # Pre-pull containers
-singularity pull diann_2.3.1.sif docker://quay.io/karlssoc/diann:2.3.1
-
-# Update nextflow.config to use local SIF
-process.container = '/path/to/diann_2.3.1.sif'
+singularity pull diann_2.3.2.sif docker://quay.io/karlssoc/diann:2.3.2
 ```
-
-## Examples from Your Remote Server
-
-Based on your existing scripts on `kraken:/srv/data1/karlssoc/projects/tt/lfqb/`:
-
-### Example 1: Simple Quantification (like run_diann3-r1b.sh)
-
-```yaml
-# configs/ttht_quant.yaml
-library: 'idmapping_2025_11_20.predicted.speclib'
-fasta: 'idmapping_2025_11_20.fasta'
-samples:
-  - id: 'hfx-30SPD'
-    dir: 'input/hfx-30SPD'
-    file_type: 'raw'
-  - id: 'hfx-50SPD'
-    dir: 'input/hfx-50SPD'
-    file_type: 'raw'
-diann_version: '2.2.0'
-threads: 60
-slurm_account: 'my_username'
-```
-
-```bash
-nextflow -bg run karlssoc/diann-wf -params-file configs/ttht_quant.yaml -profile slurm
-```
-
-### Example 2: Full Pipeline (like your run_diann3-r2a.sh and r3a.sh)
-
-```yaml
-# configs/ttht_full.yaml
-fasta: 'idmapping_2025_11_20.fasta'
-samples:
-  - {id: 'mann', dir: 'input/mann', file_type: 'd'}
-  - {id: 'p2', dir: 'input/p2', file_type: 'd'}
-  - {id: 'std', dir: 'input/std', file_type: 'd'}
-tune_sample: 'p2'
-run_r1: true
-run_tune: true
-run_r2: true
-run_r3: true
-r2_diann_version: '2.2.0'
-r3_diann_version: '2.3.2'
-threads: 60
-slurm_account: 'my_username'
-```
-
-```bash
-nextflow -bg run karlssoc/diann-wf/workflows/full_pipeline.nf -params-file configs/ttht_full.yaml -profile slurm
-```
-
-## Output Structure
-
-### Quantify Only Workflow
-
-```
-results/
-├── sample1/
-│   ├── report.parquet          # Main quantification results
-│   ├── out-lib.parquet          # Output library
-│   ├── *.tsv                    # Matrix files (if matrices: true)
-│   └── diann.log                # DIANN log
-├── sample2/
-│   └── ...
-└── pipeline_info/               # Nextflow execution reports
-    ├── execution_report.html
-    ├── execution_timeline.html
-    └── execution_trace.txt
-```
-
-### Full Pipeline Workflow
-
-```
-results/
-├── stage1/                      # Round 1: Default models
-│   ├── library/
-│   │   └── library.predicted.speclib
-│   ├── sample1/
-│   ├── sample2/
-│   └── sample3/
-├── tuning/                      # Tuned models
-│   ├── out-lib.dict.txt
-│   ├── out-lib.tuned_rt.pt
-│   ├── out-lib.tuned_im.pt
-│   └── out-lib.tuned_fr.pt
-├── stage2/                      # Round 2: RT+IM tuned
-│   ├── library/
-│   ├── sample1/
-│   ├── sample2/
-│   └── sample3/
-└── stage3/                      # Round 3: RT+IM+FR tuned
-    ├── library/
-    ├── sample1/
-    ├── sample2/
-    └── sample3/
-```
-
-## Deployment
-
-### Push to GitHub
-
-```bash
-# 1. Create repository on GitHub: https://github.com/new
-#    Name: diann-wf
-#    Visibility: Public or Private
-#    Don't initialize with README
-
-# 2. Push to GitHub
-git remote add origin git@github.com:YOUR_USERNAME/diann-wf.git
-git push -u origin main
-
-# 3. (Optional) Create release tag
-git tag -a v1.0.0 -m "Release v1.0.0"
-git push origin v1.0.0
-```
-
-### Use from GitHub on HPC
-
-```bash
-# Pull workflow (first time or to update)
-nextflow pull YOUR_USERNAME/diann-wf
-
-# Run from GitHub
-nextflow -bg run YOUR_USERNAME/diann-wf \
-  -params-file configs/my_config.yaml \
-  -profile cosmos  # or slurm
-
-# Use specific version (for reproducibility)
-nextflow run YOUR_USERNAME/diann-wf \
-  -r v1.0.0 \
-  -params-file configs/my_config.yaml \
-  -profile cosmos
-```
-
-## Tips
-
-1. **Always use `-bg` for SLURM:** Persist through terminal disconnections
-2. **Start simple:** Use `quantify_only.nf` for most tasks
-3. **Test locally first:** Use `-profile test` before SLURM submission
-4. **Use `-resume`:** Save time by resuming failed runs
-5. **Check reports:** Review execution reports to optimize resource usage
-6. **Version control configs:** Keep your YAML configs in git for reproducibility
-7. **Pin versions for publications:** Use `-r v1.0.0` for reproducibility
 
 ## TODO
 
@@ -1041,21 +510,18 @@ nextflow run YOUR_USERNAME/diann-wf \
 - [ ] Integration with storage (SMB, Swestore, OpenBIS, seqera)
 - [x] `.speclib` to `.parquet` — `workflows/convert_library.nf` (verified byte-identical quantification output)
 - [ ] Restructure MS profiles (ttht-evosep-30SPD, hfx-vneo-24SPD) using sets of tuned parameters
-- [ ] Sematics batches `Sample` -> `Batch` 
-- [ ] For batches/samples support for multiple fasta files 
-- [ ] Tuning diann fr for HFX has no added benefit for external validation, results worse than original 
-- [ ] Maybe remove this model models/hfx-elc-120min-260131
+- [ ] Semantics: `Sample` → `Batch`
+- [ ] Support multiple FASTA files per sample/batch
 - [ ] No IM prediction for Thermo raw
-- [ ] Only use ms as files as requested in yaml. Ie, if both raw and dia files exist in input dir with config 'raw', ignore dia files
-- [ ] maybe rename `slurm` profile -> `kraken`
+- [ ] Only use MS files matching requested type (ignore others in same dir)
+- [ ] Maybe rename `slurm` profile → `kraken`
+- [ ] Tuning DIA-NN FR for HFX has no added benefit for external validation; results worse than original
 
 ## Support
 
-For issues or questions:
-- Check Nextflow docs: https://www.nextflow.io/docs/latest/
-- Check DIANN docs: https://github.com/vdemichev/DiaNN
-- Review execution logs in `results/pipeline_info/`
-
+- Nextflow docs: https://www.nextflow.io/docs/latest/
+- DIA-NN docs: https://github.com/vdemichev/DiaNN
+- Execution logs: `results/pipeline_info/`
 
 ## License
 

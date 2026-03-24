@@ -86,12 +86,14 @@ run_with_container() {
         apptainer|singularity)
             exec "$runtime" exec \
                 --bind "$(pwd)" \
+                --bind "${SCRIPT_DIR}" \
                 "docker://$PYTHON_CONTAINER" \
                 python3 "$PYTHON_SCRIPT" "${ARGS[@]}"
             ;;
         docker)
             exec docker run --rm \
                 -v "$(pwd):$(pwd)" \
+                -v "${SCRIPT_DIR}:${SCRIPT_DIR}:ro" \
                 -v "$(dirname "$yaml_abs"):$(dirname "$yaml_abs"):ro" \
                 -w "$(pwd)" \
                 "$PYTHON_CONTAINER" \

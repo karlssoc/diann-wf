@@ -1,0 +1,132 @@
+#!/bin/bash
+#
+# hystar-metadata — Extract Bruker HyStar acquisition metadata from TimsTOF .d directories
+#
+# Reads a DIA-NN workflow YAML params file and collects CreationDateTime, FileName,
+# SampleID, WindowsPath, and LocalPath from HyStarMetadata.xml inside each .d folder.
+# Only processes samples with file_type == 'd'.
+#
+# Usage:
+#   hystar-metadata <params.yaml> [options]
+#   hystar-metadata --help
+#
+# Options:
+#   --outdir DIR      Override output directory (default: outdir from YAML)
+#   --output FILE     Output CSV filename (default: hystar_metadata.csv)
+#   --basedir DIR     Base directory for resolving relative paths (default: CWD)
+#   --container       Force container execution (apptainer/singularity/docker)
+#   --no-container    Force system Python (skip container detection)
+#
+# Examples:
+#   hystar-metadata configs/quantify/hela.yaml
+#   hystar-metadata configs/quantify/hela.yaml --outdir results/metadata
+#   hystar-metadata configs/quantify/hela.yaml --container   # e.g. on kraken/COSMOS
+#
+# Container runtime is auto-detected in priority order:
+#   apptainer -> singularity -> docker -> system python3
+#
+# Works whether diann-wf was cloned locally or pulled via:
+#   nextflow pull karlssoc/diann-wf
+#
+
+set -eo pipefail
+
+PYTHON_CONTAINER="quay.io/karlssoc/diannwf-python:1.0"
+
+# Locate extract_hystar_metadata.py relative to this script.
+# Works for both local clones and nextflow-pulled installations
+# (~/.nextflow/assets/karlssoc/diann-wf/bin/).
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PYTHON_SCRIPT="${SCRIPT_DIR}/extract_hystar_metadata.py"
+
+if [ ! -f "$PYTHON_SCRIPT" ]; then
+    echo "Error: extract_hystar_metadata.py not found at: $PYTHON_SCRIPT" >&2
+    exit 1
+fi
+
+usage() {
+    sed -n '3,/^set/p' "$0" | grep '^#' | sed 's/^# *//'
+}
+
+# Parse wrapper-specific flags before forwarding remaining args
+FORCE_CONTAINER=false
+NO_CONTAINER=false
+ARGS=()
+for arg in "$@"; do
+    case "$arg" in
+        --container)    FORCE_CONTAINER=true ;;
+        --no-container) NO_CONTAINER=true ;;
+        --help|-h)      usage; exit 0 ;;
+        *)              ARGS+=("$arg") ;;
+    esac
+done
+
+if [ ${#ARGS[@]} -eq 0 ]; then
+    usage
+    exit 0
+fi
+
+# Detect available container runtime (apptainer > singularity > docker)
+detect_runtime() {
+    if   command -v apptainer   &> /dev/null; then echo "apptainer"
+    elif command -v singularity &> /dev/null; then echo "singularity"
+    elif command -v docker      &> /dev/null; then echo "docker"
+    else echo ""
+    fi
+}
+
+run_with_container() {
+    local runtime="$1"
+    local yaml_abs
+    yaml_abs="$(cd "$(dirname "${ARGS[0]}")" && pwd)/$(basename "${ARGS[0]}")"
+
+    echo "Using container runtime: $runtime ($PYTHON_CONTAINER)"
+
+    case "$runtime" in
+        apptainer|singularity)
+            exec "$runtime" exec \
+                --bind "$(pwd)" \
+                "docker://$PYTHON_CONTAINER" \
+                python3 "$PYTHON_SCRIPT" "${ARGS[@]}"
+            ;;
+        docker)
+            exec docker run --rm \
+                -v "$(pwd):$(pwd)" \
+                -v "$(dirname "$yaml_abs"):$(dirname "$yaml_abs"):ro" \
+                -w "$(pwd)" \
+                "$PYTHON_CONTAINER" \
+                python3 "$PYTHON_SCRIPT" "${ARGS[@]}"
+            ;;
+    esac
+}
+
+# Execution path
+if $NO_CONTAINER; then
+    if ! command -v python3 &> /dev/null; then
+        echo "Error: python3 not found." >&2; exit 1
+    fi
+    exec python3 "$PYTHON_SCRIPT" "${ARGS[@]}"
+
+elif $FORCE_CONTAINER; then
+    RUNTIME=$(detect_runtime)
+    if [ -z "$RUNTIME" ]; then
+        echo "Error: No container runtime found (apptainer/singularity/docker)." >&2; exit 1
+    fi
+    run_with_container "$RUNTIME"
+
+else
+    # Auto mode: use system Python if PyYAML is available, otherwise fall back to container
+    if command -v python3 &> /dev/null && python3 -c "import yaml" &> /dev/null; then
+        exec python3 "$PYTHON_SCRIPT" "${ARGS[@]}"
+    else
+        RUNTIME=$(detect_runtime)
+        if [ -n "$RUNTIME" ]; then
+            echo "PyYAML not found in system Python, using container..."
+            run_with_container "$RUNTIME"
+        else
+            echo "Error: PyYAML not available and no container runtime found." >&2
+            echo "Install PyYAML (pip install pyyaml) or ensure apptainer/singularity/docker is on PATH." >&2
+            exit 1
+        fi
+    fi
+fi

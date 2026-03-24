@@ -1,0 +1,37 @@
+# Python environment for diann-wf post-processing scripts
+#
+# Includes: pyyaml, pandas, polars, numpy, matplotlib
+# Used by: EXTRACT_SAMPLE_METADATA and future analysis modules
+#
+# Build:
+#   docker build -f docker/Dockerfile.python -t quay.io/karlssoc/diannwf-python:1.0 .
+#
+# Push:
+#   docker push quay.io/karlssoc/diannwf-python:1.0
+#
+# For Singularity/Apptainer (pull once on each cluster):
+#   apptainer pull docker://quay.io/karlssoc/diannwf-python:1.0
+
+FROM python:3.11-slim
+
+# System libraries required by matplotlib (font rendering, image backends)
+# and pandas (optional C extensions). Installed in a single layer and
+# apt cache is cleared immediately to keep image size small.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libfreetype6 \
+        libpng16-16 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy and install Python dependencies from pinned requirements file.
+# Copying requirements first exploits Docker layer caching: the pip install
+# layer is only invalidated when requirements change, not on every code change.
+COPY docker/requirements.python.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt
+
+# Run as non-root user (good practice; Singularity ignores this but Docker uses it)
+RUN useradd --no-create-home --shell /bin/false appuser
+USER appuser
+
+# No ENTRYPOINT or CMD: Nextflow overrides these when running bin/ scripts.
+# Scripts from the workflow's bin/ directory are staged into the work dir
+# and placed on PATH automatically by Nextflow.

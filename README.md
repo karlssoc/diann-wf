@@ -457,11 +457,21 @@ diann-wf/
 │   └── tune/                        # Model tuning configs
 ├── models/                          # Pre-trained model presets
 ├── bin/                             # Utility scripts
-│   ├── diann-wf                     # Wrapper script
+│   ├── diann-wf                     # Workflow runner wrapper
+│   ├── hystar-metadata              # Bruker HyStar metadata extraction (see docs/hystar-metadata.md)
 │   ├── compare_pg_matrices.py       # PG matrix comparison CLI
 │   └── collect_models.sh            # Organize tuning outputs
 └── nextflow.config                  # Profiles, resources, param defaults
 ```
+
+## Utility Scripts
+
+| Script | Description | Docs |
+|--------|-------------|------|
+| `bin/diann-wf` | Workflow runner wrapper (abstracts Nextflow for end users) | — |
+| `bin/hystar-metadata` | Extract Bruker HyStar acquisition metadata from `.d` directories | [docs/hystar-metadata.md](docs/hystar-metadata.md) |
+| `bin/compare_pg_matrices.py` | Compare two DIA-NN `pg_matrix.tsv` files for quantitative agreement | — |
+| `bin/collect_models.sh` | Organize DIA-NN tuning outputs into model preset directories | — |
 
 ## Deployment
 

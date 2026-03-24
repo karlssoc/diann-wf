@@ -1,0 +1,17 @@
+# Python dependencies for diann-wf post-processing scripts
+# Used by: docker/Dockerfile.python -> quay.io/karlssoc/diannwf-python
+
+# YAML parsing (extract_sample_metadata.py)
+pyyaml==6.0.2
+
+# Tabular data (extract_metrics.py, compare_results.py)
+pandas==2.2.3
+
+# High-performance DataFrames + Parquet (diann-stats.py)
+polars==1.19.0
+
+# Numerical computing (diann-stats.py)
+numpy==2.1.3
+
+# Plotting / PDF output (diann-stats.py)
+matplotlib==3.10.0

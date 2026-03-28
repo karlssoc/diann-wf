@@ -1,0 +1,97 @@
+# FASTA Subset + Quantification by Biospecimen Configuration
+#
+# Biospecimen-stratified variant of QUANTIFY_FASTA_SUBSET.
+# Each biospecimen gets its own FASTA subset derived from the union of all its
+# batches' first-pass identifications.
+#
+# Use when: sample types have substantially different proteomes (e.g., plasma vs CSF)
+# and should not share a search space — pooling would inflate FDR across types.
+#
+# Output structure:
+#   outdir/
+#   ├── library/                         # full FASTA library (shared)
+#   ├── <biospe_id>/
+#   │   ├── quant_full/<batch_id>/        # full FASTA quantification
+#   │   ├── subset_fasta/                 # biospecimen-specific subset FASTA
+#   │   ├── library/subset/               # biospecimen-specific subset library
+#   │   └── quant_subset/<batch_id>/      # final quantification
+#   └── ...
+
+# FASTA file
+fasta: '/path/to/protein.fasta'
+
+# Biospecimen definitions
+# Each biospecimen contains one or more batches of MS files.
+# Batch IDs must be unique across ALL biospecimens.
+# Steps 3-4 (FASTA subsetting + library generation) run in parallel across biospecimens.
+biospecimens:
+  - id: 'plasma'
+    batches:
+      - id: 'plasma_batch1'
+        dir: '/path/to/plasma/batch1'
+        file_type: 'dia'       # 'dia', 'd' (Bruker), 'raw' (Thermo), 'mzML'
+        recursive: false
+      - id: 'plasma_batch2'
+        dir: '/path/to/plasma/batch2'
+        file_type: 'dia'
+        recursive: false
+
+  - id: 'csf'
+    batches:
+      - id: 'csf_batch1'
+        dir: '/path/to/csf/batch1'
+        file_type: 'dia'
+        recursive: false
+
+# Library name
+library_name: 'generated_lib'
+
+# Output directory
+outdir: 'results/quantify_fasta_subset_by_biospe'
+
+# DIA-NN version
+diann_version: '2.3.2'
+
+# Thread configuration
+threads: 48  # Adjust for your system
+
+# Parallel execution mode (for SLURM/COSMOS)
+parallel_mode: false
+
+# SLURM settings
+slurm_account: 'YOUR_PROJECT'
+slurm_queue: 'lu'
+
+# Library generation parameters (applied to full library and all subset libraries)
+library:
+  min_fr_mz: 200
+  max_fr_mz: 1800
+  min_pep_len: 7
+  max_pep_len: 30
+  min_pr_mz: 350
+  max_pr_mz: 1650
+  min_pr_charge: 2
+  max_pr_charge: 3
+  cut: 'K*,R*,!*P'
+  missed_cleavages: 1
+  met_excision: true
+  unimod4: true
+
+# Quantification parameters (applied to both quant_full and quant_subset)
+qvalue: 0  # 0 = DIA-NN default (0.01 = 1% FDR)
+
+pg_level: 1
+mass_acc_cal: 25
+# mass_acc: 15
+# mass_acc_ms1: 15
+smart_profiling: true
+individual_mass_acc: false
+matrices: true
+
+# Optional: Pre-trained model preset (see models/README.md)
+# model_preset: 'hfx-vneo-16SPD-2.3.2-260608'
+# tuning_mode: 'skip'
+
+# Optional: Reference library for batch correction (both passes)
+# ref_library: '/path/to/reference/library.predicted.speclib'
+# individual_windows: true

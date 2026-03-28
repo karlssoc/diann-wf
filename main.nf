@@ -6,9 +6,10 @@
  * Use: nextflow run karlssoc/diann-wf -entry <WORKFLOW> -params-file config.yaml -profile <PROFILE>
  *
  * Production workflows (FASTA + MS data -> quantified proteins):
- *   QUANTIFY_FASTA_SUBSET    Presearch N files -> subset FASTA -> new speclib -> quantify all (recommended)
- *   PRESEARCH_AND_QUANTIFY   Presearch N largest files -> subset library -> quantify all
- *   LIBRARY_AND_QUANTIFY     Generate library + quantify samples (no search space reduction)
+ *   QUANTIFY_FASTA_SUBSET            Full FASTA quant -> subset FASTA -> new speclib -> quantify all (recommended)
+ *   QUANTIFY_FASTA_SUBSET_BY_BIOSPE  Same, but per-biospecimen FASTA subset (plasma, CSF, etc.)
+ *   PRESEARCH_AND_QUANTIFY           Presearch N largest files -> subset library -> quantify all
+ *   LIBRARY_AND_QUANTIFY             Generate library + quantify samples (no search space reduction)
  *
  * Standalone modules (single step):
  *   create_library           Create spectral library from FASTA
@@ -33,6 +34,7 @@ include { ITERATIVE_QUANT } from './workflows/iterative_quant'
 include { LIBRARY_AND_QUANTIFY } from './workflows/library_and_quantify'
 include { PRESEARCH_AND_QUANTIFY } from './workflows/presearch_and_quantify'
 include { QUANTIFY_FASTA_SUBSET } from './workflows/quantify_fasta_subset'
+include { QUANTIFY_FASTA_SUBSET_BY_BIOSPE } from './workflows/quantify_fasta_subset_by_biospe'
 
 // Import shared utilities
 include { parseSamples; createSamplesChannel } from './lib/samples'
@@ -281,9 +283,10 @@ workflow {
     Usage: nextflow run karlssoc/diann-wf -entry <WORKFLOW> -params-file config.yaml -profile <PROFILE>
 
     Production workflows:
-      -entry QUANTIFY_FASTA_SUBSET  : Presearch N files -> subset FASTA -> new speclib -> quantify all (recommended)
-      -entry PRESEARCH_AND_QUANTIFY : Presearch N files -> subset library -> quantify all
-      -entry LIBRARY_AND_QUANTIFY   : Generate library + quantify samples
+      -entry QUANTIFY_FASTA_SUBSET           : Full FASTA quant -> subset FASTA -> quantify all (recommended)
+      -entry QUANTIFY_FASTA_SUBSET_BY_BIOSPE : Same, per-biospecimen FASTA subset
+      -entry PRESEARCH_AND_QUANTIFY          : Presearch N files -> subset library -> quantify all
+      -entry LIBRARY_AND_QUANTIFY            : Generate library + quantify samples
 
     Standalone modules:
       -entry create_library         : Create spectral library from FASTA

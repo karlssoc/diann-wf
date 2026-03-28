@@ -19,18 +19,20 @@ diann-wf/
 ├── main.nf                 # Single entry point for all workflows (use -entry flag)
 │
 ├── workflows/              # Workflow definitions
-│   ├── presearch_and_quantify.nf   # PRODUCTION: Presearch N files -> subset -> quantify all
-│   ├── library_and_quantify.nf     # PRODUCTION: Generate library + quantify
-│   ├── iterative_quant.nf          # DEVELOPMENT: Iterative quant with calibration
-│   ├── quantify_only.nf            # Quantify with existing library
-│   ├── create_library.nf           # Generate spectral library
-│   ├── convert_library.nf          # Convert .speclib to .parquet
-│   ├── tune_only.nf                # Tune prediction models
-│   ├── repredict_library.nf        # Repredict library from existing
-│   ├── infindia_presearch_only.nf  # Library-free presearch
-│   ├── compare_libraries.nf        # Compare default vs tuned libraries
-│   ├── compare_with_models.nf      # Compare default vs preset models
-│   └── evaluate_models.nf          # Multi-preset accuracy comparison
+│   ├── quantify_fasta_subset.nf         # PRODUCTION: Full FASTA quant -> subset FASTA -> quantify all
+│   ├── quantify_fasta_subset_by_biospe.nf # PRODUCTION: Same, per-biospecimen FASTA subset
+│   ├── presearch_and_quantify.nf        # PRODUCTION: Presearch N files -> subset library -> quantify all
+│   ├── library_and_quantify.nf          # PRODUCTION: Generate library + quantify
+│   ├── iterative_quant.nf               # DEVELOPMENT: Iterative quant with calibration
+│   ├── quantify_only.nf                 # Quantify with existing library
+│   ├── create_library.nf                # Generate spectral library
+│   ├── convert_library.nf               # Convert .speclib to .parquet
+│   ├── tune_only.nf                     # Tune prediction models
+│   ├── repredict_library.nf             # Repredict library from existing
+│   ├── infindia_presearch_only.nf       # Library-free presearch
+│   ├── compare_libraries.nf             # Compare default vs tuned libraries
+│   ├── compare_with_models.nf           # Compare default vs preset models
+│   └── evaluate_models.nf               # Multi-preset accuracy comparison
 │
 ├── modules/                # Reusable process modules
 │   ├── library.nf              # GENERATE_LIBRARY
@@ -42,6 +44,7 @@ diann-wf/
 │   ├── repredict_library.nf    # REPREDICT_LIBRARY
 │   ├── subset_library.nf       # SUBSET_LIBRARY (by Protein.Group)
 │   ├── subset_library_peptide.nf # SUBSET_LIBRARY_PEPTIDE (by Modified.Sequence)
+│   ├── subset_fasta.nf         # SUBSET_FASTA (filter FASTA to detected proteins)
 │   ├── extract_sequences.nf    # EXTRACT_SEQUENCES
 │   ├── filter_library.nf       # FILTER_LIBRARY_CHARGE
 │   ├── compare_matrices.nf     # COMPARE_MATRICES (DuckDB pg_matrix comparison)
@@ -274,6 +277,14 @@ diann-wf quantify_only configs/quantify/basic.yaml slurm
 8. ✅ Restructured workflows: removed broken `full_pipeline.nf`, `compare_library_tuning.nf`, `evaluate_methods.nf` (14 → 11 workflows)
 9. ✅ Sanity comparison tool: `bin/compare_pg_matrices.py` + `modules/compare_matrices.nf`
 
+## Recent Major Changes (Mar 2026)
+
+1. ✅ New workflow: `QUANTIFY_FASTA_SUBSET` — full FASTA quant → subset FASTA → fresh speclib → quantify all (now recommended over PRESEARCH_AND_QUANTIFY)
+2. ✅ New workflow: `QUANTIFY_FASTA_SUBSET_BY_BIOSPE` — same with per-biospecimen FASTA subsetting (plasma/CSF/etc.)
+3. ✅ Output structure standardised: stage-named subdirs throughout (`quant_full/`, `quant_subset/`, `quantification/`)
+4. ✅ `QUANTIFY_FASTA_SUBSET`: renamed `samples` → `batches` parameter; pass1/flat → `quant_full`/`quant_subset` subdirs (avoids confusion with DIA-NN's `report-first-pass.*` naming)
+5. ✅ `PRESEARCH_AND_QUANTIFY`: fixed presearch double-nesting (`presearch/presearch/` → `presearch/`); final results moved to `quantification/<sample>/`
+
 ## Development Guidelines
 
 1. **Always test both profiles** (standard + slurm)
@@ -394,7 +405,9 @@ All workflows are accessible via `nextflow run karlssoc/diann-wf -entry <NAME>`:
 
 | Entry | Type | Description |
 |-------|------|-------------|
-| `PRESEARCH_AND_QUANTIFY` | Production | Presearch N files → subset library → quantify all (recommended) |
+| `QUANTIFY_FASTA_SUBSET` | Production | Full FASTA quant → subset FASTA → fresh speclib → quantify all **(recommended)** |
+| `QUANTIFY_FASTA_SUBSET_BY_BIOSPE` | Production | Same, but per-biospecimen FASTA subset (plasma, CSF, etc.) |
+| `PRESEARCH_AND_QUANTIFY` | Production | Presearch N largest files → subset library parquet → quantify all |
 | `LIBRARY_AND_QUANTIFY` | Production | Generate library + quantify (no search space reduction) |
 | `create_library` | Standalone | Create spectral library from FASTA |
 | `quantify_only` | Standalone | Quantify with existing library |
@@ -404,9 +417,10 @@ All workflows are accessible via `nextflow run karlssoc/diann-wf -entry <NAME>`:
 
 **Wrapper script** (`bin/diann-wf`) abstracts Nextflow for end users:
 ```bash
-diann-wf presearch_and_quantify config.yaml slurm        # Production
-diann-wf quantify_only quant.yaml docker -resume          # With extra args
-diann-wf list                                              # Show all workflows
+diann-wf QUANTIFY_FASTA_SUBSET config.yaml slurm                   # Production
+diann-wf QUANTIFY_FASTA_SUBSET_BY_BIOSPE biospe_config.yaml slurm  # Per-biospecimen
+diann-wf quantify_only quant.yaml docker -resume                   # With extra args
+diann-wf list                                                       # Show all workflows
 ```
 
 **Workflows NOT in main.nf** (run directly for development/comparison):
@@ -466,10 +480,79 @@ def subdir = 'stage1'
 // Custom organization
 def subdir = "${params.experiment}/${sample.condition}"
 
-// Compare libraries workflow
-def subdir_default = 'quant/default'
-def subdir_tuned = 'quant/tuned'
+// Biospe workflow: per-biospecimen subdirectory
+def subdir = "${biospe_id}/quant_full"   // → outdir/plasma/quant_full/batch1/
 ```
+
+**Standard output structures for production workflows:**
+```
+# QUANTIFY_FASTA_SUBSET
+outdir/
+├── library/                    # full FASTA library
+├── quant_full/<batch_id>/      # full FASTA quantification (batches key)
+├── subset_fasta/               # subset.fasta (union of all batches)
+├── library/subset/             # fresh library from subset FASTA
+└── quant_subset/<batch_id>/    # final quantification
+
+# QUANTIFY_FASTA_SUBSET_BY_BIOSPE
+outdir/
+├── library/                             # full FASTA library (shared)
+├── <biospe_id>/
+│   ├── quant_full/<batch_id>/           # full FASTA quantification
+│   ├── subset_fasta/                    # biospecimen-specific subset FASTA
+│   ├── library/subset/                  # biospecimen-specific subset library
+│   └── quant_subset/<batch_id>/         # final quantification
+└── ...
+
+# PRESEARCH_AND_QUANTIFY
+outdir/
+├── library/                    # generated speclib
+├── presearch/                  # N-file presearch (single combined run)
+├── subset_library/             # subsetted library parquet
+└── quantification/<sample_id>/ # final quantification (samples key)
+```
+
+### Hierarchical Channel Pattern (biospe → batches)
+
+Used in `QUANTIFY_FASTA_SUBSET_BY_BIOSPE` for per-biospecimen parallel processing without module changes.
+
+**Re-keying via filename** — instead of adding a passthrough `val key` to modules, use the output filename as the key:
+```groovy
+// biospe_id used as output_name → plasma.fasta, csf.fasta
+SUBSET_FASTA(pg_sources, fasta, subdir, biospe_id_ch)
+
+// Re-key from baseName after async completion (order-independent)
+def subset_fasta_keyed = SUBSET_FASTA.out.subset_fasta
+    .map { fasta -> tuple(fasta.baseName, fasta) }
+// → (plasma, path/to/plasma.fasta)
+```
+
+**`multiMap` to fork without double-consuming a queue channel:**
+```groovy
+def fork = biospe_reports.multiMap { biospe_id, reports ->
+    pg_sources:   reports
+    subdirs:      "${biospe_id}/subset_fasta"
+    output_names: biospe_id
+}
+SUBSET_FASTA(fork.pg_sources, fasta, fork.subdirs, fork.output_names)
+```
+
+**`.join` to pair batches with their per-biospe library:**
+```groovy
+// final_batches_ch: (biospe_id, batch_id, ms_dir, ...)
+// subset_lib_keyed: (biospe_id, library)
+def final_joined = final_batches_ch.join(subset_lib_keyed, by: 0)
+// → (biospe_id, batch_id, ms_dir, ..., library)
+
+// Fork for process inputs (library is queue channel here, not value)
+def final_fork = final_joined.multiMap { biospe_id, batch_id, ms_dir, file_type, subdir, recursive, file_count, library ->
+    samples:   tuple(batch_id, ms_dir, file_type, subdir, recursive, file_count)
+    libraries: library
+}
+QUANTIFY_FINAL(final_fork.samples, final_fork.libraries, ...)
+```
+
+**Why `libraries` is a queue channel (not `.first()`):** Each batch must get its own biospecimen's library. Using `.first()` would broadcast one library to all batches (wrong). The queue channel stays in sync because both forks share the same `final_joined` source.
 
 ### Pre-Trained Model Resolution
 
@@ -573,5 +656,5 @@ Use `bin/collect_models.sh` to organize tuning outputs into repository structure
 
 ---
 
-*Last updated: 2026-02-11*
+*Last updated: 2026-03-28*
 *This file is specifically for AI assistants working on the project*

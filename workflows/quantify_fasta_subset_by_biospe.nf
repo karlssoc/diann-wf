@@ -53,6 +53,73 @@ include { countMSFiles                    } from '../lib/files'
 
 /*
 ========================================================================================
+    HELPER FUNCTIONS (script level)
+    Defined outside the workflow block to avoid Nextflow DSL2 nested-closure
+    variable scoping issues. All Groovy list iteration lives here.
+========================================================================================
+*/
+
+// Validate biospecimens list and return a batch_id → biospe_id lookup map.
+// Batch IDs must be globally unique (they become QUANTIFY sample_id values).
+def buildBatchBiospeMap(biospecimens_list) {
+    def batch_map = [:]
+    biospecimens_list.each { biospe ->
+        if (!biospe.id) {
+            log.error "ERROR: Biospecimen missing 'id' field"
+            System.exit(1)
+        }
+        if (!biospe.batches) {
+            log.error "ERROR: Biospecimen '${biospe.id}' missing 'batches' list"
+            System.exit(1)
+        }
+        biospe.batches.each { batch ->
+            if (batch_map.containsKey(batch.id)) {
+                log.error "ERROR: Duplicate batch id '${batch.id}' — must be unique across all biospecimens"
+                System.exit(1)
+            }
+            batch_map[batch.id] = biospe.id
+        }
+    }
+    return batch_map
+}
+
+// Build the flat tuple list for QUANTIFY_PASS1.
+// Returns: [ (batch_id, ms_dir, file_type, subdir, recursive, file_count), ... ]
+def buildPass1Batches(biospecimens_list) {
+    def result = []
+    biospecimens_list.each { biospe ->
+        biospe.batches.each { batch ->
+            def sample_dir = file(batch.dir)
+            if (!sample_dir.exists()) {
+                log.error "ERROR: Batch directory not found: ${batch.dir} (biospecimen: ${biospe.id})"
+                System.exit(1)
+            }
+            def file_count = countMSFiles(sample_dir, batch.recursive ?: false)
+            log.info "Batch ${batch.id} (${biospe.id}): ${file_count} MS files"
+            result << [batch.id, sample_dir, batch.file_type ?: 'dia',
+                       "${biospe.id}/quant_full", batch.recursive ?: false, file_count]
+        }
+    }
+    return result
+}
+
+// Build the flat tuple list for QUANTIFY_FINAL, keyed by biospe_id for .join().
+// Returns: [ (biospe_id, batch_id, ms_dir, file_type, subdir, recursive, file_count), ... ]
+def buildFinalBatches(biospecimens_list) {
+    def result = []
+    biospecimens_list.each { biospe ->
+        biospe.batches.each { batch ->
+            def sample_dir = file(batch.dir)
+            def file_count = countMSFiles(sample_dir, batch.recursive ?: false)
+            result << [biospe.id, batch.id, sample_dir, batch.file_type ?: 'dia',
+                       "${biospe.id}/quant_subset", batch.recursive ?: false, file_count]
+        }
+    }
+    return result
+}
+
+/*
+========================================================================================
     WORKFLOW
 ========================================================================================
 */
@@ -67,19 +134,8 @@ workflow QUANTIFY_FASTA_SUBSET_BY_BIOSPE {
 
     def biospecimens_list = params.biospecimens
 
-    // Validate structure and build batch → biospecimen lookup map
-    // Batch IDs must be globally unique (used as QUANTIFY sample_id)
-    def batch_biospe_map = [:]
-    biospecimens_list.each { biospe ->
-        if (!biospe.id) error "ERROR: Biospecimen missing 'id' field"
-        if (!biospe.batches) error "ERROR: Biospecimen '${biospe.id}' missing 'batches' list"
-        biospe.batches.each { batch ->
-            if (batch_biospe_map.containsKey(batch.id)) {
-                error "ERROR: Duplicate batch id '${batch.id}' — batch IDs must be unique across all biospecimens"
-            }
-            batch_biospe_map[batch.id] = biospe.id
-        }
-    }
+    // Validate + build lookup map via script-level function (avoids DSL2 nested-closure issues)
+    def batch_biospe_map = buildBatchBiospeMap(biospecimens_list)
 
     // Set defaults
     def library_name   = params.library_name   ?: 'library'
@@ -95,17 +151,12 @@ workflow QUANTIFY_FASTA_SUBSET_BY_BIOSPE {
     def ref_library_file = params.ref_library ? file(params.ref_library) : file('NO_FILE')
     def search_params    = params.library ?: [:]
 
-    def total_batches = biospecimens_list.sum { it.batches.size() }
-
     log.info ""
     log.info "DIANN FASTA Subset + Quantification by Biospecimen"
     log.info "==================================================="
     log.info "FASTA          : ${params.fasta}"
     log.info "Biospecimens   : ${biospecimens_list.size()}"
-    biospecimens_list.each { biospe ->
-        log.info "  ${biospe.id}: ${biospe.batches.size()} batch(es)"
-    }
-    log.info "Total batches  : ${total_batches}"
+    log.info "Total batches  : ${batch_biospe_map.size()}"
     log.info "Output dir     : ${params.outdir}"
     logModelInfo(models, params)
     log.info ""
@@ -139,20 +190,8 @@ workflow QUANTIFY_FASTA_SUBSET_BY_BIOSPE {
     ========================================================================================
     */
 
-    def pass1_batches_ch = Channel.fromList(
-        biospecimens_list.collectMany { biospe ->
-            biospe.batches.collect { batch ->
-                def sample_dir = file(batch.dir)
-                if (!sample_dir.exists()) {
-                    error "ERROR: Batch directory not found: ${batch.dir} (biospecimen: ${biospe.id})"
-                }
-                def file_count = countMSFiles(sample_dir, batch.recursive ?: false)
-                log.info "Batch ${batch.id} (${biospe.id}): ${file_count} MS files"
-                tuple(batch.id, sample_dir, batch.file_type ?: 'dia',
-                      "${biospe.id}/quant_full", batch.recursive ?: false, file_count)
-            }
-        }
-    )
+    // Channel construction via script-level function (avoids DSL2 nested-closure issues)
+    def pass1_batches_ch = Channel.fromList(buildPass1Batches(biospecimens_list))
 
     QUANTIFY_PASS1(
         pass1_batches_ch,
@@ -239,17 +278,8 @@ workflow QUANTIFY_FASTA_SUBSET_BY_BIOSPE {
     ========================================================================================
     */
 
-    def final_batches_ch = Channel.fromList(
-        biospecimens_list.collectMany { biospe ->
-            biospe.batches.collect { batch ->
-                def sample_dir = file(batch.dir)
-                def file_count = countMSFiles(sample_dir, batch.recursive ?: false)
-                // biospe_id is the join key — first element for .join(by: 0)
-                tuple(biospe.id, batch.id, sample_dir, batch.file_type ?: 'dia',
-                      "${biospe.id}/quant_subset", batch.recursive ?: false, file_count)
-            }
-        }
-    )
+    // Channel construction via script-level function (avoids DSL2 nested-closure issues)
+    def final_batches_ch = Channel.fromList(buildFinalBatches(biospecimens_list))
 
     // Join batches with their biospecimen's subset library on biospe_id
     def final_joined = final_batches_ch

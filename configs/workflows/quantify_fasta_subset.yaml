@@ -1,26 +1,27 @@
 # FASTA Subset + Quantification Configuration
 #
 # Two-pass workflow:
-#   Pass 1: all samples, full FASTA, MBR enabled
-#           → report-first-pass.parquet (union of per-run 1% FDR IDs across all samples)
-#   Pass 2: all samples, subset speclib (from subset FASTA), MBR enabled
-#           → ~5x faster, better FDR calibration, more proteins at 1% FDR
+#   Full FASTA quant: all batches, full FASTA library, MBR enabled
+#                     → report-first-pass.parquet (per-run 1% FDR IDs, union across all batches)
+#                     → used to extract detected Protein.Groups and subset the FASTA
+#   Subset FASTA quant: all batches, fresh library from subset FASTA, MBR enabled
+#                       → ~5x faster, better FDR calibration, more proteins at 1% FDR
 #
-# Pass 1 results are saved to outdir/pass1/<sample>/
-# Pass 2 (final) results are saved to outdir/<sample>/
+# Full FASTA quant results:    outdir/quant_full/<batch>/
+# Subset FASTA quant results:  outdir/quant_subset/<batch>/
 
 # FASTA file
 fasta: '/path/to/protein.fasta'
 
-# Sample definitions
-samples:
-  - id: 'sample1'
-    dir: '/path/to/ms_data/sample1'
+# Batch definitions (each entry = one group of MS files to quantify together)
+batches:
+  - id: 'batch1'
+    dir: '/path/to/ms_data/batch1'
     file_type: 'dia'       # 'dia', 'd' (Bruker), 'raw' (Thermo), 'mzML'
     recursive: false
 
-  - id: 'sample2'
-    dir: '/path/to/ms_data/sample2'
+  - id: 'batch2'
+    dir: '/path/to/ms_data/batch2'
     file_type: 'dia'
     recursive: false
 

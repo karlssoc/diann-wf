@@ -56,11 +56,11 @@ workflow QUANTIFY_FASTA_SUBSET {
     if (!params.fasta) {
         error "ERROR: Missing required parameter --fasta"
     }
-    if (!params.samples) {
-        error "ERROR: Missing required parameter --samples"
+    if (!params.batches) {
+        error "ERROR: Missing required parameter --batches"
     }
 
-    def samples_list = parseSamples(params.samples)
+    def samples_list = parseSamples(params.batches)
 
     // Set defaults
     def library_name   = params.library_name   ?: 'library'
@@ -119,7 +119,7 @@ workflow QUANTIFY_FASTA_SUBSET {
     // Convert to value channel at assignment time
     def full_library = GENERATE_LIBRARY.out.library.first()
 
-    def samples_pass1_ch = createSamplesChannel(samples_list, 'pass1')
+    def samples_pass1_ch = createSamplesChannel(samples_list, 'quant_full')
 
     QUANTIFY_PASS1(
         samples_pass1_ch,
@@ -177,7 +177,7 @@ workflow QUANTIFY_FASTA_SUBSET {
     ========================================================================================
     */
 
-    def subdir    = params.quantify_subdir ?: ''
+    def subdir    = params.quantify_subdir ?: 'quant_subset'
     def samples_final_ch = createSamplesChannel(samples_list, subdir)
     def mbr       = params.mbr_final != null ? params.mbr_final : true
 
@@ -211,7 +211,7 @@ workflow QUANTIFY_FASTA_SUBSET {
 */
 
 workflow.onComplete {
-    def sample_count = params.samples instanceof List ? params.samples.size() : 0
+    def sample_count = params.batches instanceof List ? params.batches.size() : 0
 
     println """
     ========================================================================================
@@ -219,9 +219,9 @@ workflow.onComplete {
     ========================================================================================
     Subset FASTA:      ${params.outdir}/subset_fasta/subset.fasta
     Subset library:    ${params.outdir}/${params.library_subdir ?: 'library'}/subset/${params.library_name ?: 'library'}_subset.predicted.speclib
-    Pass 1 results:    ${params.outdir}/pass1/<sample>/
-    Pass 2 results:    ${params.outdir}/<sample>/
-    Samples:           ${sample_count}
+    Full FASTA quant:  ${params.outdir}/quant_full/<batch>/
+    Subset FASTA quant:${params.outdir}/${params.quantify_subdir ?: 'quant_subset'}/<batch>/
+    Batches:           ${sample_count}
     ========================================================================================
     """
 }

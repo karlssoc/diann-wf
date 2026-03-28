@@ -273,7 +273,7 @@ workflow PRESEARCH_AND_QUANTIFY {
     */
 
     def presearch_sample = SELECT_PRESEARCH_FILES.out.presearch_dir
-        .map { dir -> tuple('presearch', dir, file_type, 'presearch', false, n_select) }
+        .map { dir -> tuple('presearch', dir, file_type, '', false, n_select) }
 
     QUANTIFY_PRESEARCH(
         presearch_sample,
@@ -307,7 +307,7 @@ workflow PRESEARCH_AND_QUANTIFY {
     ========================================================================================
     */
 
-    def subdir = params.quantify_subdir ?: ''
+    def subdir = params.quantify_subdir ?: 'quantification'
     def samples_ch = createSamplesChannel(samples_list, subdir)
     // Use mbr_final for the final stage (params.mbr defaults to false in nextflow.config
     // for identification stages; mbr_final defaults to true for final quantification)
@@ -352,8 +352,9 @@ workflow.onComplete {
     Presearch files:   ${params.presearch_files ?: 5}
     Library generated: ${params.outdir}/${params.library_subdir ?: 'library'}/${params.library_name ?: 'library'}.predicted.speclib
     Subset library:    ${params.outdir}/subset_library/subset_lib.parquet
+    Presearch results: ${params.outdir}/presearch/
+    Final results:     ${params.outdir}/${params.quantify_subdir ?: 'quantification'}/<sample>/
     Samples quantified: ${sample_count}
-    Results directory: ${params.outdir}
     ========================================================================================
     """
 }

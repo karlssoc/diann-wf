@@ -64,20 +64,23 @@ include { countMSFiles                    } from '../lib/files'
 def buildBatchBiospeMap(biospecimens_list) {
     def batch_map = [:]
     biospecimens_list.each { biospe ->
-        if (!biospe.id) {
+        def biospe_id = biospe['id']
+        def biospe_batches = biospe['batches']
+        if (!biospe_id) {
             log.error "ERROR: Biospecimen missing 'id' field"
             System.exit(1)
         }
-        if (!biospe.batches) {
-            log.error "ERROR: Biospecimen '${biospe.id}' missing 'batches' list"
+        if (!biospe_batches) {
+            log.error "ERROR: Biospecimen '${biospe_id}' missing 'batches' list"
             System.exit(1)
         }
-        biospe.batches.each { batch ->
-            if (batch_map.containsKey(batch.id)) {
-                log.error "ERROR: Duplicate batch id '${batch.id}' — must be unique across all biospecimens"
+        biospe_batches.each { batch ->
+            def batch_id = batch['id']
+            if (batch_map.containsKey(batch_id)) {
+                log.error "ERROR: Duplicate batch id '${batch_id}' — must be unique across all biospecimens"
                 System.exit(1)
             }
-            batch_map[batch.id] = biospe.id
+            batch_map[batch_id] = biospe_id
         }
     }
     return batch_map
@@ -88,16 +91,21 @@ def buildBatchBiospeMap(biospecimens_list) {
 def buildPass1Batches(biospecimens_list) {
     def result = []
     biospecimens_list.each { biospe ->
-        biospe.batches.each { batch ->
-            def sample_dir = file(batch.dir)
+        def biospe_id = biospe['id']
+        def biospe_batches = biospe['batches']
+        biospe_batches.each { batch ->
+            def batch_id  = batch['id']
+            def batch_dir = batch['dir']
+            def sample_dir = file(batch_dir)
             if (!sample_dir.exists()) {
-                log.error "ERROR: Batch directory not found: ${batch.dir} (biospecimen: ${biospe.id})"
+                log.error "ERROR: Batch directory not found: ${batch_dir} (biospecimen: ${biospe_id})"
                 System.exit(1)
             }
-            def file_count = countMSFiles(sample_dir, batch.recursive ?: false)
-            log.info "Batch ${batch.id} (${biospe.id}): ${file_count} MS files"
-            result << [batch.id, sample_dir, batch.file_type ?: 'dia',
-                       "${biospe.id}/quant_full", batch.recursive ?: false, file_count]
+            def recursive  = batch['recursive'] ?: false
+            def file_count = countMSFiles(sample_dir, recursive)
+            log.info "Batch ${batch_id} (${biospe_id}): ${file_count} MS files"
+            result << [batch_id, sample_dir, batch['file_type'] ?: 'dia',
+                       "${biospe_id}/quant_full", recursive, file_count]
         }
     }
     return result
@@ -108,11 +116,15 @@ def buildPass1Batches(biospecimens_list) {
 def buildFinalBatches(biospecimens_list) {
     def result = []
     biospecimens_list.each { biospe ->
-        biospe.batches.each { batch ->
-            def sample_dir = file(batch.dir)
-            def file_count = countMSFiles(sample_dir, batch.recursive ?: false)
-            result << [biospe.id, batch.id, sample_dir, batch.file_type ?: 'dia',
-                       "${biospe.id}/quant_subset", batch.recursive ?: false, file_count]
+        def biospe_id = biospe['id']
+        def biospe_batches = biospe['batches']
+        biospe_batches.each { batch ->
+            def batch_id   = batch['id']
+            def sample_dir = file(batch['dir'])
+            def recursive  = batch['recursive'] ?: false
+            def file_count = countMSFiles(sample_dir, recursive)
+            result << [biospe_id, batch_id, sample_dir, batch['file_type'] ?: 'dia',
+                       "${biospe_id}/quant_subset", recursive, file_count]
         }
     }
     return result
@@ -320,8 +332,8 @@ workflow QUANTIFY_FASTA_SUBSET_BY_BIOSPE {
 
 workflow.onComplete {
     def biospe_list   = params.biospecimens instanceof List ? params.biospecimens : []
-    def biospe_ids    = biospe_list.collect { it.id }.join(', ')
-    def total_batches = biospe_list.sum { biospe -> biospe.batches?.size() ?: 0 }
+    def biospe_ids    = biospe_list.collect { it['id'] }.join(', ')
+    def total_batches = biospe_list.sum { biospe -> biospe['batches']?.size() ?: 0 }
 
     println """
     ========================================================================================

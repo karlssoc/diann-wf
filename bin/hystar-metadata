@@ -86,9 +86,9 @@ run_with_container() {
         apptainer|singularity)
             exec "$runtime" exec \
                 --bind "$(pwd)" \
-                --bind "${SCRIPT_DIR}" \
+                --bind "${SCRIPT_DIR}:/opt/diann-wf-bin" \
                 "docker://$PYTHON_CONTAINER" \
-                python3 "$PYTHON_SCRIPT" "${ARGS[@]}"
+                python3 /opt/diann-wf-bin/extract_hystar_metadata.py "${ARGS[@]}"
             ;;
         docker)
             exec docker run --rm \

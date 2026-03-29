@@ -2,15 +2,21 @@
 """
 Extract Bruker HyStar acquisition metadata from TimsTOF .d directories.
 
-Reads the 'samples' list from a DIA-NN workflow YAML and for each entry with
-file_type == 'd', finds all .d directories and extracts acquisition metadata
+Reads sample/batch definitions from a DIA-NN workflow YAML and for each entry
+with file_type == 'd', finds all .d directories and extracts acquisition metadata
 from HyStarMetadata.xml inside each Bruker TimsTOF .d folder.
+
+Supported YAML structures:
+    samples:   [{id, dir, file_type, recursive}]       # quantify_only, presearch_and_quantify
+    batches:   [{id, dir, file_type, recursive}]       # quantify_fasta_subset
+    biospecimens: [{id, batches: [{id, dir, ...}]}]    # quantify_fasta_subset_by_biospe
 
 Usage:
     extract_hystar_metadata.py params.yaml [options]
 
 Output CSV columns:
-    YamlSampleId     - Sample id from the YAML params file
+    YamlSampleId     - Sample/batch id from the YAML params file
+    YamlBiospeId     - Biospecimen id (only for biospecimens YAML; empty otherwise)
     SampleID         - SampleID attribute from HyStarMetadata.xml
     CreationDateTime - Acquisition timestamp (ISO 8601, from HyStarMetadata.xml)
     FileName         - .d directory name only (no path)
@@ -89,13 +95,33 @@ def parse_hystar_metadata(d_dir: Path) -> dict:
     }
 
 
+def flatten_samples(params: dict) -> list:
+    """
+    Return a flat list of sample/batch entries from any supported YAML structure.
+
+    Each entry is a dict with keys: id, dir, file_type, recursive, biospe_id.
+    biospe_id is empty string for non-biospecimen YAMLs.
+    """
+    if "biospecimens" in params:
+        result = []
+        for biospe in params.get("biospecimens", []):
+            biospe_id = biospe.get("id", "")
+            for batch in biospe.get("batches", []):
+                result.append({**batch, "biospe_id": biospe_id})
+        return result
+    elif "batches" in params:
+        return [{**b, "biospe_id": ""} for b in params.get("batches", [])]
+    else:
+        return [{**s, "biospe_id": ""} for s in params.get("samples", [])]
+
+
 def extract_metadata(params_file: Path, basedir: Path, outdir: Path, output_name: str) -> Path:
     with open(params_file) as fh:
         params = yaml.safe_load(fh)
 
-    samples = params.get("samples", [])
+    samples = flatten_samples(params)
     if not samples:
-        print("WARNING: No 'samples' entries found in params file.", file=sys.stderr)
+        print("WARNING: No sample/batch entries found in params file (checked 'samples', 'batches', 'biospecimens').", file=sys.stderr)
 
     resolved_outdir = outdir or Path(params.get("outdir", "."))
 
@@ -105,6 +131,7 @@ def extract_metadata(params_file: Path, basedir: Path, outdir: Path, output_name
             continue
 
         yaml_id = sample.get("id", "")
+        biospe_id = sample.get("biospe_id", "")
         sample_dir_str = sample.get("dir", "")
         recursive = sample.get("recursive", False)
 
@@ -128,6 +155,7 @@ def extract_metadata(params_file: Path, basedir: Path, outdir: Path, output_name
 
             rows.append({
                 "YamlSampleId": yaml_id,
+                "YamlBiospeId": biospe_id,
                 "SampleID": meta["SampleID"],
                 "CreationDateTime": meta["CreationDateTime"],
                 "FileName": meta["FileName"],
@@ -140,7 +168,7 @@ def extract_metadata(params_file: Path, basedir: Path, outdir: Path, output_name
     resolved_outdir.mkdir(parents=True, exist_ok=True)
     output_path = resolved_outdir / output_name
 
-    fieldnames = ["YamlSampleId", "SampleID", "CreationDateTime", "FileName", "WindowsPath", "LocalPath"]
+    fieldnames = ["YamlSampleId", "YamlBiospeId", "SampleID", "CreationDateTime", "FileName", "WindowsPath", "LocalPath"]
     with open(output_path, "w", newline="") as fh:
         writer = csv.DictWriter(fh, fieldnames=fieldnames)
         writer.writeheader()

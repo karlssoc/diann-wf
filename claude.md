@@ -145,6 +145,22 @@ executor {
 **Solution:** Convert RAW/.d files to .dia format before running INFINDIA_PRESEARCH. mzML files can be used directly without conversion.
 **Implementation:** Use `convert_to_dia: true` in config. The iterative_quant and infindia_presearch_only workflows automatically convert files to .dia before presearch.
 
+### Issue 8: DIA-NN hangs at "Loading run" with Bruker .d files — stale `/dev/shm/bip.gmem.map*`
+**Cause:** DIA-NN's Bruker TDF reading library uses a shared memory file (`/dev/shm/bip.gmem.map.41_0.000000`) for IPC. When a Nextflow run is cancelled while DIA-NN is processing `.d` files, this file is left orphaned in `/dev/shm/`. The next DIA-NN process opens the stale file and waits indefinitely for a server response that never comes.
+**Symptom:** DIA-NN prints `[0:xx] Loading run <file>.d` then stops. Process is alive (visible in `ps aux`) with 60 threads all in `hrtimer_nanosleep` state, zero I/O activity (`/proc/PID/io` empty), and only 5 open file descriptors including `/dev/shm/bip.gmem.map.41_0.000000`.
+**Diagnosis:** `ls -la /dev/shm/bip.gmem.map*` — if timestamp predates current run, it's stale.
+**Solution:** Kill the DIA-NN process and delete the stale file:
+```bash
+kill -9 <diann_pid>
+rm -f /dev/shm/bip.gmem.map*
+```
+Then resubmit (Nextflow will retry automatically, or use `-resume`).
+**Prevention:** Add the following to project launch scripts before `nextflow run`:
+```bash
+rm -f /dev/shm/bip.gmem.map* 2>/dev/null
+```
+**Note:** Only affects Bruker `.d` (timsTOF) files. Triggered by any cancelled Nextflow run that left DIA-NN mid-processing. Accumulates across multiple cancellations on the same node.
+
 ## Important Patterns
 
 ### DIA-NN Binary Path (Runtime Resolution)

@@ -71,7 +71,9 @@ process QUANTIFY {
 
     // Mass accuracy parameters:
     // - Explicit params.mass_acc / params.mass_acc_ms1 take priority
-    // - Fall back to Bruker .d default (15 ppm) when file_type == 'd'
+    // - Fall back to instrument defaults when file_type is known:
+    //     'd'   (Bruker timsTOF): --mass-acc 15 --mass-acc-ms1 15
+    //     'raw' (Thermo):         --mass-acc 15 --mass-acc-ms1 5
     // - Otherwise omitted (DIA-NN auto-calibrates)
     def mass_acc_params = ""
     if (params.mass_acc != null && params.mass_acc_ms1 != null) {
@@ -82,6 +84,8 @@ process QUANTIFY {
         mass_acc_params = "--mass-acc-ms1 ${params.mass_acc_ms1}"
     } else if (file_type == 'd') {
         mass_acc_params = "--mass-acc 15 --mass-acc-ms1 15"
+    } else if (file_type == 'raw') {
+        mass_acc_params = "--mass-acc 15 --mass-acc-ms1 5"
     }
 
     // Get additional quantification parameters if specified

@@ -325,7 +325,7 @@ samples:
 | File Type | Parameters Applied |
 |-----------|-------------------|
 | `.d` (Bruker) | `--mass-acc 15 --mass-acc-ms1 15` (configurable) |
-| `.raw` (Thermo) | DIA-NN auto-calibration |
+| `.raw` (Thermo) | `--mass-acc 15 --mass-acc-ms1 5` (configurable; empirically +5% IDs vs auto) |
 | `.mzML` | DIA-NN auto-calibration |
 | `.dia` | DIA-NN auto-calibration |
 

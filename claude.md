@@ -393,8 +393,10 @@ nextflow lint .
 - `qvalue`: Precursor q-value threshold (0 = DIA-NN default 0.01)
 - `pg_level`: Protein group level (1=proteins, 0=genes)
 - `mass_acc_cal`: Mass accuracy calibration threshold
+- `mass_acc_ms1`: MS1 mass accuracy ppm. Thermo HFX/Orbitrap RAW: set `5` (+5% protein IDs vs auto, ~5% faster). Bruker .d: omit (DIA-NN default 15 ppm).
+- `mass_acc`: MS2 mass accuracy ppm. Thermo HFX/Orbitrap RAW: set `15`. Bruker .d: omit (DIA-NN default 15 ppm).
 - `smart_profiling`: Use smart profiling (default: false)
-- `individual_mass_acc`: Per-file mass accuracy (default: false, causes ~12% intensity decrease)
+- `individual_mass_acc`: Per-file mass accuracy (default: false). No ID benefit observed — timsTOF results identical vs true; causes ~12% intensity decrease. Leave false.
 - `matrices`: Generate result matrices (default: true)
 - `mbr`: Match-between-runs for identification stage (default: false)
 - `mbr_final`: Match-between-runs for final quantification (default: true)

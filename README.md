@@ -343,9 +343,9 @@ parallel_mode: false        # Split into 2x30-core jobs
 # Quantification
 qvalue: 0                   # 0 = DIA-NN default (1% FDR)
 pg_level: 1                 # 1=proteins, 0=genes
-mass_acc: 15                # MS2 ppm (Bruker .d default)
-mass_acc_ms1: 15            # MS1 ppm (Bruker .d default)
-individual_mass_acc: false  # Per-file (causes ~12% intensity decrease)
+# mass_acc: 15             # MS2 ppm. Thermo HFX/Orbitrap: 15 (+5% IDs vs auto). Bruker .d: omit (default 15).
+# mass_acc_ms1: 5          # MS1 ppm. Thermo HFX/Orbitrap: 5 (+5% IDs vs auto). Bruker .d: omit (default 15).
+individual_mass_acc: false  # No ID benefit; causes ~12% intensity decrease — leave false
 smart_profiling: true
 matrices: true
 mbr: false                  # MBR for identification stage

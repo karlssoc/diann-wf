@@ -8,10 +8,15 @@
 // Design notes:
 // - Ultrafast flags are hardcoded (not from params.ultrafast); this process is
 //   always ultrafast regardless of the global ultrafast setting.
+// - File limiting: params.ref_presearch_files (default 5) controls how many
+//   individual files from the batch directory are searched. Files are found by
+//   scanning for common DIA-NN formats (.raw, .dia, .mzML, .wiff, .d/) and
+//   passed via --f flags. This avoids searching entire large batch directories.
+//   Set to 0 to use --dir and process all files (original behaviour).
 // - publishDir is hardcoded to outdir/ref_presearch/<sample_id>/. The subdir
 //   field in the input tuple is carried for channel compatibility but not used.
 // - No MBR, no matrices, no ref_library — this is a fast protein discovery step.
-// - Time allocation is 50% of normal (ultrafast mode ~2x faster).
+// - Time allocation uses ref_presearch_files instead of file_count when limiting.
 // - Mass accuracy logic is identical to QUANTIFY for consistent calibration.
 
 process PRESEARCH_ULTRAFAST {
@@ -23,11 +28,13 @@ process PRESEARCH_ULTRAFAST {
 
     tag "ref_presearch/${sample_id}"
 
-    // Ultrafast mode is ~50% of normal time
+    // Time based on number of files actually searched (limited by ref_presearch_files)
     time {
+        def max_files = params.ref_presearch_files != null ? params.ref_presearch_files : 5
+        def effective_files = (max_files > 0) ? Math.min(max_files, file_count.toInteger()) : file_count.toInteger()
         def base_hours = params.time_base_hours ?: 2
         def minutes_per_file = params.time_per_file_minutes ?: 15
-        def total_minutes = ((base_hours * 60) + (file_count.toInteger() * minutes_per_file)) * 0.5
+        def total_minutes = ((base_hours * 60) + (effective_files * minutes_per_file)) * 0.5
         def hours = Math.ceil(total_minutes / 60.0) as Integer
         return "${hours}h"
     }
@@ -45,7 +52,10 @@ process PRESEARCH_ULTRAFAST {
     // DIA-NN binary path (auto-computed from version if not explicitly set)
     def diann_cmd = params.diann_binary ?: "/usr/bin/diann-${params.diann_version}/diann-linux"
 
-    // Directory parameter: use --dir-all for recursive, --dir for non-recursive
+    // File limiting: use --f flags for N individual files, or --dir for all
+    def max_files = params.ref_presearch_files != null ? params.ref_presearch_files : 5
+
+    // Directory parameter (fallback when max_files = 0)
     def dir_param = recursive ? "--dir-all" : "--dir"
 
     // Mass accuracy parameters — identical logic to QUANTIFY for consistent calibration
@@ -68,9 +78,43 @@ process PRESEARCH_ULTRAFAST {
     """
     mkdir -p temp_diann
 
+    # Build file list for presearch
+    # Enumerate all common DIA-NN-compatible formats (file_type is a mass-accuracy hint,
+    # not necessarily the actual extension — scan for all formats to be robust).
+    # Bruker .d are directories; all others are files.
+    MAX_FILES=${max_files}
+
+    if [ "\${MAX_FILES}" -gt 0 ]; then
+        FILE_LISTING=\$(
+            {
+                find -L ${ms_dir} -maxdepth 1 -type f \\
+                    \\( -iname "*.raw" -o -iname "*.dia" -o -iname "*.mzML" -o -iname "*.mzml" -o -iname "*.wiff" \\)
+                find -L ${ms_dir} -maxdepth 1 -type d -name "*.d"
+            } | sort | head -\${MAX_FILES}
+        )
+
+        if [ -z "\${FILE_LISTING}" ]; then
+            echo "WARNING: No compatible files found in ${ms_dir}; falling back to --dir"
+            DIR_OR_F="${dir_param} ${ms_dir}"
+        else
+            FILE_COUNT=\$(echo "\${FILE_LISTING}" | wc -l)
+            echo "Presearch: using \${FILE_COUNT} files from ${ms_dir}"
+            echo "\${FILE_LISTING}"
+            # Build --f flags for each file/directory
+            F_ARGS=""
+            while IFS= read -r F; do
+                F_ARGS="\${F_ARGS} --f \${F}"
+            done <<< "\${FILE_LISTING}"
+            DIR_OR_F="\${F_ARGS}"
+        fi
+    else
+        echo "Presearch: using all files in ${ms_dir} (ref_presearch_files=0)"
+        DIR_OR_F="${dir_param} ${ms_dir}"
+    fi
+
     ${diann_cmd} \\
         --fasta ${fasta} \\
-        ${dir_param} ${ms_dir} \\
+        \${DIR_OR_F} \\
         --lib ${library} \\
         --threads ${task.cpus} \\
         --verbose 1 \\

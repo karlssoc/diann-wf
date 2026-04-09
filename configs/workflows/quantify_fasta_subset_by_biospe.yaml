@@ -96,6 +96,24 @@ matrices: true
 # model_preset: 'hfx-vneo-16SPD-2.3.2-260608'
 # tuning_mode: 'skip'
 
-# Optional: Reference library for batch correction (both passes)
+# Optional: Auto-generated calibration ref library (--ref flag)
+# Speeds up RT/IM calibration in full-FASTA passes by giving DIA-NN a small
+# high-confidence speclib to anchor against before searching the full library.
+# The ref library is shared across all biospecimens and generated with identical
+# parameters to the full library.
+#
+# Enable by setting ref_n_proteins. The workflow will:
+#   1. Presearch the first ref_n_samples batches (ref_presearch_files files each)
+#      in ultrafast mode against the full library (batches are taken in order,
+#      across biospecimens as listed in the biospecimens block above)
+#   2. Select the top-N most consistently detected proteins (by precursor count)
+#   3. Generate a small shared speclib from those proteins (same search params)
+#   4. Pass it as --ref to all quant_full and quant_subset passes
+#
+# ref_n_proteins: 300        # Number of proteins in ref library (recommended: 300)
+# ref_n_samples: 1           # Batches to presearch (default: 2; use 1 for single-batch runs)
+# ref_presearch_files: 5     # Files per batch to presearch (default: 5; 0 = all)
+
+# Optional: Manual reference library for batch calibration (overridden by ref_n_proteins)
 # ref_library: '/path/to/reference/library.predicted.speclib'
 # individual_windows: true

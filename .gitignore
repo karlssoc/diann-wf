@@ -77,6 +77,7 @@ generate_example_data/diann/
 !generate_example_data/*.py
 !generate_example_data/*.md
 
+benchmarks/
 
 tmp/
 

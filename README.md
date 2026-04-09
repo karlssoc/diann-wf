@@ -181,17 +181,27 @@ quantification). Use native x86-64 hardware or HPC for production runs.
 Two-pass search space reduction via FASTA subsetting:
 
 1. **Generate library** from full FASTA
-2. **Pass 1:** Quantify all samples, full library, MBR enabled
+2. *(Optional)* **Auto-generate calibration ref library** (`ref_n_proteins` param)
+   → Presearch N files ultrafast → top-N proteins → small speclib used as `--ref`
+   for faster RT/IM calibration in both passes (recommended for large FASTA files)
+3. **Pass 1:** Quantify all samples, full library, MBR enabled
    → `report-first-pass.parquet` = union of per-run 1% FDR IDs across all samples
-3. **Subset FASTA** to Protein.Groups detected in pass 1
-4. **Generate new library** from subset FASTA (native speclib, no `--reannotate`)
-5. **Pass 2:** Quantify all samples, subset library, MBR enabled
+4. **Subset FASTA** to Protein.Groups detected in pass 1
+5. **Generate new library** from subset FASTA (native speclib, no `--reannotate`)
+6. **Pass 2:** Quantify all samples, subset library, MBR enabled
 
 **Advantages over PRESEARCH_AND_QUANTIFY:**
 - Fresh speclib from subset FASTA: full predicted spectral quality preserved
 - Native speclib used as-is in pass 2 (no `--reannotate`)
 - ~78% smaller library: faster pass 2, less decoy competition, better FDR calibration
 - Total time ≈ 1.2x a standard single-pass run
+
+**Calibration ref library parameters** (add to config to enable):
+```yaml
+ref_n_proteins: 300      # proteins in ref library (recommended: 300)
+ref_n_samples: 1         # batches to presearch (default: 2)
+ref_presearch_files: 5   # files per batch (default: 5; 0 = all)
+```
 
 Config file: [configs/workflows/quantify_fasta_subset.yaml](configs/workflows/quantify_fasta_subset.yaml)
 

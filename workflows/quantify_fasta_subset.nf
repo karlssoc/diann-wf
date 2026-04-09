@@ -36,11 +36,14 @@
 nextflow.enable.dsl = 2
 
 // Include modules
-include { GENERATE_LIBRARY                         } from '../modules/library'
-include { GENERATE_LIBRARY as GENERATE_LIBRARY_FINAL } from '../modules/library'
-include { QUANTIFY as QUANTIFY_PASS1               } from '../modules/quantify'
-include { QUANTIFY as QUANTIFY_FINAL               } from '../modules/quantify'
-include { SUBSET_FASTA                             } from '../modules/subset_fasta'
+include { GENERATE_LIBRARY                              } from '../modules/library'
+include { GENERATE_LIBRARY as GENERATE_LIBRARY_FINAL    } from '../modules/library'
+include { GENERATE_LIBRARY as GENERATE_LIBRARY_REF      } from '../modules/library'
+include { QUANTIFY as QUANTIFY_PASS1                    } from '../modules/quantify'
+include { QUANTIFY as QUANTIFY_FINAL                    } from '../modules/quantify'
+include { SUBSET_FASTA                                  } from '../modules/subset_fasta'
+include { SUBSET_FASTA as SUBSET_FASTA_REF              } from '../modules/subset_fasta'
+include { PRESEARCH_ULTRAFAST                           } from '../modules/presearch_ultrafast'
 
 // Include shared utilities
 include { parseSamples; createSamplesChannel       } from '../lib/samples'
@@ -71,8 +74,12 @@ workflow QUANTIFY_FASTA_SUBSET {
         error "ERROR: FASTA file not found: ${params.fasta}"
     }
 
-    def models           = resolveModelFiles(params, projectDir)
-    def ref_library_file = params.ref_library ? file(params.ref_library) : file('NO_FILE')
+    def models        = resolveModelFiles(params, projectDir)
+    def search_params = params.library ?: [:]
+
+    // Ref library priority: auto-generated (ref_n_proteins) > manual (ref_library) > NO_FILE
+    // auto_ref_lib is overwritten below if ref_n_proteins is set
+    def auto_ref_lib = params.ref_library ? file(params.ref_library) : file('NO_FILE')
 
     log.info ""
     log.info "DIANN FASTA Subset + Quantification Workflow"
@@ -85,9 +92,13 @@ workflow QUANTIFY_FASTA_SUBSET {
     log.info "Pass 1: full FASTA, all samples, MBR enabled"
     log.info "  → report-first-pass.parquet used to subset FASTA"
     log.info "Pass 2: subset speclib, all samples, MBR enabled"
+    if (params.ref_n_proteins) {
+        def n_samp = params.ref_n_samples ?: 2
+        log.info "Calibration ref library: auto-generating (top ${params.ref_n_proteins} proteins from ${n_samp} sample(s), ultrafast)"
+    } else if (params.ref_library) {
+        log.info "Calibration ref library: ${params.ref_library} (manual)"
+    }
     log.info ""
-
-    def search_params = params.library ?: [:]
 
     /*
     ========================================================================================
@@ -119,13 +130,64 @@ workflow QUANTIFY_FASTA_SUBSET {
     // Convert to value channel at assignment time
     def full_library = GENERATE_LIBRARY.out.library.first()
 
+    /*
+    ========================================================================================
+        STEP 1.5 (optional): Auto-generate calibration ref library
+        Activated by setting ref_n_proteins in config (null = skip).
+        Samples the first N batches in ultrafast mode against the full library,
+        selects the top-N most detected proteins, generates a small speclib with
+        identical parameters to the full library, and uses it as --ref in all
+        QUANTIFY steps for faster RT/IM calibration.
+    ========================================================================================
+    */
+
+    if (params.ref_n_proteins) {
+        def ref_n_samples = params.ref_n_samples ?: 2
+        def ref_samples_list = samples_list.take(ref_n_samples)
+        def ref_samples_ch = createSamplesChannel(ref_samples_list, 'ref_presearch')
+
+        PRESEARCH_ULTRAFAST(
+            ref_samples_ch,
+            full_library,
+            fasta_file
+        )
+
+        def ref_presearch_reports = PRESEARCH_ULTRAFAST.out.report
+            .map { sample_id, report -> report }
+            .collect()
+
+        SUBSET_FASTA_REF(
+            ref_presearch_reports,
+            fasta_file,
+            'ref_presearch',
+            'ref',
+            params.ref_n_proteins
+        )
+
+        def ref_fasta_ch = SUBSET_FASTA_REF.out.subset_fasta.first()
+
+        GENERATE_LIBRARY_REF(
+            ref_fasta_ch,
+            'ref_library',
+            'ref_library',
+            search_params,
+            models.tokens,
+            models.rt_model,
+            models.im_model,
+            models.fr_model,
+            file('NO_FILE')
+        )
+
+        auto_ref_lib = GENERATE_LIBRARY_REF.out.library.first()
+    }
+
     def samples_pass1_ch = createSamplesChannel(samples_list, 'quant_full')
 
     QUANTIFY_PASS1(
         samples_pass1_ch,
         full_library,
         fasta_file,
-        ref_library_file,
+        auto_ref_lib,
         true,              // MBR enabled: generates report-first-pass.parquet
         params.qvalue ?: 0
     )
@@ -145,7 +207,8 @@ workflow QUANTIFY_FASTA_SUBSET {
         first_pass_reports,
         fasta_file,
         'subset_fasta',
-        'subset'
+        'subset',
+        0   // top_n = 0: no limit (use all detected proteins for FASTA subsetting)
     )
 
     /*
@@ -189,7 +252,7 @@ workflow QUANTIFY_FASTA_SUBSET {
         samples_final_ch,
         subset_lib,
         subset_fasta_ch,    // Subset FASTA for consistent protein annotations
-        ref_library_file,
+        auto_ref_lib,
         mbr,
         params.qvalue ?: 0
     )

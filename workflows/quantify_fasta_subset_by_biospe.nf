@@ -43,9 +43,12 @@ nextflow.enable.dsl = 2
 // Include modules
 include { GENERATE_LIBRARY                               } from '../modules/library'
 include { GENERATE_LIBRARY as GENERATE_LIBRARY_FINAL     } from '../modules/library'
+include { GENERATE_LIBRARY as GENERATE_LIBRARY_REF       } from '../modules/library'
 include { QUANTIFY as QUANTIFY_PASS1                     } from '../modules/quantify'
 include { QUANTIFY as QUANTIFY_FINAL                     } from '../modules/quantify'
 include { SUBSET_FASTA                                   } from '../modules/subset_fasta'
+include { SUBSET_FASTA as SUBSET_FASTA_REF               } from '../modules/subset_fasta'
+include { PRESEARCH_ULTRAFAST                            } from '../modules/presearch_ultrafast'
 
 // Include shared utilities
 include { resolveModelFiles; logModelInfo } from '../lib/models'
@@ -159,9 +162,11 @@ workflow QUANTIFY_FASTA_SUBSET_BY_BIOSPE {
         error "ERROR: FASTA file not found: ${params.fasta}"
     }
 
-    def models           = resolveModelFiles(params, projectDir)
-    def ref_library_file = params.ref_library ? file(params.ref_library) : file('NO_FILE')
-    def search_params    = params.library ?: [:]
+    def models        = resolveModelFiles(params, projectDir)
+    def search_params = params.library ?: [:]
+
+    // Ref library priority: auto-generated (ref_n_proteins) > manual (ref_library) > NO_FILE
+    def auto_ref_lib = params.ref_library ? file(params.ref_library) : file('NO_FILE')
 
     log.info ""
     log.info "DIANN FASTA Subset + Quantification by Biospecimen"
@@ -171,6 +176,12 @@ workflow QUANTIFY_FASTA_SUBSET_BY_BIOSPE {
     log.info "Total batches  : ${batch_biospe_map.size()}"
     log.info "Output dir     : ${params.outdir}"
     logModelInfo(models, params)
+    if (params.ref_n_proteins) {
+        def n_samp = params.ref_n_samples ?: 2
+        log.info "Calibration ref library: auto-generating (top ${params.ref_n_proteins} proteins from ${n_samp} batch(es), ultrafast)"
+    } else if (params.ref_library) {
+        log.info "Calibration ref library: ${params.ref_library} (manual)"
+    }
     log.info ""
 
     /*
@@ -196,6 +207,57 @@ workflow QUANTIFY_FASTA_SUBSET_BY_BIOSPE {
 
     /*
     ========================================================================================
+        STEP 1.5 (optional): Auto-generate calibration ref library
+        Activated by setting ref_n_proteins in config (null = skip).
+        Samples the first N batches (across all biospecimens) in ultrafast mode,
+        selects the top-N most detected proteins, and generates a small shared speclib
+        with identical parameters to the full library. Used as --ref in all QUANTIFY steps.
+    ========================================================================================
+    */
+
+    if (params.ref_n_proteins) {
+        def ref_n_samples = params.ref_n_samples ?: 2
+        def all_pass1_batches = buildPass1Batches(biospecimens_list)
+        def ref_batches_list = all_pass1_batches.take(ref_n_samples)
+        def ref_samples_ch = Channel.fromList(ref_batches_list)
+
+        PRESEARCH_ULTRAFAST(
+            ref_samples_ch,
+            full_library,
+            fasta_file
+        )
+
+        def ref_presearch_reports = PRESEARCH_ULTRAFAST.out.report
+            .map { sample_id, report -> report }
+            .collect()
+
+        SUBSET_FASTA_REF(
+            ref_presearch_reports,
+            fasta_file,
+            'ref_presearch',
+            'ref',
+            params.ref_n_proteins
+        )
+
+        def ref_fasta_ch = SUBSET_FASTA_REF.out.subset_fasta.first()
+
+        GENERATE_LIBRARY_REF(
+            ref_fasta_ch,
+            'ref_library',
+            'ref_library',
+            search_params,
+            models.tokens,
+            models.rt_model,
+            models.im_model,
+            models.fr_model,
+            file('NO_FILE')
+        )
+
+        auto_ref_lib = GENERATE_LIBRARY_REF.out.library.first()
+    }
+
+    /*
+    ========================================================================================
         STEP 2: Full FASTA quant — all batches against full library (MBR enabled)
         report-first-pass.parquet = per-run 1% FDR identifications (pre-MBR transfer)
         These are collected per biospecimen for FASTA subsetting in Step 3.
@@ -209,7 +271,7 @@ workflow QUANTIFY_FASTA_SUBSET_BY_BIOSPE {
         pass1_batches_ch,
         full_library,
         fasta_file,
-        ref_library_file,
+        auto_ref_lib,
         true,              // MBR enabled: generates report-first-pass.parquet
         params.qvalue ?: 0
     )
@@ -242,7 +304,8 @@ workflow QUANTIFY_FASTA_SUBSET_BY_BIOSPE {
         subset_fasta_in.pg_sources,
         fasta_file,
         subset_fasta_in.subdirs,
-        subset_fasta_in.output_names
+        subset_fasta_in.output_names,
+        0   // top_n = 0: no limit (use all detected proteins per biospecimen)
     )
 
     // Re-key by parsing biospe_id from output filename: plasma.fasta → 'plasma'
@@ -310,7 +373,7 @@ workflow QUANTIFY_FASTA_SUBSET_BY_BIOSPE {
         final_fork.samples,
         final_fork.libraries,
         fasta_file,
-        ref_library_file,
+        auto_ref_lib,
         mbr_final,
         params.qvalue ?: 0
     )

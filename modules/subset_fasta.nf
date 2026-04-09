@@ -19,6 +19,7 @@ process SUBSET_FASTA {
     path fasta         // Input FASTA file
     val subdir         // Optional output subdirectory
     val output_name    // Output file name (without .fasta extension)
+    val top_n          // Limit to top-N proteins by precursor count (0 = no limit, use all)
 
     output:
     path "${output_name}.fasta", emit: subset_fasta
@@ -36,13 +37,29 @@ process SUBSET_FASTA {
     # (same pattern as subset_library.nf)
     PG_LIST=\$(echo "${pg_source}" | tr ' ' '\\n' | sed "s/.*/'&'/" | paste -sd, -)
 
-    # Extract unique protein accessions (split semicolon-delimited Protein.Group values)
+    # Extract protein accessions (split semicolon-delimited Protein.Group values)
+    # When top_n > 0: rank by precursor count (most consistently detected proteins first)
     # Note: avoid '' (empty string literal) in script blocks - triggers Nextflow DSL2 lexer bug
-    /duckdb -csv -noheader -c "
-        SELECT DISTINCT \\\"Protein.Group\\\"
-        FROM read_parquet([\$PG_LIST])
-        WHERE \\\"Protein.Group\\\" IS NOT NULL
-    " | tr ';' '\\n' | awk NF | sort -u > protein_ids.txt
+    if [ ${top_n} -gt 0 ]; then
+        echo "Top-N selection: ${top_n} protein groups by precursor count" | tee -a subset_fasta.log
+        /duckdb -csv -noheader -c "
+            SELECT \\\"Protein.Group\\\"
+            FROM (
+                SELECT \\\"Protein.Group\\\", COUNT(*) as n
+                FROM read_parquet([\$PG_LIST])
+                WHERE \\\"Protein.Group\\\" IS NOT NULL
+                GROUP BY \\\"Protein.Group\\\"
+                ORDER BY n DESC
+                LIMIT ${top_n}
+            )
+        " | tr ';' '\\n' | awk NF | sort -u > protein_ids.txt
+    else
+        /duckdb -csv -noheader -c "
+            SELECT DISTINCT \\\"Protein.Group\\\"
+            FROM read_parquet([\$PG_LIST])
+            WHERE \\\"Protein.Group\\\" IS NOT NULL
+        " | tr ';' '\\n' | awk NF | sort -u > protein_ids.txt
+    fi
 
     ID_COUNT=\$(wc -l < protein_ids.txt | tr -d ' ')
     echo "Unique protein IDs: \$ID_COUNT" | tee -a subset_fasta.log

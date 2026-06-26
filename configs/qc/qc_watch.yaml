@@ -24,6 +24,7 @@ profile:       standard                                     # local exec on alap
                                                             # for single-file QC; standard is simpler
                                                             # and faster here. Override with --profile.
 diann_version: '2.3.2'
+threads:       30        # cores per DIA-NN search (good-neighbour cap on the shared node)
 
 # --- behaviour --------------------------------------------------------------
 min_raw_mb:    100      # skip raws smaller than this (incomplete/blank/aborted runs)

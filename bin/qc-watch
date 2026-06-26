@@ -371,7 +371,7 @@ def find_ms_dir(download_root: Path, file_type: str) -> Path:
 
 def write_params(path: Path, *, library: str, fasta: str, outdir: Path,
                  sample_id: str, ms_dir: Path, file_type: str,
-                 diann_version: str | None) -> None:
+                 diann_version: str | None, threads: int | None = None) -> None:
     import yaml
     params = {
         "library": str(library),
@@ -388,6 +388,8 @@ def write_params(path: Path, *, library: str, fasta: str, outdir: Path,
     }
     if diann_version:
         params["diann_version"] = str(diann_version)
+    if threads:
+        params["threads"] = int(threads)
     path.write_text(yaml.safe_dump(params, sort_keys=False))
 
 
@@ -514,7 +516,7 @@ def process_dataset(o, conn, cfg, inst, rec) -> str:
             library=inst["library"], fasta=inst["fasta"],
             outdir=Path(cfg["results_dir"]) / inst["name"],
             sample_id=stem, ms_dir=ms_dir, file_type=inst["file_type"],
-            diann_version=cfg.get("diann_version"),
+            diann_version=cfg.get("diann_version"), threads=cfg.get("threads"),
         )
         rc = run_search(
             cfg.get("nextflow", "nextflow"), cfg["repo"], params_file,

@@ -1,0 +1,661 @@
+#!/usr/bin/env python3
+"""
+qc-watch — automated MS-QC pipeline.
+
+Polls OpenBIS for newly uploaded QC raw files, searches each one with DIA-NN
+(via the diann-wf `quantify_only` workflow), records QC metrics in a SQLite
+database, then deletes the downloaded raw to keep disk usage minimal.
+
+The SQLite DB doubles as the "already processed" ledger: a dataset is searched
+once and never again. Raws smaller than `min_raw_mb` (incomplete / blank /
+aborted acquisitions) are skipped before download and remembered.
+
+Config is multi-instrument: each entry in `instruments:` is an independent
+watch target (collection + library + fasta + file_type), so adding a new
+instrument (e.g. a Bruker timsTOF) is just another list entry.
+
+Usage:
+    qc-watch --config configs/qc/qc_watch.yaml
+    qc-watch --config ... --dry-run                 # enumerate only, no work
+    qc-watch --config ... --only <DATASET_CODE>     # force one dataset
+    qc-watch --config ... --instrument minerva      # restrict to one instrument
+    qc-watch --config ... --max 5                   # cap datasets processed this run
+
+Requires (on the host that runs it, e.g. kraken):
+    - openbis-tools (`obtools`) installed in the same Python env (OpenBIS access
+      + auth/token caching); install from GitHub:
+        pip install git+https://github.com/karlssoc/openbis-tools.git
+      It reads credentials from ~/.openbis/credentials (OPENBIS_URL/USERNAME/PASSWORD).
+    - pyyaml; duckdb (optional, for RT metrics from report.parquet)
+    - nextflow (config `nextflow:`) + a diann-wf project (`repo:`; a GitHub
+      asset name like 'karlssoc/diann-wf' or a local checkout path)
+"""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import logging
+import os
+import shutil
+import sqlite3
+import subprocess
+import sys
+import zipfile
+from datetime import datetime, timezone
+from pathlib import Path
+
+LOG = logging.getLogger("qc-watch")
+
+MS_EXT = {"raw": ".raw", "d": ".d", "mzML": ".mzML", "dia": ".dia"}
+
+# Per-instrument keys that may override the top-level default.
+INSTRUMENT_OVERRIDABLE = ("library", "fasta", "min_raw_mb", "file_type", "since")
+
+
+# ---------------------------------------------------------------------------
+# Config
+# ---------------------------------------------------------------------------
+
+def load_config(path: str) -> dict:
+    try:
+        import yaml
+    except ImportError:
+        sys.exit("ERROR: pyyaml is required (pip install pyyaml)")
+    p = Path(path)
+    if not p.exists():
+        sys.exit(f"ERROR: config not found: {path}")
+    cfg = yaml.safe_load(p.read_text()) or {}
+    if not cfg.get("instruments"):
+        sys.exit("ERROR: config has no 'instruments:' list")
+    return cfg
+
+
+def resolve_instruments(cfg: dict, only_name: str | None) -> list[dict]:
+    """Merge top-level defaults into each instrument; validate required keys."""
+    out = []
+    for inst in cfg["instruments"]:
+        if only_name and inst.get("name") != only_name:
+            continue
+        merged = dict(inst)
+        for key in INSTRUMENT_OVERRIDABLE:
+            if key not in merged and key in cfg:
+                merged[key] = cfg[key]
+        merged.setdefault("file_type", "raw")
+        merged.setdefault("min_raw_mb", cfg.get("min_raw_mb", 100))
+        for req in ("name", "collection", "library", "fasta"):
+            if not merged.get(req):
+                sys.exit(f"ERROR: instrument '{inst.get('name', '?')}' missing '{req}'")
+        out.append(merged)
+    if only_name and not out:
+        sys.exit(f"ERROR: no instrument named '{only_name}' in config")
+    return out
+
+
+# ---------------------------------------------------------------------------
+# SQLite ledger
+# ---------------------------------------------------------------------------
+
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS runs (
+    dataset_code      TEXT PRIMARY KEY,
+    instrument        TEXT,
+    collection        TEXT,
+    run_name          TEXT,
+    size_bytes        INTEGER,
+    acquisition_date  TEXT,
+    registration_date TEXT,
+    status            TEXT,            -- pending|running|done|failed|skipped
+    attempts          INTEGER DEFAULT 0,
+    diann_version     TEXT,
+    library           TEXT,
+    result_dir        TEXT,
+    searched_at       TEXT,
+    error             TEXT
+);
+CREATE TABLE IF NOT EXISTS metrics (
+    dataset_code TEXT,
+    source       TEXT,                 -- 'stats' | 'rt'
+    metric       TEXT,
+    value        REAL,
+    PRIMARY KEY (dataset_code, source, metric)
+);
+"""
+
+
+def db_connect(path: str) -> sqlite3.Connection:
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(path, timeout=60)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.executescript(SCHEMA)
+    conn.commit()
+    return conn
+
+
+def settled_codes(conn: sqlite3.Connection) -> set[str]:
+    """Codes that need no further work: done or skipped."""
+    rows = conn.execute(
+        "SELECT dataset_code FROM runs WHERE status IN ('done', 'skipped')"
+    ).fetchall()
+    return {r["dataset_code"] for r in rows}
+
+
+def attempts_for(conn: sqlite3.Connection, code: str) -> int:
+    row = conn.execute(
+        "SELECT attempts FROM runs WHERE dataset_code = ?", (code,)
+    ).fetchone()
+    return row["attempts"] if row else 0
+
+
+def upsert_run(conn: sqlite3.Connection, rec: dict, instrument: str,
+               collection: str, **fields) -> None:
+    """Insert or update a run row. `fields` overrides status/error/etc."""
+    cols = {
+        "dataset_code": rec["code"],
+        "instrument": instrument,
+        "collection": collection,
+        "run_name": rec.get("file_name"),
+        "size_bytes": rec.get("size_bytes"),
+        "acquisition_date": rec.get("acquisition_date"),
+        "registration_date": rec.get("registration_date"),
+    }
+    cols.update(fields)
+    keys = list(cols)
+    placeholders = ", ".join("?" for _ in keys)
+    updates = ", ".join(f"{k}=excluded.{k}" for k in keys if k != "dataset_code")
+    conn.execute(
+        f"INSERT INTO runs ({', '.join(keys)}) VALUES ({placeholders}) "
+        f"ON CONFLICT(dataset_code) DO UPDATE SET {updates}",
+        [cols[k] for k in keys],
+    )
+    conn.commit()
+
+
+def set_status(conn: sqlite3.Connection, code: str, status: str, **fields) -> None:
+    fields["status"] = status
+    sets = ", ".join(f"{k}=?" for k in fields)
+    conn.execute(
+        f"UPDATE runs SET {sets} WHERE dataset_code=?",
+        [*fields.values(), code],
+    )
+    conn.commit()
+
+
+def write_metrics(conn: sqlite3.Connection, code: str, source: str,
+                  metrics: dict) -> None:
+    conn.executemany(
+        "INSERT INTO metrics (dataset_code, source, metric, value) VALUES (?,?,?,?) "
+        "ON CONFLICT(dataset_code, source, metric) DO UPDATE SET value=excluded.value",
+        [(code, source, k, v) for k, v in metrics.items()],
+    )
+    conn.commit()
+
+
+# ---------------------------------------------------------------------------
+# OpenBIS
+# ---------------------------------------------------------------------------
+
+def _read_credentials(path: str) -> dict:
+    """Load OpenBIS creds from an obtools-style KEY=VALUE file + env overrides."""
+    creds: dict = {}
+    p = Path(os.path.expanduser(path))
+    if p.exists():
+        for ln in p.read_text().splitlines():
+            ln = ln.strip()
+            if ln and not ln.startswith("#") and "=" in ln:
+                k, v = ln.split("=", 1)
+                creds[k.strip()] = v.strip()
+    for k in ("OPENBIS_URL", "OPENBIS_USERNAME", "OPENBIS_PASSWORD",
+              "OPENBIS_VERIFY_CERTS", "OBTOOLS_VERIFY_CERTS"):
+        if os.environ.get(k):
+            creds[k] = os.environ[k]
+    return creds
+
+
+def ob_connect(cfg: dict):
+    """Authenticated OpenBIS session.
+
+    Prefers obtools.connection.get() (token caching + credential handling); falls
+    back to pybis directly with ~/.openbis/credentials if obtools is unavailable.
+    """
+    try:
+        from obtools.connection import get
+        LOG.info("OpenBIS: via obtools")
+        return get()
+    except BaseException as exc:  # ImportError / SystemExit / connect failure
+        LOG.info("OpenBIS: obtools path unavailable (%r); using pybis directly", exc)
+
+    try:
+        from pybis import Openbis
+    except ImportError:
+        sys.exit("ERROR: need obtools or pybis installed for OpenBIS access")
+
+    creds = _read_credentials(cfg.get("openbis_credentials", "~/.openbis/credentials"))
+    url, user, pw = (creds.get("OPENBIS_URL"), creds.get("OPENBIS_USERNAME"),
+                     creds.get("OPENBIS_PASSWORD"))
+    if not url or not user:
+        sys.exit("ERROR: OPENBIS_URL/OPENBIS_USERNAME missing "
+                 "(set in ~/.openbis/credentials or env)")
+    verify = str(creds.get("OPENBIS_VERIFY_CERTS",
+                           creds.get("OBTOOLS_VERIFY_CERTS", "false"))).lower() \
+        in ("true", "1", "yes")
+    o = Openbis(url, verify_certificates=verify)
+    try:
+        o.get_spaces()  # reuse a valid cached token without a password
+        return o
+    except Exception:  # noqa: BLE001
+        pass
+    if not pw:
+        sys.exit("ERROR: no valid cached OpenBIS token and no OPENBIS_PASSWORD")
+    o.login(user, pw, save_token=True)
+    return o
+
+
+def _ci(row: dict, *names, default=None):
+    """Case-insensitive lookup over a record dict, skipping empty/NaN values."""
+    low = {str(k).lower(): v for k, v in row.items()}
+    for n in names:
+        v = low.get(n.lower())
+        if v is None:
+            continue
+        if isinstance(v, float) and v != v:  # NaN
+            continue
+        if str(v).strip().lower() in ("", "nan", "none"):
+            continue
+        return v
+    return default
+
+
+def _to_records(things) -> list[dict]:
+    """Normalise a pybis Things/DataFrame result into a list of plain dicts."""
+    df = getattr(things, "df", None)
+    if df is not None:
+        return df.to_dict("records")
+    # Fallback: iterate dataset objects
+    recs = []
+    for ds in things:
+        rec = dict(getattr(ds, "props", {}) or {})
+        rec["permId"] = getattr(ds, "permId", None) or getattr(ds, "code", None)
+        rec["registrationDate"] = getattr(ds, "registrationDate", None)
+        recs.append(rec)
+    return recs
+
+
+def enumerate_datasets(o, collection: str, since: str | None = None) -> list[dict]:
+    """Return RAW_DATA datasets in a collection as normalised records.
+
+    Each record: code, file_name, size_bytes, acquisition_date, registration_date.
+    `file_size` is stored as an OpenBIS property at ingest (bytes), so no
+    per-dataset call is needed for the size filter.
+    """
+    things = o.get_datasets(experiment=collection, type="RAW_DATA", props="*")
+    recs = []
+    for row in _to_records(things):
+        code = _ci(row, "permId", "code")
+        if not code:
+            continue
+        reg = _ci(row, "registrationDate", "registration_date")
+        if since and reg and str(reg)[:10] < since:
+            continue
+        size = _ci(row, "file_size", "fileSize")
+        try:
+            size = int(float(size)) if size is not None else None
+        except (TypeError, ValueError):
+            size = None
+        recs.append({
+            "code": str(code),
+            "file_name": _ci(row, "file_name", "fileName"),
+            "size_bytes": size,
+            "acquisition_date": _ci(row, "acquisition_date"),
+            "registration_date": str(reg) if reg else None,
+        })
+    return recs
+
+
+def dataset_size_bytes(o, code: str, known: int | None) -> int | None:
+    """Size from the ingest property if present, else sum file lengths."""
+    if known is not None:
+        return known
+    try:
+        ds = o.get_dataset(code)
+        files = ds.get_files()
+        df = getattr(files, "df", files)
+        total = 0
+        if hasattr(df, "itertuples"):
+            for r in df.itertuples():
+                if not getattr(r, "isDirectory", False):
+                    total += int(getattr(r, "fileLength", 0) or 0)
+            return total or None
+    except Exception as exc:  # noqa: BLE001
+        LOG.warning("could not determine size for %s: %s", code, exc)
+    return None
+
+
+def download_dataset(o, code: str, dest: Path) -> None:
+    """Download a dataset's files under `dest` (pybis nests by permId)."""
+    dest.mkdir(parents=True, exist_ok=True)
+    ds = o.get_dataset(code)
+    ds.download(destination=str(dest), wait_until_finished=True)
+
+
+def find_ms_dir(download_root: Path, file_type: str) -> Path:
+    """Locate the directory containing the downloaded raw file/folder.
+
+    Returns the *parent* directory to hand to DIA-NN's --dir. For Bruker the
+    dataset is a .zip; it is extracted to a sibling .d folder first.
+    """
+    ext = MS_EXT.get(file_type, "." + file_type)
+    if file_type == "d":
+        for zp in download_root.rglob("*.zip"):
+            out_d = zp.with_suffix(".d")
+            if not out_d.exists():
+                out_d.mkdir(parents=True, exist_ok=True)
+                with zipfile.ZipFile(zp) as zf:
+                    zf.extractall(out_d)
+            return out_d.parent
+        # Already-extracted .d
+        for d in download_root.rglob("*.d"):
+            if d.is_dir():
+                return d.parent
+        raise FileNotFoundError(f"no .zip/.d found under {download_root}")
+    matches = [p for p in download_root.rglob(f"*{ext}") if p.is_file()]
+    if not matches:
+        raise FileNotFoundError(f"no *{ext} found under {download_root}")
+    return matches[0].parent
+
+
+# ---------------------------------------------------------------------------
+# DIA-NN search via the quantify_only workflow
+# ---------------------------------------------------------------------------
+
+def write_params(path: Path, *, library: str, fasta: str, outdir: Path,
+                 sample_id: str, ms_dir: Path, file_type: str,
+                 diann_version: str | None) -> None:
+    import yaml
+    params = {
+        "library": str(library),
+        "fasta": str(fasta),
+        "outdir": str(outdir),
+        "mbr_final": False,   # single-file QC: no cross-run matching
+        "matrices": False,    # not needed; we read stats.tsv + report.parquet
+        "samples": [{
+            "id": sample_id,
+            "dir": str(ms_dir),
+            "file_type": file_type,
+            "recursive": False,
+        }],
+    }
+    if diann_version:
+        params["diann_version"] = str(diann_version)
+    path.write_text(yaml.safe_dump(params, sort_keys=False))
+
+
+def run_search(nextflow: str, repo: str, params_file: Path, work_dir: Path,
+               profile: str, log_file: Path, java_home: str | None = None) -> int:
+    cmd = [
+        nextflow, "run", str(repo),
+        "-entry", "quantify_only",
+        "-params-file", str(params_file),
+        "-profile", profile,
+        "-work-dir", str(work_dir),
+        "-ansi-log", "false",
+    ]
+    LOG.info("nextflow: %s", " ".join(cmd))
+    log_file.parent.mkdir(parents=True, exist_ok=True)
+    # `repo` may be a local checkout (use as cwd) or a GitHub asset name (no cwd).
+    cwd = repo if os.path.isdir(repo) else None
+    # Give nextflow a JVM (cron's non-login shell has none on kraken).
+    env = os.environ.copy()
+    if java_home:
+        env["JAVA_HOME"] = java_home
+        env["PATH"] = f"{java_home}/bin:" + env.get("PATH", "")
+    with open(log_file, "w") as lf:
+        proc = subprocess.run(cmd, cwd=cwd, env=env, stdout=lf,
+                              stderr=subprocess.STDOUT, text=True)
+    return proc.returncode
+
+
+# ---------------------------------------------------------------------------
+# Metrics extraction
+# ---------------------------------------------------------------------------
+
+def parse_stats_tsv(path: Path) -> dict:
+    """Read report.stats.tsv generically: every numeric column -> metric."""
+    metrics: dict = {}
+    with open(path, newline="") as fh:
+        reader = csv.DictReader(fh, delimiter="\t")
+        rows = list(reader)
+    if not rows:
+        return metrics
+    row = rows[0]  # single-run QC search -> one data row
+    for key, val in row.items():
+        if key is None or val is None:
+            continue
+        try:
+            metrics[key.strip()] = float(val)
+        except (TypeError, ValueError):
+            continue  # non-numeric (File.Name, Run, ...)
+    return metrics
+
+
+def parse_rt_metrics(parquet: Path) -> dict:
+    """RT span and median peak width from report.parquet (best-effort)."""
+    try:
+        import duckdb
+    except ImportError:
+        LOG.warning("duckdb not installed; skipping RT metrics")
+        return {}
+    try:
+        con = duckdb.connect()
+        cols = {
+            r[0].lower(): r[0]
+            for r in con.execute(
+                f"DESCRIBE SELECT * FROM read_parquet('{parquet}')"
+            ).fetchall()
+        }
+        exprs, names = [], []
+        if "rt" in cols:
+            exprs += [f'min("{cols["rt"]}")', f'max("{cols["rt"]}")']
+            names += ["RT.Min", "RT.Max"]
+        if "fwhm" in cols:
+            exprs.append(f'median("{cols["fwhm"]}")')
+            names.append("FWHM.Median")
+        if not exprs:
+            return {}
+        vals = con.execute(
+            f"SELECT {', '.join(exprs)} FROM read_parquet('{parquet}')"
+        ).fetchone()
+        out = {n: float(v) for n, v in zip(names, vals) if v is not None}
+        if "RT.Min" in out and "RT.Max" in out:
+            out["RT.Span"] = out["RT.Max"] - out["RT.Min"]
+        return out
+    except Exception as exc:  # noqa: BLE001
+        LOG.warning("RT metric extraction failed: %s", exc)
+        return {}
+
+
+# ---------------------------------------------------------------------------
+# Per-dataset processing
+# ---------------------------------------------------------------------------
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _sanitize(name: str) -> str:
+    return "".join(c if (c.isalnum() or c in "._-") else "_" for c in name)
+
+
+def process_dataset(o, conn, cfg, inst, rec) -> str:
+    """Download → search → extract metrics → cleanup. Returns final status."""
+    code = rec["code"]
+    name = rec.get("file_name") or code
+    stem = _sanitize(Path(name).stem) or code
+    work_dir = Path(cfg["work_dir"])
+    dl_dir = work_dir / "dl" / code
+    nf_dir = work_dir / "nf" / code
+    result_dir = Path(cfg["results_dir"]) / inst["name"] / stem
+
+    upsert_run(conn, rec, inst["name"], inst["collection"],
+               status="running", diann_version=cfg.get("diann_version"),
+               library=str(inst["library"]), result_dir=str(result_dir),
+               attempts=attempts_for(conn, code) + 1)
+
+    try:
+        LOG.info("[%s] downloading %s (%s)", inst["name"], code, name)
+        download_dataset(o, code, dl_dir)
+        ms_dir = find_ms_dir(dl_dir, inst["file_type"])
+
+        params_file = nf_dir / "params.yaml"
+        params_file.parent.mkdir(parents=True, exist_ok=True)
+        write_params(
+            params_file,
+            library=inst["library"], fasta=inst["fasta"],
+            outdir=Path(cfg["results_dir"]) / inst["name"],
+            sample_id=stem, ms_dir=ms_dir, file_type=inst["file_type"],
+            diann_version=cfg.get("diann_version"),
+        )
+        rc = run_search(
+            cfg.get("nextflow", "nextflow"), cfg["repo"], params_file,
+            nf_dir / "work", cfg.get("profile", "slurm"),
+            result_dir / "nextflow.log", cfg.get("java_home"),
+        )
+
+        stats_tsv = result_dir / "report.stats.tsv"
+        if rc != 0 or not stats_tsv.exists():
+            raise RuntimeError(
+                f"search failed (rc={rc}, stats={'present' if stats_tsv.exists() else 'missing'}); "
+                f"see {result_dir / 'nextflow.log'}"
+            )
+
+        write_metrics(conn, code, "stats", parse_stats_tsv(stats_tsv))
+        parquet = result_dir / "report.parquet"
+        if parquet.exists():
+            write_metrics(conn, code, "rt", parse_rt_metrics(parquet))
+
+        cleanup_outputs(result_dir, keep_parquet=cfg.get("keep_parquet", False))
+        set_status(conn, code, "done", searched_at=_now(), error=None)
+        LOG.info("[%s] done %s -> %s", inst["name"], code, result_dir)
+        shutil.rmtree(nf_dir, ignore_errors=True)  # success: drop nextflow work tree
+        return "done"
+
+    except Exception as exc:  # noqa: BLE001
+        LOG.error("[%s] FAILED %s: %s", inst["name"], code, exc)
+        set_status(conn, code, "failed", searched_at=_now(), error=str(exc))
+        # Keep the nextflow work tree on failure for debugging (diann.log,
+        # .command.err) unless explicitly disabled.
+        if not cfg.get("keep_failed_work", True):
+            shutil.rmtree(nf_dir, ignore_errors=True)
+        else:
+            LOG.info("[%s] kept work dir for debugging: %s", inst["name"], nf_dir / "work")
+        return "failed"
+    finally:
+        # Always free disk: remove the (large) raw download.
+        shutil.rmtree(dl_dir, ignore_errors=True)
+
+
+def cleanup_outputs(result_dir: Path, keep_parquet: bool) -> None:
+    """Keep only lightweight QC artifacts unless keep_parquet is set."""
+    if keep_parquet:
+        return
+    for pattern in ("report.parquet", "report-first-pass.parquet",
+                    "report.*_matrix.tsv", "out-lib.parquet*"):
+        for p in result_dir.glob(pattern):
+            p.unlink(missing_ok=True)
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+def process_instrument(o, conn, cfg, inst, args) -> None:
+    LOG.info("=== instrument '%s' (%s) ===", inst["name"], inst["collection"])
+    min_bytes = int(inst["min_raw_mb"]) * 1024 * 1024
+    try:
+        recs = enumerate_datasets(o, inst["collection"], inst.get("since"))
+    except Exception as exc:  # noqa: BLE001
+        LOG.error("enumeration failed for %s: %s", inst["collection"], exc)
+        return
+
+    settled = settled_codes(conn)
+    max_retries = int(cfg.get("max_retries", 2))
+    todo = []
+    for rec in recs:
+        code = rec["code"]
+        if args.only and code != args.only:
+            continue
+        if code in settled and not args.only:
+            continue
+        if attempts_for(conn, code) >= max_retries and not args.only:
+            continue
+        todo.append(rec)
+
+    LOG.info("%d dataset(s) in collection, %d to evaluate", len(recs), len(todo))
+
+    processed = 0
+    for rec in todo:
+        code = rec["code"]
+        size = dataset_size_bytes(o, code, rec.get("size_bytes"))
+        rec["size_bytes"] = size
+        size_mb = (size / 1024 / 1024) if size else None
+
+        if size is not None and size < min_bytes and not args.only:
+            LOG.info("skip %s (%s, %.1f MB < %d MB)", code, rec.get("file_name"),
+                     size_mb, inst["min_raw_mb"])
+            if not args.dry_run:
+                upsert_run(conn, rec, inst["name"], inst["collection"],
+                           status="skipped", searched_at=_now(),
+                           error="below min_raw_mb")
+            continue
+
+        size_str = f"{size_mb:.1f} MB" if size_mb else "size unknown"
+        if args.dry_run:
+            LOG.info("would process %s (%s, %s)", code, rec.get("file_name"), size_str)
+            continue
+
+        LOG.info("process %s (%s, %s)", code, rec.get("file_name"), size_str)
+        process_dataset(o, conn, cfg, inst, rec)
+        processed += 1
+        if args.max and processed >= args.max:
+            LOG.info("reached --max %d; stopping", args.max)
+            break
+
+
+def main(argv=None) -> int:
+    ap = argparse.ArgumentParser(description="Automated MS-QC pipeline (OpenBIS -> DIA-NN -> SQLite)")
+    ap.add_argument("--config", required=True, help="Path to qc_watch.yaml")
+    ap.add_argument("--dry-run", action="store_true", help="Enumerate only; no download/search")
+    ap.add_argument("--only", metavar="CODE", help="Force a single dataset code (ignores filters)")
+    ap.add_argument("--instrument", metavar="NAME", help="Restrict to one instrument")
+    ap.add_argument("--profile", metavar="NAME", help="Override nextflow profile (e.g. standard)")
+    ap.add_argument("--max", type=int, help="Max datasets to process this run")
+    ap.add_argument("-v", "--verbose", action="store_true")
+    args = ap.parse_args(argv)
+
+    logging.basicConfig(
+        level=logging.DEBUG if args.verbose else logging.INFO,
+        format="%(asctime)s %(levelname)-7s %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+    # Silence pybis/HTTP chatter so -v shows qc-watch's own messages.
+    for noisy in ("urllib3", "pybis", "requests"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
+
+    cfg = load_config(args.config)
+    if args.profile:
+        cfg["profile"] = args.profile
+    instruments = resolve_instruments(cfg, args.instrument)
+    conn = db_connect(cfg["db_path"])
+    o = ob_connect(cfg)
+
+    LOG.info("qc-watch start: %d instrument(s)%s", len(instruments),
+             " [DRY RUN]" if args.dry_run else "")
+    for inst in instruments:
+        process_instrument(o, conn, cfg, inst, args)
+    LOG.info("qc-watch done")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

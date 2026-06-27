@@ -7,53 +7,75 @@ self-contained HTML file: data is embedded as JSON and charts render client-side
 with Plotly (loaded from CDN). No server, no Python dependencies (stdlib only),
 opens in any browser — copy it to SMB/SharePoint and share.
 
-Focus metrics: MS signal (MS1/MS2), precursor count, peak width (FWHM).
-Time controls: Last 7 days / Last 30 days / All time, plus a draggable range
-slider, anchored to the dashboard's generation time so a snapshot is self-consistent.
+Metrics: MS signal (MS1/MS2), precursor/protein counts, peak width (FWHM),
+mass accuracy (MS1/MS2), missed cleavages, RT span.
+
+Trend: a robust **LOWESS** smoother (locally weighted regression with bisquare
+robustness iterations) is overlaid on the raw points — the SOTA way to reveal a
+smooth trend in noisy QC data without being dragged by outliers.
+
+Outliers: failed/abnormally low runs (e.g. wrong sequence setup, depleted QC
+sample) are detected from the precursor count — `< abs_frac × global median`
+(catastrophic) OR `< rel_frac × local rolling median` (sudden drop) — and are
+**excluded** from the trend, KPIs and smoothing (shown as faint grey ✕ on the
+ID/signal charts). A *gradual* decline is kept, since each point stays close to
+its neighbourhood. If the most recent run is low, a banner warns at the top.
 
 Usage:
     qc-dashboard --db /srv/data1/karlssoc/projects/ms/qc/qc.sqlite -o qc-dashboard.html
     qc-dashboard --config configs/qc/qc_watch.yaml          # reads db_path from config
-    qc-dashboard --db qc.sqlite --instrument minerva --title "Minerva QC"
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import math
 import re
 import sqlite3
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from statistics import median
 
-# Charts: (chart title, log y-axis?, [(source, metric, legend label), ...])
+# (chart title, log y-axis?, show excluded markers?, [(source, metric, label), ...])
 CHARTS = [
-    ("MS signal (a.u.)", True, [
-        ("stats", "MS1.Signal", "MS1"),
-        ("stats", "MS2.Signal", "MS2"),
-    ]),
-    ("Identifications", False, [
+    ("MS signal (a.u.)", True, True, [
+        ("stats", "MS1.Signal", "MS1"), ("stats", "MS2.Signal", "MS2")]),
+    ("Identifications", False, True, [
         ("stats", "Precursors.Identified", "Precursors"),
-        ("stats", "Proteins.Identified", "Proteins"),
-    ]),
-    ("Peak width — FWHM (min)", False, [
-        ("stats", "FWHM.RT", "FWHM (RT)"),
-    ]),
+        ("stats", "Proteins.Identified", "Proteins")]),
+    ("Peak width — FWHM (min)", False, False, [
+        ("stats", "FWHM.RT", "FWHM")]),
+    ("Mass accuracy (ppm)", False, False, [
+        ("stats", "Median.Mass.Acc.MS1", "MS1"),
+        ("stats", "Median.Mass.Acc.MS2", "MS2")]),
+    ("Missed cleavages (avg)", False, False, [
+        ("stats", "Average.Missed.Tryptic.Cleavages", "Missed cleav.")]),
+    ("Gradient — RT span (min)", False, False, [
+        ("rt", "RT.Span", "RT span")]),
 ]
 
-# KPI cards (latest value + delta vs previous run): (source, metric, label, unit)
+# KPI cards (latest VALID run + delta vs previous valid): (source, metric, label, unit)
 KPIS = [
     ("stats", "MS1.Signal", "MS1 signal", ""),
     ("stats", "MS2.Signal", "MS2 signal", ""),
     ("stats", "Precursors.Identified", "Precursors", ""),
     ("stats", "Proteins.Identified", "Proteins", ""),
     ("stats", "FWHM.RT", "FWHM", "min"),
+    ("stats", "Median.Mass.Acc.MS2", "Mass acc MS2", "ppm"),
 ]
 
+# Metric the inclusion filter is anchored on (collapses => whole run is invalid)
+OUTLIER_KEY = ("stats", "Precursors.Identified")
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
 def parse_dt(s: str | None) -> str | None:
-    """Normalise an OpenBIS/DB timestamp to ISO 'YYYY-MM-DDTHH:MM:SS' (no tz)."""
+    """Normalise a timestamp to ISO 'YYYY-MM-DDTHH:MM:SS' (naive)."""
     if not s:
         return None
     s = str(s).strip()
@@ -63,7 +85,6 @@ def parse_dt(s: str | None) -> str | None:
             return datetime.strptime(s, fmt).strftime("%Y-%m-%dT%H:%M:%S")
         except ValueError:
             continue
-    # Last resort: take the leading 19 chars "YYYY-MM-DD HH:MM:SS"
     m = re.match(r"(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})", s)
     if m:
         return f"{m.group(1)}T{m.group(2)}"
@@ -71,8 +92,56 @@ def parse_dt(s: str | None) -> str | None:
     return f"{m.group(0)}T00:00:00" if m else None
 
 
+def to_epoch(iso: str) -> float:
+    return datetime.strptime(iso, "%Y-%m-%dT%H:%M:%S").replace(
+        tzinfo=timezone.utc).timestamp()
+
+
+def lowess(xs: list[float], ys: list[float], frac: float = 0.3,
+           iters: int = 1, log: bool = False) -> list[float]:
+    """Locally weighted regression (tricube weights, local linear).
+
+    Returns the smoothed y at each x. Operates in log space for multiplicative
+    metrics (log=True). Pure stdlib.
+
+    iters=1 is plain LOWESS (no robustness reweighting). We deliberately default
+    to that: failed/outlier runs are already removed *before* smoothing, and the
+    bisquare robustness iterations would otherwise suppress genuine step changes
+    (e.g. the post-maintenance recovery) by mistaking them for outliers.
+    """
+    n = len(xs)
+    if n < 4:
+        return list(ys)
+    work = [math.log10(y) if (log and y > 0) else y for y in ys]
+    r = max(3, int(round(frac * n)))
+    rw = [1.0] * n
+    yest = list(work)
+    for _ in range(max(1, iters)):
+        for i in range(n):
+            dists = sorted((abs(xs[j] - xs[i]), j) for j in range(n))[:r]
+            dmax = dists[-1][0] or 1e-9
+            sw = swx = swy = swxx = swxy = 0.0
+            for d, j in dists:
+                w = (1 - (d / dmax) ** 3) ** 3 * rw[j]
+                if w <= 0:
+                    continue
+                x, y = xs[j], work[j]
+                sw += w; swx += w * x; swy += w * y
+                swxx += w * x * x; swxy += w * x * y
+            denom = sw * swxx - swx * swx
+            if abs(denom) < 1e-12 or sw == 0:
+                yest[i] = (swy / sw) if sw else work[i]
+            else:
+                b = (sw * swxy - swx * swy) / denom
+                a = (swy - b * swx) / sw
+                yest[i] = a + b * xs[i]
+        resid = [work[i] - yest[i] for i in range(n)]
+        s = median(sorted(abs(e) for e in resid)) or 1e-9
+        rw = [(1 - min(1.0, abs(e) / (6 * s)) ** 2) ** 2 for e in resid]
+    return [10 ** v if log else v for v in yest]
+
+
 def db_path_from_config(cfg_path: str) -> str | None:
-    """Minimal extraction of db_path: from the YAML config (no yaml dependency)."""
     for ln in Path(cfg_path).read_text().splitlines():
         m = re.match(r"\s*db_path\s*:\s*(.+?)\s*(#.*)?$", ln)
         if m:
@@ -80,8 +149,11 @@ def db_path_from_config(cfg_path: str) -> str | None:
     return None
 
 
-def load_data(db: str, instrument: str | None):
-    """Return (rows, instruments). rows: list of dicts with date + metric lookup."""
+# ---------------------------------------------------------------------------
+# Data + analysis
+# ---------------------------------------------------------------------------
+
+def load_rows(db: str, instrument: str | None):
     conn = sqlite3.connect(db)
     conn.row_factory = sqlite3.Row
     where = "r.status = 'done'"
@@ -91,80 +163,140 @@ def load_data(db: str, instrument: str | None):
         params.append(instrument)
     sql = (
         "SELECT r.dataset_code, r.instrument, r.run_name, "
-        "       COALESCE(r.acquisition_date, r.registration_date) AS dt, "
-        "       m.source, m.metric, m.value "
-        "FROM runs r JOIN metrics m USING (dataset_code) "
-        f"WHERE {where}"
-    )
-    by_run: dict = {}
+        "COALESCE(r.acquisition_date, r.registration_date) AS dt, "
+        "m.source, m.metric, m.value FROM runs r JOIN metrics m USING (dataset_code) "
+        f"WHERE {where}")
+    by: dict = {}
     instruments: set = set()
     for row in conn.execute(sql, params):
-        code = row["dataset_code"]
-        rec = by_run.get(code)
+        rec = by.get(row["dataset_code"])
         if rec is None:
-            rec = by_run[code] = {
-                "code": code,
+            rec = by[row["dataset_code"]] = {
                 "instrument": row["instrument"] or "unknown",
-                "run": row["run_name"] or code,
-                "dt": parse_dt(row["dt"]),
-                "m": {},
-            }
+                "run": row["run_name"] or row["dataset_code"],
+                "dt": parse_dt(row["dt"]), "m": {}}
             instruments.add(rec["instrument"])
         rec["m"][(row["source"], row["metric"])] = row["value"]
     conn.close()
-    rows = [r for r in by_run.values() if r["dt"]]
+    rows = [r for r in by.values() if r["dt"]]
     rows.sort(key=lambda r: r["dt"])
+    for r in rows:
+        r["epoch"] = to_epoch(r["dt"])
     return rows, sorted(instruments)
 
 
-def build_payload(rows, instruments, title):
-    """Assemble the JSON payload consumed by the client-side renderer."""
-    # Charts: one trace per (series, instrument)
-    charts = []
-    for chart_title, log_y, series in CHARTS:
-        traces = []
-        for source, metric, label in series:
-            for inst in instruments:
-                pts = [r for r in rows
-                       if r["instrument"] == inst and (source, metric) in r["m"]]
-                if not pts:
-                    continue
-                name = label if len(instruments) == 1 else f"{label} · {inst}"
-                traces.append({
-                    "name": name,
-                    "x": [r["dt"] for r in pts],
-                    "y": [r["m"][(source, metric)] for r in pts],
-                    "text": [r["run"] for r in pts],
-                })
-        charts.append({"title": chart_title, "log": log_y, "traces": traces})
+def flag_outliers(rows, abs_frac, rel_frac, window):
+    """Mark each run valid/invalid from its precursor count (self-calibrating)."""
+    present = [(i, r["m"][OUTLIER_KEY]) for i, r in enumerate(rows)
+               if r["m"].get(OUTLIER_KEY) is not None]
+    for r in rows:
+        r["valid"] = True
+        r["excl"] = None
+    if len(present) < 4:
+        return None
+    gmed = median([v for _, v in present])
+    floor = abs_frac * gmed
+    vals = [v for _, v in present]
+    for pos, (i, v) in enumerate(present):
+        lo = max(0, pos - window // 2)
+        hi = min(len(present), pos + window // 2 + 1)
+        rm = median(vals[lo:hi])
+        if v < floor or v < rel_frac * rm:
+            rows[i]["valid"] = False
+            rows[i]["excl"] = (f"{int(v)} precursors "
+                               f"(&lt; {int(floor)} floor or &lt; "
+                               f"{int(round(rel_frac * 100))}% of local {int(rm)})")
+    return {"gmed": gmed, "floor": floor}
 
-    # KPI cards: latest value + delta vs previous run (most recent instrument)
+
+def build_status(rows, warn_frac):
+    """Banner for the most recent run."""
+    if not rows:
+        return {"level": "ok", "message": "No QC runs yet."}
+    latest = rows[-1]
+    date = latest["dt"].replace("T", " ")[:16]
+    lv = latest["m"].get(OUTLIER_KEY)
+    recent = [r["m"][OUTLIER_KEY] for r in rows
+              if r["valid"] and r["m"].get(OUTLIER_KEY) is not None][-10:]
+    rmed = median(recent) if recent else None
+    if not latest["valid"]:
+        return {"level": "alert", "message":
+                f"Latest QC <b>{latest['run']}</b> ({date}) is abnormally low — "
+                f"{latest['excl']}. Likely a sequence/setup error, a depleted QC "
+                f"sample, or an instrument problem — investigate before trusting "
+                f"recent results."}
+    if rmed and lv is not None and lv < warn_frac * rmed:
+        return {"level": "warn", "message":
+                f"Latest QC <b>{latest['run']}</b> ({date}) is trending low: "
+                f"{int(lv)} precursors (~{int(round(lv / rmed * 100))}% of the "
+                f"recent median {int(rmed)}). Keep an eye on it."}
+    extra = f"{int(lv)} precursors" if lv is not None else "completed"
+    return {"level": "ok", "message":
+            f"Latest QC <b>{latest['run']}</b> ({date}) looks healthy — {extra}."}
+
+
+def series_payload(rows, source, metric, label, lowess_frac):
+    valid = [r for r in rows if r["valid"] and r["m"].get((source, metric)) is not None]
+    excl = [r for r in rows if not r["valid"] and r["m"].get((source, metric)) is not None]
+    out = {
+        "name": label,
+        "valid": {"x": [r["dt"] for r in valid],
+                  "y": [r["m"][(source, metric)] for r in valid],
+                  "text": [r["run"] for r in valid]},
+        "excluded": {"x": [r["dt"] for r in excl],
+                     "y": [r["m"][(source, metric)] for r in excl],
+                     "text": [f"{r['run']} — excluded: {r['excl']}" for r in excl]},
+        "trend": {"x": [], "y": []},
+    }
+    return out, valid
+
+
+def build_payload(rows, instruments, title, log_metrics_cfg):
+    charts = []
+    for ctitle, log_y, show_excl, series_defs in CHARTS:
+        series = []
+        for source, metric, label in series_defs:
+            sp, valid = series_payload(rows, source, metric, label,
+                                       log_metrics_cfg["lowess_frac"])
+            if len(valid) >= 4:
+                xs = [r["epoch"] for r in valid]
+                ys = [r["m"][(source, metric)] for r in valid]
+                sm = lowess(xs, ys, frac=log_metrics_cfg["lowess_frac"], log=log_y)
+                sp["trend"] = {"x": [r["dt"] for r in valid], "y": sm}
+            if sp["valid"]["x"] or sp["excluded"]["x"]:
+                series.append(sp)
+        if series:
+            charts.append({"title": ctitle, "log": log_y,
+                           "show_excluded": show_excl, "series": series})
+
     kpis = []
     for source, metric, label, unit in KPIS:
-        pts = [r for r in rows if (source, metric) in r["m"]]
+        pts = [r for r in rows if r["valid"] and r["m"].get((source, metric)) is not None]
         if not pts:
             continue
-        latest = pts[-1]
-        val = latest["m"][(source, metric)]
+        val = pts[-1]["m"][(source, metric)]
         prev = pts[-2]["m"][(source, metric)] if len(pts) > 1 else None
-        delta_pct = ((val - prev) / prev * 100.0) if prev not in (None, 0) else None
-        kpis.append({
-            "label": label, "unit": unit, "value": val,
-            "delta_pct": delta_pct, "date": latest["dt"], "run": latest["run"],
-        })
+        d = ((val - prev) / prev * 100.0) if prev not in (None, 0) else None
+        kpis.append({"label": label, "unit": unit, "value": val,
+                     "delta_pct": d, "date": pts[-1]["dt"]})
 
     dates = [r["dt"] for r in rows]
+    n_excl = sum(1 for r in rows if not r["valid"])
     return {
         "title": title,
         "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S"),
-        "instruments": instruments,
-        "n_runs": len(rows),
+        "instruments": instruments, "n_runs": len(rows),
+        "n_valid": len(rows) - n_excl, "n_excluded": n_excl,
         "date_min": dates[0] if dates else None,
         "date_max": dates[-1] if dates else None,
-        "charts": charts,
-        "kpis": kpis,
+        "status": log_metrics_cfg["status"],
+        "charts": charts, "kpis": kpis,
     }
 
+
+# ---------------------------------------------------------------------------
+# HTML
+# ---------------------------------------------------------------------------
 
 HTML_TEMPLATE = r"""<!DOCTYPE html>
 <html lang="en">
@@ -175,31 +307,32 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 <style>
   :root { --bg:#f6f7f9; --card:#fff; --ink:#1f2933; --muted:#6b7280; --line:#e5e7eb; --accent:#2563eb; }
-  * { box-sizing: border-box; }
+  * { box-sizing:border-box; }
   body { margin:0; background:var(--bg); color:var(--ink);
          font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
-  header { padding:20px 24px 8px; }
+  header { padding:20px 24px 6px; }
   h1 { margin:0 0 4px; font-size:20px; }
   .meta { color:var(--muted); font-size:13px; }
   .wrap { padding:0 24px 32px; max-width:1100px; margin:0 auto; }
-  .controls { display:flex; gap:8px; align-items:center; margin:14px 0 18px; flex-wrap:wrap; }
-  .controls .sp { flex:1; }
+  .banner { border-radius:10px; padding:12px 14px; margin:14px 0; font-size:14px; border:1px solid; }
+  .banner.ok    { background:#ecfdf5; border-color:#a7f3d0; color:#065f46; }
+  .banner.warn  { background:#fffbeb; border-color:#fde68a; color:#92400e; }
+  .banner.alert { background:#fef2f2; border-color:#fecaca; color:#991b1b; }
+  .controls { display:flex; gap:8px; align-items:center; margin:8px 0 16px; flex-wrap:wrap; }
   button.win { border:1px solid var(--line); background:var(--card); color:var(--ink);
                padding:7px 13px; border-radius:8px; cursor:pointer; font-size:13px; }
   button.win:hover { border-color:var(--accent); }
   button.win.active { background:var(--accent); border-color:var(--accent); color:#fff; }
-  .kpis { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:18px; }
-  .kpi { background:var(--card); border:1px solid var(--line); border-radius:12px;
-         padding:12px 14px; min-width:150px; flex:1; }
+  .controls .sp { flex:1; }
+  .kpis { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
+  .kpi { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 14px; min-width:150px; flex:1; }
   .kpi .lbl { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.03em; }
   .kpi .val { font-size:20px; font-weight:600; margin-top:3px; }
   .kpi .dlt { font-size:12px; color:var(--muted); margin-top:2px; }
   .kpi .up { color:#16a34a; } .kpi .down { color:#dc2626; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:12px;
-          padding:8px 8px 4px; margin-bottom:18px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:8px 8px 4px; margin-bottom:18px; }
   .empty { padding:60px; text-align:center; color:var(--muted); }
   footer { color:var(--muted); font-size:12px; text-align:center; padding:8px 0 24px; }
-  a { color:var(--accent); }
 </style>
 </head>
 <body>
@@ -208,22 +341,23 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   <div class="meta" id="meta"></div>
 </header>
 <div class="wrap">
+  <div class="banner" id="banner"></div>
   <div class="controls">
     <button class="win" data-days="7">Last 7 days</button>
     <button class="win" data-days="30">Last 30 days</button>
     <button class="win" data-days="0">All time</button>
     <span class="sp"></span>
-    <span class="meta" id="hint">drag the slider under a chart for a custom range</span>
+    <span class="meta">● points · ━ LOWESS trend · ✕ excluded (low/failed)</span>
   </div>
   <div class="kpis" id="kpis"></div>
   <div id="charts"></div>
 </div>
-<footer>Generated by qc-dashboard · <span id="gen"></span></footer>
+<footer>Generated by qc-dashboard · <span id="gen"></span> · trend = robust LOWESS; outliers excluded from trend/KPIs</footer>
 
 <script>
 const QC = __DATA__;
-
-const PALETTE = ["#2563eb","#dc2626","#16a34a","#d97706","#7c3aed","#0891b2","#db2777"];
+const PALETTE = ["#2563eb","#dc2626","#16a34a","#d97706","#7c3aed","#0891b2"];
+const GREY = "#9aa3af";
 const fmtNum = v => {
   if (v == null) return "—";
   const a = Math.abs(v);
@@ -233,12 +367,15 @@ const fmtNum = v => {
   if (a >= 1)   return v.toFixed(a < 10 ? 2 : 0);
   return v.toPrecision(3);
 };
-const fmtDate = s => s ? s.replace("T", " ").slice(0, 16) : "—";
+const fmtDate = s => s ? s.replace("T"," ").slice(0,16) : "—";
 
-// ---- meta + KPIs ---------------------------------------------------------
-document.getElementById("gen").textContent = QC.generated_at.replace("T", " ") + " UTC";
+const bn = document.getElementById("banner");
+bn.className = "banner " + QC.status.level;
+bn.innerHTML = ({ok:"✓ ", warn:"▲ ", alert:"⚠ "}[QC.status.level] || "") + QC.status.message;
+
+document.getElementById("gen").textContent = QC.generated_at.replace("T"," ") + " UTC";
 document.getElementById("meta").textContent =
-  `${QC.n_runs} runs · ${QC.instruments.join(", ") || "—"} · `
+  `${QC.n_valid} valid runs (${QC.n_excluded} excluded) · ${QC.instruments.join(", ")||"—"} · `
   + `${fmtDate(QC.date_min)} → ${fmtDate(QC.date_max)}`;
 
 const kpiBox = document.getElementById("kpis");
@@ -246,75 +383,72 @@ for (const k of QC.kpis) {
   let dlt = "";
   if (k.delta_pct != null) {
     const up = k.delta_pct >= 0;
-    dlt = `<span class="${up ? "up" : "down"}">${up ? "▲" : "▼"} `
-        + `${Math.abs(k.delta_pct).toFixed(1)}%</span> vs prev`;
+    dlt = `<span class="${up?"up":"down"}">${up?"▲":"▼"} ${Math.abs(k.delta_pct).toFixed(1)}%</span> vs prev`;
   }
   kpiBox.insertAdjacentHTML("beforeend",
     `<div class="kpi"><div class="lbl">${k.label}</div>`
-    + `<div class="val">${fmtNum(k.value)}${k.unit ? " " + k.unit : ""}</div>`
+    + `<div class="val">${fmtNum(k.value)}${k.unit?" "+k.unit:""}</div>`
     + `<div class="dlt">${dlt}<br>${fmtDate(k.date)}</div></div>`);
 }
 
-// ---- charts --------------------------------------------------------------
 const chartDivs = [];
 const host = document.getElementById("charts");
-if (!QC.charts.some(c => c.traces.length)) {
-  host.innerHTML = '<div class="empty">No completed QC runs yet.</div>';
-}
-QC.charts.forEach((c, ci) => {
-  if (!c.traces.length) return;
-  const card = document.createElement("div");
-  card.className = "card";
-  const div = document.createElement("div");
-  card.appendChild(div); host.appendChild(card);
-  chartDivs.push(div);
+if (!QC.charts.length) host.innerHTML = '<div class="empty">No completed QC runs yet.</div>';
 
-  const traces = c.traces.map((t, i) => ({
-    type: "scatter", mode: "lines+markers", name: t.name,
-    x: t.x, y: t.y, text: t.text,
-    marker: { size: 6, color: PALETTE[i % PALETTE.length] },
-    line: { width: 1.5, color: PALETTE[i % PALETTE.length] },
-    hovertemplate: "<b>%{text}</b><br>%{x|%Y-%m-%d %H:%M}<br>"
-                 + c.title.split(" —")[0] + ": %{y:.4~s}<extra>%{fullData.name}</extra>",
-  }));
-  const showSlider = ci === QC.charts.length - 1;  // slider on the last chart only
+QC.charts.forEach((c, ci) => {
+  const card = document.createElement("div"); card.className = "card";
+  const div = document.createElement("div"); card.appendChild(div); host.appendChild(card);
+  chartDivs.push(div);
+  const metricName = c.title.split(" —")[0];
+  const traces = [];
+  let exclLegendShown = false;
+  c.series.forEach((s, si) => {
+    const col = PALETTE[si % PALETTE.length];
+    // excluded markers (drawn first, underneath) — only on ID/signal charts
+    if (c.show_excluded && s.excluded.x.length) {
+      traces.push({ type:"scatter", mode:"markers", x:s.excluded.x, y:s.excluded.y, text:s.excluded.text,
+        legendgroup:"excluded", name:"excluded", showlegend:!exclLegendShown,
+        marker:{ symbol:"x", size:7, color:GREY, opacity:0.7 },
+        hovertemplate:"%{text}<br>%{x|%Y-%m-%d %H:%M}<br>"+metricName+": %{y:.4~s}<extra></extra>" });
+      exclLegendShown = true;
+    }
+    // raw valid points
+    traces.push({ type:"scatter", mode:"markers", x:s.valid.x, y:s.valid.y, text:s.valid.text,
+      legendgroup:s.name, showlegend:false, marker:{ size:5, color:col, opacity:0.4 },
+      hovertemplate:"<b>%{text}</b><br>%{x|%Y-%m-%d %H:%M}<br>"+metricName+" ("+s.name+"): %{y:.4~s}<extra></extra>" });
+    // LOWESS trend (on top)
+    if (s.trend.x.length) traces.push({ type:"scatter", mode:"lines", x:s.trend.x, y:s.trend.y,
+      legendgroup:s.name, name:s.name, line:{ color:col, width:2.5, shape:"spline" },
+      hoverinfo:"skip" });
+  });
+  const showSlider = ci === QC.charts.length - 1;
   Plotly.newPlot(div, traces, {
-    title: { text: c.title, font: { size: 15 }, x: 0, xanchor: "left" },
-    height: 300, margin: { l: 60, r: 16, t: 36, b: showSlider ? 60 : 28 },
-    yaxis: { type: c.log ? "log" : "linear", gridcolor: "#eef0f3", zeroline: false },
-    xaxis: { type: "date", gridcolor: "#eef0f3",
-             rangeslider: showSlider ? { thickness: 0.08 } : undefined },
-    legend: { orientation: "h", y: 1.0, yanchor: "bottom", x: 1, xanchor: "right" },
-    paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)",
-    hovermode: "closest",
-  }, { responsive: true, displaylogo: false, modeBarButtonsToRemove: ["lasso2d", "select2d"] });
+    title:{ text:c.title, font:{size:15}, x:0, xanchor:"left" },
+    height:300, margin:{ l:62, r:16, t:34, b:showSlider?60:28 },
+    yaxis:{ type:c.log?"log":"linear", gridcolor:"#eef0f3", zeroline:false },
+    xaxis:{ type:"date", gridcolor:"#eef0f3",
+            rangeslider: showSlider ? {thickness:0.08} : undefined },
+    legend:{ orientation:"h", y:1.0, yanchor:"bottom", x:1, xanchor:"right" },
+    paper_bgcolor:"rgba(0,0,0,0)", plot_bgcolor:"rgba(0,0,0,0)", hovermode:"closest",
+  }, { responsive:true, displaylogo:false, modeBarButtonsToRemove:["lasso2d","select2d"] });
 });
 
-// ---- time-window buttons (anchored to generation time) -------------------
+// time-window buttons, anchored to generation time (snapshot self-consistent)
 const anchor = new Date(QC.generated_at + "Z");
 function applyWindow(days) {
-  let range;  // null => autorange (all time)
-  if (days > 0) {
-    const from = new Date(anchor.getTime() - days * 864e5);
-    range = [from.toISOString(), anchor.toISOString()];
-  }
-  const update = range
-    ? { "xaxis.autorange": false, "xaxis.range": range }
-    : { "xaxis.autorange": true };
-  chartDivs.forEach(d => Plotly.relayout(d, update));
+  const upd = days > 0
+    ? { "xaxis.autorange":false,
+        "xaxis.range":[ new Date(anchor.getTime()-days*864e5).toISOString(), anchor.toISOString() ] }
+    : { "xaxis.autorange":true };
+  chartDivs.forEach(d => Plotly.relayout(d, upd));
 }
-document.querySelectorAll("button.win").forEach(btn => {
-  btn.addEventListener("click", () => {
-    document.querySelectorAll("button.win").forEach(b => b.classList.remove("active"));
-    btn.classList.add("active");
-    applyWindow(parseInt(btn.dataset.days, 10));
-  });
-});
-// Default view: Last 30 days (fallback to All time if the span is shorter)
-(function () {
-  const span = QC.date_min ? (anchor - new Date(QC.date_min + "Z")) / 864e5 : 0;
-  const def = span > 30 ? "30" : "0";
-  document.querySelector(`button.win[data-days="${def}"]`).click();
+document.querySelectorAll("button.win").forEach(b => b.addEventListener("click", () => {
+  document.querySelectorAll("button.win").forEach(x => x.classList.remove("active"));
+  b.classList.add("active"); applyWindow(parseInt(b.dataset.days,10));
+}));
+(function(){
+  const span = QC.date_min ? (anchor - new Date(QC.date_min+"Z"))/864e5 : 0;
+  document.querySelector(`button.win[data-days="${span>30?"30":"0"}"]`).click();
 })();
 </script>
 </body>
@@ -330,11 +464,21 @@ def render_html(payload: dict) -> str:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Render a portable HTML QC dashboard")
-    ap.add_argument("--db", help="Path to qc.sqlite")
+    ap.add_argument("--db")
     ap.add_argument("--config", help="qc_watch.yaml to read db_path from")
-    ap.add_argument("-o", "--out", default="qc-dashboard.html", help="Output HTML")
-    ap.add_argument("--instrument", help="Restrict to one instrument")
-    ap.add_argument("--title", help="Dashboard title")
+    ap.add_argument("-o", "--out", default="qc-dashboard.html")
+    ap.add_argument("--instrument")
+    ap.add_argument("--title")
+    ap.add_argument("--outlier-abs-frac", type=float, default=0.33,
+                    help="exclude if precursors < this × global median (default 0.33)")
+    ap.add_argument("--outlier-rel-frac", type=float, default=0.5,
+                    help="exclude if precursors < this × local rolling median (default 0.5)")
+    ap.add_argument("--outlier-window", type=int, default=11,
+                    help="rolling-median window in runs (default 11)")
+    ap.add_argument("--lowess-frac", type=float, default=0.3,
+                    help="LOWESS span as fraction of points (default 0.3)")
+    ap.add_argument("--warn-frac", type=float, default=0.75,
+                    help="amber warning if latest valid < this × recent median (default 0.75)")
     args = ap.parse_args(argv)
 
     db = args.db or (db_path_from_config(args.config) if args.config else None)
@@ -343,14 +487,17 @@ def main(argv=None) -> int:
     if not Path(db).exists():
         sys.exit(f"ERROR: database not found: {db}")
 
-    rows, instruments = load_data(db, args.instrument)
+    rows, instruments = load_rows(db, args.instrument)
+    flag_outliers(rows, args.outlier_abs_frac, args.outlier_rel_frac, args.outlier_window)
+    status = build_status(rows, args.warn_frac)
     title = args.title or (
         f"{instruments[0].capitalize()} QC dashboard" if len(instruments) == 1
         else "MS-QC dashboard")
-    payload = build_payload(rows, instruments, title)
+    payload = build_payload(rows, instruments, title,
+                            {"lowess_frac": args.lowess_frac, "status": status})
     Path(args.out).write_text(render_html(payload))
-    print(f"Wrote {args.out}  ({payload['n_runs']} runs, "
-          f"{len(instruments)} instrument(s), {len(payload['charts'])} charts)")
+    print(f"Wrote {args.out}  ({payload['n_valid']} valid + {payload['n_excluded']} "
+          f"excluded runs, {len(payload['charts'])} charts, status={status['level']})")
     return 0
 
 

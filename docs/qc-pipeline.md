@@ -104,10 +104,26 @@ Long format pivots cleanly in R (`tidyr::pivot_wider`) for ggplot QC charts.
 
 `bin/qc-dashboard` renders a **portable, self-contained HTML** snapshot from the
 DB — data embedded as JSON, charts via Plotly (CDN), no server, opens in any
-browser (copy it to SMB/SharePoint to share). Focus metrics: MS signal (MS1/MS2),
-precursor/protein counts, peak width (FWHM). Time controls: **Last 7 days /
-Last 30 days / All time** plus a draggable range slider, anchored to the
-generation time. Stdlib only (no Python deps).
+browser (copy it to SMB/SharePoint to share). Stdlib only (no Python deps).
+
+Metrics: MS signal (MS1/MS2), precursor/protein counts, peak width (FWHM), mass
+accuracy (MS1/MS2), missed cleavages, RT span. Time controls: **Last 7 days /
+Last 30 days / All time** plus a draggable range slider (anchored to the
+generation time).
+
+- **Trend**: each series carries a robust **LOWESS** smoother (locally weighted
+  regression) over the raw points — the trend line, not raw connect-the-dots.
+- **Outlier exclusion**: failed/abnormally low runs are detected from the
+  precursor count (`< abs_frac × global median` *or* `< rel_frac × local rolling
+  median`; defaults 0.33 / 0.5, window 11) and removed from the trend, KPIs and
+  smoothing, shown as faint grey ✕ on the ID/signal charts. A *gradual* decline
+  is kept (each point stays near its neighbours); only *sudden* drops are cut.
+  Robustness reweighting is intentionally off so genuine step recoveries (e.g.
+  post-maintenance) are not mistaken for outliers. Tunables: `--outlier-abs-frac
+  / --outlier-rel-frac / --outlier-window / --lowess-frac / --warn-frac`.
+- **Latest-run banner**: green if healthy, amber if the latest valid run is
+  `< warn_frac × recent median` (default 0.75), red if the latest run is itself
+  flagged as failed.
 
 ```bash
 QC=/srv/data1/karlssoc/projects/ms/qc

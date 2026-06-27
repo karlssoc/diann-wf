@@ -1,0 +1,358 @@
+#!/usr/bin/env python3
+"""
+qc-dashboard — render a portable HTML QC dashboard from the qc-watch SQLite DB.
+
+Reads the `runs` + `metrics` tables produced by bin/qc-watch and writes a single
+self-contained HTML file: data is embedded as JSON and charts render client-side
+with Plotly (loaded from CDN). No server, no Python dependencies (stdlib only),
+opens in any browser — copy it to SMB/SharePoint and share.
+
+Focus metrics: MS signal (MS1/MS2), precursor count, peak width (FWHM).
+Time controls: Last 7 days / Last 30 days / All time, plus a draggable range
+slider, anchored to the dashboard's generation time so a snapshot is self-consistent.
+
+Usage:
+    qc-dashboard --db /srv/data1/karlssoc/projects/ms/qc/qc.sqlite -o qc-dashboard.html
+    qc-dashboard --config configs/qc/qc_watch.yaml          # reads db_path from config
+    qc-dashboard --db qc.sqlite --instrument minerva --title "Minerva QC"
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import sqlite3
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+# Charts: (chart title, log y-axis?, [(source, metric, legend label), ...])
+CHARTS = [
+    ("MS signal (a.u.)", True, [
+        ("stats", "MS1.Signal", "MS1"),
+        ("stats", "MS2.Signal", "MS2"),
+    ]),
+    ("Identifications", False, [
+        ("stats", "Precursors.Identified", "Precursors"),
+        ("stats", "Proteins.Identified", "Proteins"),
+    ]),
+    ("Peak width — FWHM (min)", False, [
+        ("stats", "FWHM.RT", "FWHM (RT)"),
+    ]),
+]
+
+# KPI cards (latest value + delta vs previous run): (source, metric, label, unit)
+KPIS = [
+    ("stats", "MS1.Signal", "MS1 signal", ""),
+    ("stats", "MS2.Signal", "MS2 signal", ""),
+    ("stats", "Precursors.Identified", "Precursors", ""),
+    ("stats", "Proteins.Identified", "Proteins", ""),
+    ("stats", "FWHM.RT", "FWHM", "min"),
+]
+
+
+def parse_dt(s: str | None) -> str | None:
+    """Normalise an OpenBIS/DB timestamp to ISO 'YYYY-MM-DDTHH:MM:SS' (no tz)."""
+    if not s:
+        return None
+    s = str(s).strip()
+    for fmt in ("%Y-%m-%d %H:%M:%S %z", "%Y-%m-%d %H:%M:%S",
+                "%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(s, fmt).strftime("%Y-%m-%dT%H:%M:%S")
+        except ValueError:
+            continue
+    # Last resort: take the leading 19 chars "YYYY-MM-DD HH:MM:SS"
+    m = re.match(r"(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})", s)
+    if m:
+        return f"{m.group(1)}T{m.group(2)}"
+    m = re.match(r"\d{4}-\d{2}-\d{2}", s)
+    return f"{m.group(0)}T00:00:00" if m else None
+
+
+def db_path_from_config(cfg_path: str) -> str | None:
+    """Minimal extraction of db_path: from the YAML config (no yaml dependency)."""
+    for ln in Path(cfg_path).read_text().splitlines():
+        m = re.match(r"\s*db_path\s*:\s*(.+?)\s*(#.*)?$", ln)
+        if m:
+            return m.group(1).strip().strip("'\"")
+    return None
+
+
+def load_data(db: str, instrument: str | None):
+    """Return (rows, instruments). rows: list of dicts with date + metric lookup."""
+    conn = sqlite3.connect(db)
+    conn.row_factory = sqlite3.Row
+    where = "r.status = 'done'"
+    params: list = []
+    if instrument:
+        where += " AND r.instrument = ?"
+        params.append(instrument)
+    sql = (
+        "SELECT r.dataset_code, r.instrument, r.run_name, "
+        "       COALESCE(r.acquisition_date, r.registration_date) AS dt, "
+        "       m.source, m.metric, m.value "
+        "FROM runs r JOIN metrics m USING (dataset_code) "
+        f"WHERE {where}"
+    )
+    by_run: dict = {}
+    instruments: set = set()
+    for row in conn.execute(sql, params):
+        code = row["dataset_code"]
+        rec = by_run.get(code)
+        if rec is None:
+            rec = by_run[code] = {
+                "code": code,
+                "instrument": row["instrument"] or "unknown",
+                "run": row["run_name"] or code,
+                "dt": parse_dt(row["dt"]),
+                "m": {},
+            }
+            instruments.add(rec["instrument"])
+        rec["m"][(row["source"], row["metric"])] = row["value"]
+    conn.close()
+    rows = [r for r in by_run.values() if r["dt"]]
+    rows.sort(key=lambda r: r["dt"])
+    return rows, sorted(instruments)
+
+
+def build_payload(rows, instruments, title):
+    """Assemble the JSON payload consumed by the client-side renderer."""
+    # Charts: one trace per (series, instrument)
+    charts = []
+    for chart_title, log_y, series in CHARTS:
+        traces = []
+        for source, metric, label in series:
+            for inst in instruments:
+                pts = [r for r in rows
+                       if r["instrument"] == inst and (source, metric) in r["m"]]
+                if not pts:
+                    continue
+                name = label if len(instruments) == 1 else f"{label} · {inst}"
+                traces.append({
+                    "name": name,
+                    "x": [r["dt"] for r in pts],
+                    "y": [r["m"][(source, metric)] for r in pts],
+                    "text": [r["run"] for r in pts],
+                })
+        charts.append({"title": chart_title, "log": log_y, "traces": traces})
+
+    # KPI cards: latest value + delta vs previous run (most recent instrument)
+    kpis = []
+    for source, metric, label, unit in KPIS:
+        pts = [r for r in rows if (source, metric) in r["m"]]
+        if not pts:
+            continue
+        latest = pts[-1]
+        val = latest["m"][(source, metric)]
+        prev = pts[-2]["m"][(source, metric)] if len(pts) > 1 else None
+        delta_pct = ((val - prev) / prev * 100.0) if prev not in (None, 0) else None
+        kpis.append({
+            "label": label, "unit": unit, "value": val,
+            "delta_pct": delta_pct, "date": latest["dt"], "run": latest["run"],
+        })
+
+    dates = [r["dt"] for r in rows]
+    return {
+        "title": title,
+        "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S"),
+        "instruments": instruments,
+        "n_runs": len(rows),
+        "date_min": dates[0] if dates else None,
+        "date_max": dates[-1] if dates else None,
+        "charts": charts,
+        "kpis": kpis,
+    }
+
+
+HTML_TEMPLATE = r"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#1f2933; --muted:#6b7280; --line:#e5e7eb; --accent:#2563eb; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
+  header { padding:20px 24px 8px; }
+  h1 { margin:0 0 4px; font-size:20px; }
+  .meta { color:var(--muted); font-size:13px; }
+  .wrap { padding:0 24px 32px; max-width:1100px; margin:0 auto; }
+  .controls { display:flex; gap:8px; align-items:center; margin:14px 0 18px; flex-wrap:wrap; }
+  .controls .sp { flex:1; }
+  button.win { border:1px solid var(--line); background:var(--card); color:var(--ink);
+               padding:7px 13px; border-radius:8px; cursor:pointer; font-size:13px; }
+  button.win:hover { border-color:var(--accent); }
+  button.win.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .kpis { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:18px; }
+  .kpi { background:var(--card); border:1px solid var(--line); border-radius:12px;
+         padding:12px 14px; min-width:150px; flex:1; }
+  .kpi .lbl { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.03em; }
+  .kpi .val { font-size:20px; font-weight:600; margin-top:3px; }
+  .kpi .dlt { font-size:12px; color:var(--muted); margin-top:2px; }
+  .kpi .up { color:#16a34a; } .kpi .down { color:#dc2626; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px;
+          padding:8px 8px 4px; margin-bottom:18px; }
+  .empty { padding:60px; text-align:center; color:var(--muted); }
+  footer { color:var(--muted); font-size:12px; text-align:center; padding:8px 0 24px; }
+  a { color:var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>__TITLE__</h1>
+  <div class="meta" id="meta"></div>
+</header>
+<div class="wrap">
+  <div class="controls">
+    <button class="win" data-days="7">Last 7 days</button>
+    <button class="win" data-days="30">Last 30 days</button>
+    <button class="win" data-days="0">All time</button>
+    <span class="sp"></span>
+    <span class="meta" id="hint">drag the slider under a chart for a custom range</span>
+  </div>
+  <div class="kpis" id="kpis"></div>
+  <div id="charts"></div>
+</div>
+<footer>Generated by qc-dashboard · <span id="gen"></span></footer>
+
+<script>
+const QC = __DATA__;
+
+const PALETTE = ["#2563eb","#dc2626","#16a34a","#d97706","#7c3aed","#0891b2","#db2777"];
+const fmtNum = v => {
+  if (v == null) return "—";
+  const a = Math.abs(v);
+  if (a >= 1e9) return (v/1e9).toFixed(2)+"B";
+  if (a >= 1e6) return (v/1e6).toFixed(2)+"M";
+  if (a >= 1e3) return (v/1e3).toFixed(1)+"k";
+  if (a >= 1)   return v.toFixed(a < 10 ? 2 : 0);
+  return v.toPrecision(3);
+};
+const fmtDate = s => s ? s.replace("T", " ").slice(0, 16) : "—";
+
+// ---- meta + KPIs ---------------------------------------------------------
+document.getElementById("gen").textContent = QC.generated_at.replace("T", " ") + " UTC";
+document.getElementById("meta").textContent =
+  `${QC.n_runs} runs · ${QC.instruments.join(", ") || "—"} · `
+  + `${fmtDate(QC.date_min)} → ${fmtDate(QC.date_max)}`;
+
+const kpiBox = document.getElementById("kpis");
+for (const k of QC.kpis) {
+  let dlt = "";
+  if (k.delta_pct != null) {
+    const up = k.delta_pct >= 0;
+    dlt = `<span class="${up ? "up" : "down"}">${up ? "▲" : "▼"} `
+        + `${Math.abs(k.delta_pct).toFixed(1)}%</span> vs prev`;
+  }
+  kpiBox.insertAdjacentHTML("beforeend",
+    `<div class="kpi"><div class="lbl">${k.label}</div>`
+    + `<div class="val">${fmtNum(k.value)}${k.unit ? " " + k.unit : ""}</div>`
+    + `<div class="dlt">${dlt}<br>${fmtDate(k.date)}</div></div>`);
+}
+
+// ---- charts --------------------------------------------------------------
+const chartDivs = [];
+const host = document.getElementById("charts");
+if (!QC.charts.some(c => c.traces.length)) {
+  host.innerHTML = '<div class="empty">No completed QC runs yet.</div>';
+}
+QC.charts.forEach((c, ci) => {
+  if (!c.traces.length) return;
+  const card = document.createElement("div");
+  card.className = "card";
+  const div = document.createElement("div");
+  card.appendChild(div); host.appendChild(card);
+  chartDivs.push(div);
+
+  const traces = c.traces.map((t, i) => ({
+    type: "scatter", mode: "lines+markers", name: t.name,
+    x: t.x, y: t.y, text: t.text,
+    marker: { size: 6, color: PALETTE[i % PALETTE.length] },
+    line: { width: 1.5, color: PALETTE[i % PALETTE.length] },
+    hovertemplate: "<b>%{text}</b><br>%{x|%Y-%m-%d %H:%M}<br>"
+                 + c.title.split(" —")[0] + ": %{y:.4~s}<extra>%{fullData.name}</extra>",
+  }));
+  const showSlider = ci === QC.charts.length - 1;  // slider on the last chart only
+  Plotly.newPlot(div, traces, {
+    title: { text: c.title, font: { size: 15 }, x: 0, xanchor: "left" },
+    height: 300, margin: { l: 60, r: 16, t: 36, b: showSlider ? 60 : 28 },
+    yaxis: { type: c.log ? "log" : "linear", gridcolor: "#eef0f3", zeroline: false },
+    xaxis: { type: "date", gridcolor: "#eef0f3",
+             rangeslider: showSlider ? { thickness: 0.08 } : undefined },
+    legend: { orientation: "h", y: 1.0, yanchor: "bottom", x: 1, xanchor: "right" },
+    paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)",
+    hovermode: "closest",
+  }, { responsive: true, displaylogo: false, modeBarButtonsToRemove: ["lasso2d", "select2d"] });
+});
+
+// ---- time-window buttons (anchored to generation time) -------------------
+const anchor = new Date(QC.generated_at + "Z");
+function applyWindow(days) {
+  let range;  // null => autorange (all time)
+  if (days > 0) {
+    const from = new Date(anchor.getTime() - days * 864e5);
+    range = [from.toISOString(), anchor.toISOString()];
+  }
+  const update = range
+    ? { "xaxis.autorange": false, "xaxis.range": range }
+    : { "xaxis.autorange": true };
+  chartDivs.forEach(d => Plotly.relayout(d, update));
+}
+document.querySelectorAll("button.win").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("button.win").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    applyWindow(parseInt(btn.dataset.days, 10));
+  });
+});
+// Default view: Last 30 days (fallback to All time if the span is shorter)
+(function () {
+  const span = QC.date_min ? (anchor - new Date(QC.date_min + "Z")) / 864e5 : 0;
+  const def = span > 30 ? "30" : "0";
+  document.querySelector(`button.win[data-days="${def}"]`).click();
+})();
+</script>
+</body>
+</html>
+"""
+
+
+def render_html(payload: dict) -> str:
+    return (HTML_TEMPLATE
+            .replace("__TITLE__", payload["title"])
+            .replace("__DATA__", json.dumps(payload)))
+
+
+def main(argv=None) -> int:
+    ap = argparse.ArgumentParser(description="Render a portable HTML QC dashboard")
+    ap.add_argument("--db", help="Path to qc.sqlite")
+    ap.add_argument("--config", help="qc_watch.yaml to read db_path from")
+    ap.add_argument("-o", "--out", default="qc-dashboard.html", help="Output HTML")
+    ap.add_argument("--instrument", help="Restrict to one instrument")
+    ap.add_argument("--title", help="Dashboard title")
+    args = ap.parse_args(argv)
+
+    db = args.db or (db_path_from_config(args.config) if args.config else None)
+    if not db:
+        sys.exit("ERROR: provide --db or --config (with db_path:)")
+    if not Path(db).exists():
+        sys.exit(f"ERROR: database not found: {db}")
+
+    rows, instruments = load_data(db, args.instrument)
+    title = args.title or (
+        f"{instruments[0].capitalize()} QC dashboard" if len(instruments) == 1
+        else "MS-QC dashboard")
+    payload = build_payload(rows, instruments, title)
+    Path(args.out).write_text(render_html(payload))
+    print(f"Wrote {args.out}  ({payload['n_runs']} runs, "
+          f"{len(instruments)} instrument(s), {len(payload['charts'])} charts)")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

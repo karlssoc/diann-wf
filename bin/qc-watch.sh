@@ -52,6 +52,13 @@ fi
         source "$QC_ENV/bin/activate"
     fi
 
+    set +e
     "$HERE/qc-watch" --config "$QC_CONFIG" "$@"
-    echo "==== $(date '+%F %T') exit $? ===="
+    rc=$?
+    # Refresh the portable HTML dashboard if QC_DASHBOARD points at an output file.
+    if [ -n "${QC_DASHBOARD:-}" ]; then
+        "$HERE/qc-dashboard" --config "$QC_CONFIG" -o "$QC_DASHBOARD"
+    fi
+    set -e
+    echo "==== $(date '+%F %T') exit $rc ===="
 } >> "$QC_LOG" 2>&1

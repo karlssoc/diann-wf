@@ -34,7 +34,8 @@ there is no separate state file.
 | Path | Purpose |
 |------|---------|
 | `bin/qc-watch` | Python orchestrator (the logic above) |
-| `bin/qc-watch.sh` | cron wrapper: `flock` lock, stale `/dev/shm` cleanup, env activation |
+| `bin/qc-watch.sh` | cron wrapper: `flock` lock, stale `/dev/shm` cleanup, env, dashboard refresh |
+| `bin/qc-dashboard` | renders a portable self-contained HTML dashboard from the DB (stdlib only) |
 | `configs/qc/qc_watch.yaml` | multi-instrument config |
 
 ## One-time setup on kraken
@@ -98,6 +99,24 @@ sqlite3 qc.sqlite "
 ```
 
 Long format pivots cleanly in R (`tidyr::pivot_wider`) for ggplot QC charts.
+
+## Dashboard
+
+`bin/qc-dashboard` renders a **portable, self-contained HTML** snapshot from the
+DB — data embedded as JSON, charts via Plotly (CDN), no server, opens in any
+browser (copy it to SMB/SharePoint to share). Focus metrics: MS signal (MS1/MS2),
+precursor/protein counts, peak width (FWHM). Time controls: **Last 7 days /
+Last 30 days / All time** plus a draggable range slider, anchored to the
+generation time. Stdlib only (no Python deps).
+
+```bash
+QC=/srv/data1/karlssoc/projects/ms/qc
+$QC/bin/qc-dashboard --config $QC/qc_watch.yaml -o $QC/qc-dashboard.html
+# open $QC/qc-dashboard.html in a browser
+```
+
+The cron wrapper auto-refreshes it each tick when `QC_DASHBOARD=<output.html>`
+is set in the crontab line (alongside `QC_CONFIG`/`QC_LOG`).
 
 ## Adding an instrument
 

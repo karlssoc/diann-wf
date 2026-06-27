@@ -108,7 +108,9 @@ browser (copy it to SMB/SharePoint to share). Stdlib only (no Python deps).
 
 Metrics: MS signal (MS1/MS2), precursor count, peak width (FWHM), mass accuracy
 (MS1/MS2), missed cleavages, RT span. Time controls: **Last 7 / 30 / 60 days /
-All time** plus a draggable range slider (anchored to the generation time).
+All time** plus a draggable range slider (anchored to the generation time). The
+**y-axis auto-rescales** to the points visible in the selected window, and the
+slider drives all charts together.
 
 - **Trends (two per series)**: **LOWESS** (locally weighted regression, solid) for
   the smooth all-time trend, and **EWMA** (exponentially weighted moving average,

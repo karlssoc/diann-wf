@@ -445,37 +445,81 @@ QC.charts.forEach((c, ci) => {
   }, { responsive:true, displaylogo:false, modeBarButtonsToRemove:["lasso2d","select2d"] });
 });
 
-// Show/hide excluded ✕ (hidden => they don't inflate the y-axis)
-let showExcl = false;
+// ---- interactive ranges: time window + auto y-rescale to visible data ----
+const anchor = new Date(QC.generated_at + "Z");
+let showExcl = false, currentDays = 0, guardKey = null;
+// Parse a date string as UTC (data x are naive UTC; slider gives "YYYY-MM-DD …").
+const pUTC = s => {
+  if (s == null) return null;
+  s = String(s).replace(" ", "T");
+  if (!/[zZ]$/.test(s) && !/[+\-]\d\d:?\d\d$/.test(s)) s += "Z";
+  return Date.parse(s);
+};
+// y-range over the visible (non-hidden) points whose x falls in [x0ms, x1ms].
+function visibleYRange(div, x0ms, x1ms) {
+  const log = div.layout.yaxis.type === "log";
+  let lo = Infinity, hi = -Infinity;
+  (div.data || []).forEach(t => {
+    if (t.visible === false || !t.x || !t.y) return;            // hidden/excluded skipped
+    for (let k = 0; k < t.x.length; k++) {
+      if (x0ms != null) { const xm = pUTC(t.x[k]); if (xm < x0ms || xm > x1ms) continue; }
+      const v = t.y[k];
+      if (v == null || (log && v <= 0)) continue;
+      if (v < lo) lo = v;
+      if (v > hi) hi = v;
+    }
+  });
+  if (!isFinite(lo) || !isFinite(hi)) return null;
+  if (log) { const a = Math.log10(lo), b = Math.log10(hi), p = Math.max(0.02, (b - a) * 0.06); return [a - p, b + p]; }
+  const p = (hi - lo) * 0.06 || Math.abs(hi) * 0.05 || 1;
+  return [lo - p, hi + p];
+}
+function setRanges(x0iso, x1iso, days) {
+  const x0ms = pUTC(x0iso), x1ms = pUTC(x1iso);
+  guardKey = (x0iso || "") + "|" + (x1iso || "");
+  currentDays = days;
+  chartDivs.forEach(d => {
+    const upd = x0iso ? { "xaxis.autorange": false, "xaxis.range": [x0iso, x1iso] }
+                      : { "xaxis.autorange": true };
+    const yr = visibleYRange(d, x0ms, x1ms);
+    if (yr) { upd["yaxis.autorange"] = false; upd["yaxis.range"] = yr; }
+    else { upd["yaxis.autorange"] = true; }
+    Plotly.relayout(d, upd);
+  });
+}
+function applyWindow(days) {
+  if (days > 0) setRanges(new Date(anchor.getTime() - days * 864e5).toISOString(), anchor.toISOString(), days);
+  else setRanges(null, null, 0);
+}
+document.querySelectorAll("button.win").forEach(b => b.addEventListener("click", () => {
+  document.querySelectorAll("button.win").forEach(x => x.classList.remove("active"));
+  b.classList.add("active");
+  applyWindow(parseInt(b.dataset.days, 10));
+}));
+// Show/hide excluded ✕ (hidden => excluded from the y-axis rescale)
 document.getElementById("exclBtn").addEventListener("click", function () {
   showExcl = !showExcl;
   this.classList.toggle("active", showExcl);
   this.textContent = (showExcl ? "Hide" : "Show") + " excluded ✕";
-  chartDivs.forEach((d, i) => {
-    if (exclIdx[i].length) {
-      Plotly.restyle(d, { visible: showExcl }, exclIdx[i]);
-      Plotly.relayout(d, { "yaxis.autorange": true });
-    }
-  });
+  chartDivs.forEach((d, i) => { if (exclIdx[i].length) Plotly.restyle(d, { visible: showExcl }, exclIdx[i]); });
+  applyWindow(currentDays);   // recompute y with new visibility
 });
-
-// Time-window buttons, anchored to generation time (snapshot self-consistent)
-const anchor = new Date(QC.generated_at + "Z");
-function applyWindow(days) {
-  const upd = days > 0
-    ? { "xaxis.autorange":false,
-        "xaxis.range":[ new Date(anchor.getTime()-days*864e5).toISOString(), anchor.toISOString() ] }
-    : { "xaxis.autorange":true };
-  chartDivs.forEach(d => Plotly.relayout(d, upd));
-}
-document.querySelectorAll("button.win").forEach(b => b.addEventListener("click", () => {
+// Range slider (last chart): sync x to all charts + rescale y; ignore box-zoom y.
+const sliderDiv = chartDivs[chartDivs.length - 1];
+if (sliderDiv) sliderDiv.on("plotly_relayout", ev => {
+  if (("yaxis.range[0]" in ev) || ("yaxis.range" in ev)) return;
+  let x0, x1;
+  if ("xaxis.range[0]" in ev) { x0 = ev["xaxis.range[0]"]; x1 = ev["xaxis.range[1]"]; }
+  else if (ev["xaxis.range"]) { x0 = ev["xaxis.range"][0]; x1 = ev["xaxis.range"][1]; }
+  else if ("xaxis.autorange" in ev) { x0 = x1 = null; }
+  else return;
+  if (((x0 || "") + "|" + (x1 || "")) === guardKey) return;   // ignore our own relayouts
   document.querySelectorAll("button.win").forEach(x => x.classList.remove("active"));
-  b.classList.add("active"); applyWindow(parseInt(b.dataset.days,10));
-}));
-(function(){
-  const span = QC.date_min ? (anchor - new Date(QC.date_min+"Z"))/864e5 : 0;
-  const def = span > 60 ? "60" : "0";
-  document.querySelector(`button.win[data-days="${def}"]`).click();
+  setRanges(x0, x1, -1);
+});
+(function () {
+  const span = QC.date_min ? (anchor - new Date(QC.date_min + "Z")) / 864e5 : 0;
+  document.querySelector(`button.win[data-days="${span > 60 ? "60" : "0"}"]`).click();
 })();
 </script>
 </body>

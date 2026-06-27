@@ -58,6 +58,16 @@ fi
     # Refresh the portable HTML dashboard if QC_DASHBOARD points at an output file.
     if [ -n "${QC_DASHBOARD:-}" ]; then
         "$HERE/qc-dashboard" --config "$QC_CONFIG" -o "$QC_DASHBOARD"
+        # Optional publish: rsync the regenerated dashboard to QC_PUBLISH, which
+        # may be a local dir/file or a remote rsync target. Examples:
+        #   QC_PUBLISH=/srv/data1/karlssoc/shared/qc-dashboard.html      (local copy)
+        #   QC_PUBLISH=deploy@webserver:/var/www/ms-kb/qc/index.html     (cloud site)
+        # For OneDrive/SharePoint, point QC_PUBLISH at a synced folder or use
+        # rclone instead (replace the rsync line below).
+        if [ -n "${QC_PUBLISH:-}" ]; then
+            rsync -az "$QC_DASHBOARD" "$QC_PUBLISH" \
+                || echo "WARN: dashboard publish to $QC_PUBLISH failed"
+        fi
     fi
     set -e
     echo "==== $(date '+%F %T') exit $rc ===="

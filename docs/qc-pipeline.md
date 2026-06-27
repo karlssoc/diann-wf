@@ -139,6 +139,22 @@ $QC/bin/qc-dashboard --config $QC/qc_watch.yaml -o $QC/qc-dashboard.html
 The cron wrapper auto-refreshes it each tick when `QC_DASHBOARD=<output.html>`
 is set in the crontab line (alongside `QC_CONFIG`/`QC_LOG`).
 
+**Publishing** (optional): also set `QC_PUBLISH` to an rsync target and the
+wrapper pushes the freshly regenerated dashboard there each tick:
+
+```cron
+*/30 * * * * QC_CONFIG=…/qc_watch.yaml QC_LOG=…/qc-watch.log \
+             QC_DASHBOARD=…/qc-dashboard.html \
+             QC_PUBLISH=deploy@webserver:/var/www/ms-kb/qc/index.html \
+             …/bin/qc-watch.sh --max 10
+```
+
+`QC_PUBLISH` can be a local dir/file (`/srv/.../shared/qc-dashboard.html`) or a
+remote `user@host:/path` (needs an SSH deploy key). The dashboard is a single
+static file, so a static host just serves it — or embed it in a site via
+`<iframe>`. For OneDrive/SharePoint, point at a synced folder or swap the rsync
+line for `rclone`.
+
 ## Adding an instrument
 
 Append an entry to `instruments:` with its `collection`, `file_type`

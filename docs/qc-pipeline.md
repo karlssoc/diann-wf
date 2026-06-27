@@ -106,24 +106,27 @@ Long format pivots cleanly in R (`tidyr::pivot_wider`) for ggplot QC charts.
 DB — data embedded as JSON, charts via Plotly (CDN), no server, opens in any
 browser (copy it to SMB/SharePoint to share). Stdlib only (no Python deps).
 
-Metrics: MS signal (MS1/MS2), precursor/protein counts, peak width (FWHM), mass
-accuracy (MS1/MS2), missed cleavages, RT span. Time controls: **Last 7 days /
-Last 30 days / All time** plus a draggable range slider (anchored to the
-generation time).
+Metrics: MS signal (MS1/MS2), precursor count, peak width (FWHM), mass accuracy
+(MS1/MS2), missed cleavages, RT span. Time controls: **Last 7 / 30 / 60 days /
+All time** plus a draggable range slider (anchored to the generation time).
 
-- **Trend**: each series carries a robust **LOWESS** smoother (locally weighted
-  regression) over the raw points — the trend line, not raw connect-the-dots.
-- **Outlier exclusion**: failed/abnormally low runs are detected from the
-  precursor count (`< abs_frac × global median` *or* `< rel_frac × local rolling
-  median`; defaults 0.33 / 0.5, window 11) and removed from the trend, KPIs and
-  smoothing, shown as faint grey ✕ on the ID/signal charts. A *gradual* decline
-  is kept (each point stays near its neighbours); only *sudden* drops are cut.
-  Robustness reweighting is intentionally off so genuine step recoveries (e.g.
-  post-maintenance) are not mistaken for outliers. Tunables: `--outlier-abs-frac
-  / --outlier-rel-frac / --outlier-window / --lowess-frac / --warn-frac`.
-- **Latest-run banner**: green if healthy, amber if the latest valid run is
-  `< warn_frac × recent median` (default 0.75), red if the latest run is itself
-  flagged as failed.
+- **Trends (two per series)**: **LOWESS** (locally weighted regression, solid) for
+  the smooth all-time trend, and **EWMA** (exponentially weighted moving average,
+  dotted, `span` runs) for a responsive recent trend / drift signal. LOWESS
+  robustness reweighting is intentionally off so a genuine step recovery (e.g.
+  post-maintenance) is not mistaken for an outlier and erased.
+- **Outlier exclusion**: failed/abnormally low runs are detected from the precursor
+  count (`< abs_frac × global median` *or* `< rel_frac × local rolling median`;
+  defaults 0.33 / 0.5, window 11) and removed from trends + KPIs. A *gradual*
+  decline is kept (each point stays near its neighbours); only *sudden* drops are
+  cut. Excluded points are **hidden by default** (so they don't inflate the
+  y-axis) and revealed with the **Show excluded ✕** toggle.
+- **Banner**: red if the latest run is itself flagged low; amber if **EWMA drift**
+  is detected (a watched metric — precursors or MS2 signal — is down
+  `> drift_thresh` from its recent 90-day peak, default 0.15) or the latest valid
+  run is `< warn_frac × recent median` (default 0.75); green otherwise.
+- Tunables: `--outlier-abs-frac/-rel-frac/-window --lowess-frac --ewma-span
+  --warn-frac --drift-thresh`.
 
 ```bash
 QC=/srv/data1/karlssoc/projects/ms/qc

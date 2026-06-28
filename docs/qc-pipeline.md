@@ -155,6 +155,28 @@ static file, so a static host just serves it — or embed it in a site via
 `<iframe>`. For OneDrive/SharePoint, point at a synced folder or swap the rsync
 line for `rclone`.
 
+For an arbitrary publish step, set `QC_PUBLISH_CMD` (run after each regen).
+**`bin/qc-publish-smb`** uploads files to an **LU SMB share** with the pure-Python
+`smbclient` (`pip install smbprotocol` — no samba CLI / sudo needed). Credentials
+live in an smbclient-style auth file (default `~/.smbcreds-imp`, `chmod 600`):
+
+```
+username=medk-cka
+password=…            # your LU password
+domain=uw
+```
+
+Defaults target `\\uw.lu.se\research\LU25D1040-imp_arch\…\minerva\qc` (override
+via `--server/--share/--dir` or `QC_SMB_SERVER/SHARE/DIR`). Wire it into cron to
+push the dashboard **and** the SQLite DB each tick:
+
+```cron
+*/30 * * * * QC_CONFIG=$QC/qc_watch.yaml QC_LOG=$QC/qc-watch.log \
+  QC_DASHBOARD=$QC/qc-dashboard.html \
+  QC_PUBLISH_CMD="$QC/venv/bin/python $QC/bin/qc-publish-smb $QC/qc-dashboard.html $QC/qc.sqlite" \
+  $QC/bin/qc-watch.sh --max 10
+```
+
 ## Adding an instrument
 
 Append an entry to `instruments:` with its `collection`, `file_type`

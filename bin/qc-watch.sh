@@ -68,6 +68,12 @@ fi
             rsync -az "$QC_DASHBOARD" "$QC_PUBLISH" \
                 || echo "WARN: dashboard publish to $QC_PUBLISH failed"
         fi
+        # Arbitrary publish command (e.g. SMB upload of dashboard + DB):
+        #   QC_PUBLISH_CMD="$VENV/bin/python $HERE/qc-publish-smb $QC_DASHBOARD $DB"
+        if [ -n "${QC_PUBLISH_CMD:-}" ]; then
+            eval "$QC_PUBLISH_CMD" \
+                || echo "WARN: QC_PUBLISH_CMD failed: $QC_PUBLISH_CMD"
+        fi
     fi
     set -e
     echo "==== $(date '+%F %T') exit $rc ===="

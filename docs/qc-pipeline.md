@@ -158,7 +158,7 @@ line for `rclone`.
 For an arbitrary publish step, set `QC_PUBLISH_CMD` (run after each regen).
 **`bin/qc-publish-smb`** uploads files to an **LU SMB share** with the pure-Python
 `smbclient` (`pip install smbprotocol` — no samba CLI / sudo needed). Credentials
-live in an smbclient-style auth file (default `~/.smbcreds-imp`, `chmod 600`):
+live in an smbclient-style auth file (default `~/.smbcredentials`, `chmod 600`):
 
 ```
 username=medk-cka
@@ -166,9 +166,13 @@ password=…            # your LU password
 domain=uw
 ```
 
-Defaults target `\\uw.lu.se\research\LU25D1040-imp_arch\…\minerva\qc` (override
-via `--server/--share/--dir` or `QC_SMB_SERVER/SHARE/DIR`). Wire it into cron to
-push the dashboard **and** the SQLite DB each tick:
+`\\uw.lu.se\research` is a **domain-DFS namespace**, so the script forces **NTLM**
+and passes credentials on every call (the DFS-referral backend server must also
+authenticate); `smbprotocol`'s default `negotiate`/pre-registered-session path
+fails here with `STATUS_BAD_NETWORK_NAME`. Defaults target
+`\\uw.lu.se\research\LU25D1040-imp_arch\…\minerva\qc` (override via
+`--server/--share/--dir/--auth-protocol` or `QC_SMB_SERVER/SHARE/DIR/PROTOCOL`).
+Wire it into cron to push the dashboard **and** the SQLite DB each tick:
 
 ```cron
 */30 * * * * QC_CONFIG=$QC/qc_watch.yaml QC_LOG=$QC/qc-watch.log \

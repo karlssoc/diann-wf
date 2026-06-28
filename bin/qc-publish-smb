@@ -7,11 +7,15 @@ needs no system samba package, no sudo, no mount. Intended as the QC_PUBLISH_CMD
 hook for bin/qc-watch.sh, to push the dashboard + SQLite DB to a shared folder.
 
 Credentials come from an smbclient-style auth file (KEY=VALUE), default
-~/.smbcreds-imp, or from env (QC_SMB_USER / QC_SMB_PASS / QC_SMB_DOMAIN):
+~/.smbcredentials, or from env (QC_SMB_USER / QC_SMB_PASS / QC_SMB_DOMAIN):
 
     username=medk-cka
     password=…              # your LU password — chmod 600 this file
     domain=uw
+
+NTLM is forced (--auth-protocol, default ntlm) and credentials are passed on
+every call, because \\uw.lu.se\research is a domain-DFS namespace whose backend
+referral target must also authenticate.
 
 Target (defaults match the LU `research` share / imp-arch minerva QC folder;
 override via flags or QC_SMB_SERVER / QC_SMB_SHARE / QC_SMB_DIR):
@@ -33,7 +37,7 @@ from pathlib import Path
 DEF_SERVER = "uw.lu.se"
 DEF_SHARE = "research"
 DEF_DIR = "LU25D1040-imp_arch/General/Data/imp/minerva/qc"
-DEF_AUTH = "~/.smbcreds-imp"
+DEF_AUTH = "~/.smbcredentials"
 
 
 def read_creds(auth_path: str) -> dict:
@@ -60,6 +64,8 @@ def main(argv=None) -> int:
     ap.add_argument("--dir", default=os.environ.get("QC_SMB_DIR", DEF_DIR),
                     help="folder within the share (forward slashes)")
     ap.add_argument("--auth", default=os.environ.get("QC_SMB_AUTH", DEF_AUTH))
+    ap.add_argument("--auth-protocol", default=os.environ.get("QC_SMB_PROTOCOL", "ntlm"),
+                    help="ntlm (default; required for LU domain-DFS) / negotiate / kerberos")
     args = ap.parse_args(argv)
 
     try:
@@ -78,16 +84,19 @@ def main(argv=None) -> int:
     base = "\\\\" + args.server + "\\" + args.share + "\\" + args.dir.replace("/", "\\")
     base = base.rstrip("\\")
 
+    # Pass credentials on every call (not a pre-registered session): the LU share
+    # \\uw.lu.se\research is a *domain DFS namespace*, so file ops get referred to
+    # a backend server that must authenticate too. NTLM is required.
+    conn = dict(username=user, password=pw, auth_protocol=args.auth_protocol)
     try:
-        smbclient.register_session(args.server, username=user, password=pw)
-        smbclient.makedirs(base, exist_ok=True)
+        smbclient.makedirs(base, exist_ok=True, **conn)
         for f in args.files:
             src = Path(f)
             if not src.is_file():
                 print(f"WARN: missing {f}, skipping")
                 continue
             remote = base + "\\" + src.name
-            with open(src, "rb") as fh, smbclient.open_file(remote, mode="wb") as out:
+            with open(src, "rb") as fh, smbclient.open_file(remote, mode="wb", **conn) as out:
                 while True:
                     chunk = fh.read(1 << 20)
                     if not chunk:

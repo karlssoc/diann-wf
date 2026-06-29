@@ -371,7 +371,8 @@ def find_ms_dir(download_root: Path, file_type: str) -> Path:
 
 def write_params(path: Path, *, library: str, fasta: str, outdir: Path,
                  sample_id: str, ms_dir: Path, file_type: str,
-                 diann_version: str | None, threads: int | None = None) -> None:
+                 diann_version: str | None, threads: int | None = None,
+                 extra: dict | None = None) -> None:
     import yaml
     params = {
         "library": str(library),
@@ -390,6 +391,10 @@ def write_params(path: Path, *, library: str, fasta: str, outdir: Path,
         params["diann_version"] = str(diann_version)
     if threads:
         params["threads"] = int(threads)
+    # Pass-through of any extra diann-wf params (config `nextflow_params:`),
+    # e.g. slurm_account / slurm_queue / slurm_nodelist / parallel_mode.
+    if extra:
+        params.update(extra)
     path.write_text(yaml.safe_dump(params, sort_keys=False))
 
 
@@ -517,6 +522,7 @@ def process_dataset(o, conn, cfg, inst, rec) -> str:
             outdir=Path(cfg["results_dir"]) / inst["name"],
             sample_id=stem, ms_dir=ms_dir, file_type=inst["file_type"],
             diann_version=cfg.get("diann_version"), threads=cfg.get("threads"),
+            extra=cfg.get("nextflow_params"),
         )
         rc = run_search(
             cfg.get("nextflow", "nextflow"), cfg["repo"], params_file,

@@ -191,11 +191,13 @@ wrapper's `/dev/shm` cleanup guards the known Bruker shared-memory hang.
 
 ## Notes & limitations
 
-- **Profile**: the kraken deployment uses `profile: standard` (local execution
-  on alap759, ~35 s per yeast QC file). `slurm` currently hits kraken's
-  "terminated by external system" quirk for these single-file runs and is not
-  recommended here; for one-file-at-a-time QC, local execution is also simpler
-  and faster. Override per run with `--profile`.
+- **Profile**: the kraken deployment uses `profile: slurm` with the SLURM jobs
+  **pinned to the stable node** via `nextflow_params` (`slurm_account: karlssoc`,
+  `slurm_queue: work`, `slurm_nodelist: alap759`, `parallel_mode: false`). Without
+  that pinning, single-file QC jobs land on other nodes and are killed
+  ("terminated by external system"); with it they run fine (matches the working
+  `DT-D3mNP-pquant` project). `profile: standard` (local on alap759) also works
+  and avoids the JVM/queue overhead — override per run with `--profile`.
 - **Failures** are retried on later ticks up to `max_retries`; the raw is always
   deleted even on failure. `runs.error`, `results/<inst>/<run>/nextflow.log`, and
   (on failure) the kept `work/nf/<code>/` tree (`diann.log`, `.command.err`) hold

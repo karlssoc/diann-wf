@@ -18,13 +18,20 @@ results_dir:  /srv/data1/karlssoc/projects/ms/qc/results    # kept: report.stats
 repo:          karlssoc/diann-wf                            # GitHub asset (nextflow pull) or local path
 nextflow:      /srv/data1/karlssoc/miniconda3/envs/nf-env/bin/nextflow
 java_home:     /srv/data1/karlssoc/miniconda3/envs/nf-env   # JVM for nextflow (cron has none)
-profile:       standard                                     # local exec on alap759 (~35s/file).
-                                                            # 'slurm' currently hits kraken's
-                                                            # "terminated by external system" quirk
-                                                            # for single-file QC; standard is simpler
-                                                            # and faster here. Override with --profile.
+profile:       slurm     # SLURM on kraken; jobs pinned to alap759 via nextflow_params below.
+                         # (Pinning + account/queue is what makes single-file QC jobs stable —
+                         #  without them they land on other nodes and get killed.)
 diann_version: '2.3.2'
-threads:       30        # cores per DIA-NN search (good-neighbour cap on the shared node)
+threads:       10        # cores per DIA-NN search (good-neighbour cap on the shared node)
+
+# Extra diann-wf params merged verbatim into each generated quantify_only params
+# file. Used here to pin SLURM scheduling to the stable node (mirrors the working
+# DT-D3mNP-pquant project). parallel_mode:false => diann_quantify cpus = threads.
+nextflow_params:
+  slurm_account:  karlssoc
+  slurm_queue:    work
+  slurm_nodelist: alap759
+  parallel_mode:  false
 
 # --- behaviour --------------------------------------------------------------
 min_raw_mb:    100      # skip raws smaller than this (incomplete/blank/aborted runs)

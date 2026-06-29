@@ -1,0 +1,117 @@
+#!/usr/bin/env python3
+"""
+qc-publish-smb — upload files to an LU SMB share (pure-Python, no smbclient CLI).
+
+Uses the `smbclient` module from `smbprotocol` (pip install smbprotocol), so it
+needs no system samba package, no sudo, no mount. Intended as the QC_PUBLISH_CMD
+hook for bin/qc-watch.sh, to push the dashboard + SQLite DB to a shared folder.
+
+Credentials come from an smbclient-style auth file (KEY=VALUE), default
+~/.smbcredentials, or from env (QC_SMB_USER / QC_SMB_PASS / QC_SMB_DOMAIN):
+
+    username=medk-cka
+    password=…              # your LU password — chmod 600 this file
+    domain=uw
+
+NTLM is forced (--auth-protocol, default ntlm) and credentials are passed on
+every call, because \\uw.lu.se\research is a domain-DFS namespace whose backend
+referral target must also authenticate.
+
+Target (defaults match the LU `research` share / imp-arch minerva QC folder;
+override via flags or QC_SMB_SERVER / QC_SMB_SHARE / QC_SMB_DIR):
+
+    \\\\uw.lu.se\\research\\LU25D1040-imp_arch\\General\\Data\\imp\\minerva\\qc
+
+Usage:
+    qc-publish-smb qc-dashboard.html qc.sqlite
+    qc-publish-smb --dir 'Some/Other/Folder' file1 file2
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+import sys
+from pathlib import Path
+
+DEF_SERVER = "uw.lu.se"
+DEF_SHARE = "research"
+DEF_DIR = "LU25D1040-imp_arch/General/Data/imp/minerva/qc"
+DEF_AUTH = "~/.smbcredentials"
+
+
+def read_creds(auth_path: str) -> dict:
+    creds: dict = {}
+    p = Path(os.path.expanduser(auth_path))
+    if p.exists():
+        for ln in p.read_text().splitlines():
+            ln = ln.strip()
+            if ln and not ln.startswith("#") and "=" in ln:
+                k, v = ln.split("=", 1)
+                creds[k.strip().lower()] = v.strip()
+    for env, key in (("QC_SMB_USER", "username"), ("QC_SMB_PASS", "password"),
+                     ("QC_SMB_DOMAIN", "domain")):
+        if os.environ.get(env):
+            creds[key] = os.environ[env]
+    return creds
+
+
+def main(argv=None) -> int:
+    ap = argparse.ArgumentParser(description="Upload files to an LU SMB share")
+    ap.add_argument("files", nargs="+")
+    ap.add_argument("--server", default=os.environ.get("QC_SMB_SERVER", DEF_SERVER))
+    ap.add_argument("--share", default=os.environ.get("QC_SMB_SHARE", DEF_SHARE))
+    ap.add_argument("--dir", default=os.environ.get("QC_SMB_DIR", DEF_DIR),
+                    help="folder within the share (forward slashes)")
+    ap.add_argument("--auth", default=os.environ.get("QC_SMB_AUTH", DEF_AUTH))
+    ap.add_argument("--auth-protocol", default=os.environ.get("QC_SMB_PROTOCOL", "ntlm"),
+                    help="ntlm (default; required for LU domain-DFS) / negotiate / kerberos")
+    args = ap.parse_args(argv)
+
+    try:
+        import smbclient
+    except ImportError:
+        sys.exit("ERROR: smbprotocol not installed (pip install smbprotocol)")
+
+    creds = read_creds(args.auth)
+    user, pw, dom = creds.get("username"), creds.get("password"), creds.get("domain")
+    if not user or not pw:
+        sys.exit(f"ERROR: SMB username/password missing — create {args.auth} "
+                 f"(username=/password=/domain=) or set QC_SMB_USER/QC_SMB_PASS")
+    if dom and "\\" not in user and "@" not in user:
+        user = f"{dom}\\{user}"
+
+    base = "\\\\" + args.server + "\\" + args.share + "\\" + args.dir.replace("/", "\\")
+    base = base.rstrip("\\")
+
+    # Pass credentials on every call (not a pre-registered session): the LU share
+    # \\uw.lu.se\research is a *domain DFS namespace*, so file ops get referred to
+    # a backend server that must authenticate too. NTLM is required.
+    conn = dict(username=user, password=pw, auth_protocol=args.auth_protocol)
+    try:
+        smbclient.makedirs(base, exist_ok=True, **conn)
+        for f in args.files:
+            src = Path(f)
+            if not src.is_file():
+                print(f"WARN: missing {f}, skipping")
+                continue
+            remote = base + "\\" + src.name
+            with open(src, "rb") as fh, smbclient.open_file(remote, mode="wb", **conn) as out:
+                while True:
+                    chunk = fh.read(1 << 20)
+                    if not chunk:
+                        break
+                    out.write(chunk)
+            print(f"uploaded {src.name} ({src.stat().st_size} B) -> {remote}")
+    except Exception as exc:  # noqa: BLE001
+        sys.exit(f"ERROR: SMB upload failed: {exc}")
+    finally:
+        try:
+            smbclient.reset_connection_cache()
+        except Exception:  # noqa: BLE001
+            pass
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

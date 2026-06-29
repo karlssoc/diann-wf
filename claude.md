@@ -53,7 +53,9 @@ diann-wf/
 ├── bin/                    # Utility scripts
 │   ├── diann-wf                # Wrapper script (abstracts Nextflow for users)
 │   ├── qc-watch                # Automated MS-QC: OpenBIS -> DIA-NN -> SQLite (Python)
-│   ├── qc-watch.sh             # cron wrapper for qc-watch (flock + /dev/shm cleanup)
+│   ├── qc-watch.sh             # cron wrapper for qc-watch (flock + /dev/shm + publish)
+│   ├── qc-dashboard            # Render portable HTML QC dashboard from the SQLite DB
+│   ├── qc-publish-smb          # Upload dashboard/DB to an LU SMB share (smbprotocol)
 │   ├── compare_pg_matrices.py  # Standalone pg_matrix comparison CLI (DuckDB)
 │   ├── extract_metrics.py      # Extract metrics from DIA-NN reports
 │   ├── collect_models.sh       # Organize tuning outputs into model presets

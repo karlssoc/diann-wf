@@ -7,6 +7,28 @@ longitudinal monitoring. Designed to run unattended on **kraken** via cron.
 It is the downstream complement to `openbis-tools` (`minerva/obtools-qc.bat`),
 which uploads instrument QC raws to OpenBIS every ~15 min.
 
+## At a glance (current kraken deployment)
+
+| | |
+|---|---|
+| **Location** | `/srv/data1/karlssoc/projects/ms/qc/` (scripts in `bin/`, config `qc_watch.yaml`) |
+| **Watches** | OpenBIS `/DDB/CK/MINERVA_QC` (Q-Exactive HFX, Thermo `.raw`) |
+| **Library/FASTA** | `data/speclib/hfx-yeast/out-lib.parquet` + `UP000002311_559292.fasta` |
+| **Search** | `quantify_only` on **SLURM**, pinned to `alap759`/`work`, **10 cores** |
+| **Schedule** | cron `*/30`, up to 10 new files per tick (flock-serialised) |
+| **Stores** | `qc.sqlite` (ledger + metrics); kept outputs in `results/<inst>/<run>/` |
+| **Publishes** | dashboard + DB → SMB `\\uw.lu.se\research\…\minerva\qc` each tick |
+
+Deployed crontab line:
+
+```cron
+*/30 * * * * QC_CONFIG=/srv/data1/karlssoc/projects/ms/qc/qc_watch.yaml \
+  QC_LOG=/srv/data1/karlssoc/projects/ms/qc/qc-watch.log \
+  QC_DASHBOARD=/srv/data1/karlssoc/projects/ms/qc/qc-dashboard.html \
+  QC_PUBLISH_CMD="/srv/.../qc/venv/bin/python /srv/.../qc/bin/qc-publish-smb /srv/.../qc/qc-dashboard.html /srv/.../qc/qc.sqlite" \
+  /srv/data1/karlssoc/projects/ms/qc/bin/qc-watch.sh --max 10
+```
+
 ## What it does, per poll
 
 For each instrument (watch target) in the config:
@@ -36,6 +58,7 @@ there is no separate state file.
 | `bin/qc-watch` | Python orchestrator (the logic above) |
 | `bin/qc-watch.sh` | cron wrapper: `flock` lock, stale `/dev/shm` cleanup, env, dashboard refresh |
 | `bin/qc-dashboard` | renders a portable self-contained HTML dashboard from the DB (stdlib only) |
+| `bin/qc-publish-smb` | uploads dashboard/DB to an LU SMB share (pure-Python smbprotocol) |
 | `configs/qc/qc_watch.yaml` | multi-instrument config |
 
 ## One-time setup on kraken
@@ -203,8 +226,10 @@ wrapper's `/dev/shm` cleanup guards the known Bruker shared-memory hang.
   (on failure) the kept `work/nf/<code>/` tree (`diann.log`, `.command.err`) hold
   the diagnostics.
 - **Serial** processing keeps disk use to one raw at a time; QC volume is low so
-  this is intentional (not a throughput pipeline).
-- **Local-only** storage for now. Sharing the DB/CSV via SMB or SharePoint, or
-  uploading results back to OpenBIS, are intended future add-ons.
+  this is intentional (not a throughput pipeline). Each SLURM tick runs one search
+  at a time (`parallel_mode: false`, `maxForks: 1`).
+- **Sharing**: the dashboard + SQLite DB are pushed to the LU SMB share each tick
+  (see *Publishing*). Uploading results back to OpenBIS as ANALYZED child datasets
+  is a possible future add-on.
 - The exact `report.stats.tsv` columns depend on the DIA-NN version; metric
   extraction is generic (every numeric column is stored), so it adapts.

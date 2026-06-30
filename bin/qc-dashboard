@@ -166,6 +166,20 @@ def db_path_from_config(cfg_path):
     return config_value(cfg_path, "db_path")
 
 
+def resolve_num(arg_val, cfg_path, key, default, cast):
+    """CLI flag wins; else config `key:`; else hardcoded default."""
+    if arg_val is not None:
+        return arg_val
+    if cfg_path:
+        v = config_value(cfg_path, key)
+        if v is not None:
+            try:
+                return cast(v)
+            except ValueError:
+                pass
+    return default
+
+
 # ---------------------------------------------------------------------------
 # Data + analysis
 # ---------------------------------------------------------------------------
@@ -556,14 +570,16 @@ def main(argv=None):
     ap.add_argument("-o", "--out", default="qc-dashboard.html")
     ap.add_argument("--instrument")
     ap.add_argument("--title")
-    ap.add_argument("--outlier-abs-frac", type=float, default=0.33)
-    ap.add_argument("--outlier-rel-frac", type=float, default=0.5)
-    ap.add_argument("--outlier-window", type=int, default=11)
-    ap.add_argument("--lowess-frac", type=float, default=0.3)
-    ap.add_argument("--ewma-span", type=int, default=8,
-                    help="EWMA span in runs (alpha=2/(span+1), default 8)")
-    ap.add_argument("--warn-frac", type=float, default=0.75)
-    ap.add_argument("--drift-thresh", type=float, default=0.15,
+    # Numeric tunables: CLI flag > config key > default (defaults applied below).
+    ap.add_argument("--outlier-abs-frac", type=float)
+    ap.add_argument("--outlier-rel-frac", type=float)
+    ap.add_argument("--outlier-window", type=int)
+    ap.add_argument("--lowess-frac", type=float,
+                    help="LOWESS span as fraction of points; lower = more local/responsive (default 0.3)")
+    ap.add_argument("--ewma-span", type=int,
+                    help="EWMA span in runs (alpha=2/(span+1)); lower = more responsive (default 8)")
+    ap.add_argument("--warn-frac", type=float)
+    ap.add_argument("--drift-thresh", type=float,
                     help="warn if a watched metric's EWMA is down > this from its recent peak")
     ap.add_argument("--plotly-js", default=os.environ.get("QC_PLOTLY_JS"),
                     help="path to plotly.min.js to inline (offline, self-contained); "
@@ -583,14 +599,22 @@ def main(argv=None):
             print(f"WARN: plotly_js not found ({plotly_js}); using CDN", file=sys.stderr)
             plotly_js = None
 
+    cf = args.config
+    oaf = resolve_num(args.outlier_abs_frac, cf, "outlier_abs_frac", 0.33, float)
+    orf = resolve_num(args.outlier_rel_frac, cf, "outlier_rel_frac", 0.5, float)
+    owin = resolve_num(args.outlier_window, cf, "outlier_window", 11, int)
+    lfrac = resolve_num(args.lowess_frac, cf, "lowess_frac", 0.3, float)
+    espan = resolve_num(args.ewma_span, cf, "ewma_span", 8, int)
+    wfrac = resolve_num(args.warn_frac, cf, "warn_frac", 0.75, float)
+    dthr = resolve_num(args.drift_thresh, cf, "drift_thresh", 0.15, float)
+
     rows, instruments = load_rows(db, args.instrument)
-    flag_outliers(rows, args.outlier_abs_frac, args.outlier_rel_frac, args.outlier_window)
-    status = build_status(rows, args.warn_frac, args.drift_thresh, args.ewma_span)
+    flag_outliers(rows, oaf, orf, owin)
+    status = build_status(rows, wfrac, dthr, espan)
     title = args.title or (f"{instruments[0].capitalize()} QC dashboard"
                            if len(instruments) == 1 else "MS-QC dashboard")
     payload = build_payload(rows, instruments, title,
-                            {"lowess_frac": args.lowess_frac, "ewma_span": args.ewma_span,
-                             "status": status})
+                            {"lowess_frac": lfrac, "ewma_span": espan, "status": status})
     Path(args.out).write_text(render_html(payload, plotly_js))
     print(f"Wrote {args.out}  ({payload['n_valid']} valid + {payload['n_excluded']} "
           f"excluded, {len(payload['charts'])} charts, status={status['level']}, "

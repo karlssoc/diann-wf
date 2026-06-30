@@ -43,6 +43,9 @@ max_retries:   2        # retry a failed dataset at most this many times
 # from the SMB share without internet). Omit to load Plotly from the CDN.
 # Fetch once: curl -fsSL https://cdn.plot.ly/plotly-2.35.2.min.js -o <path>
 plotly_js:     /srv/data1/karlssoc/projects/ms/qc/plotly.min.js
+# Trend responsiveness (lower = more local / sensitive to recent changes):
+lowess_frac:   0.20      # LOWESS window as fraction of points (default 0.3)
+ewma_span:     5         # EWMA span in runs, alpha=2/(span+1) (default 8)
 
 # --- instruments (watch targets) -------------------------------------------
 instruments:

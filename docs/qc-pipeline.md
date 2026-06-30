@@ -154,8 +154,10 @@ slider drives all charts together.
   is detected (a watched metric — precursors or MS2 signal — is down
   `> drift_thresh` from its recent 90-day peak, default 0.15) or the latest valid
   run is `< warn_frac × recent median` (default 0.75); green otherwise.
-- Tunables: `--outlier-abs-frac/-rel-frac/-window --lowess-frac --ewma-span
-  --warn-frac --drift-thresh`.
+- Tunables (CLI flag **or** same-named key in `qc_watch.yaml`): `outlier_abs_frac
+  / outlier_rel_frac / outlier_window`, **`lowess_frac` / `ewma_span`** (trend
+  responsiveness — lower = more local/sensitive to recent changes; the deployment
+  uses `0.20 / 5`), `warn_frac`, `drift_thresh`.
 
 ```bash
 QC=/srv/data1/karlssoc/projects/ms/qc

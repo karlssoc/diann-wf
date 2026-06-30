@@ -125,9 +125,13 @@ Long format pivots cleanly in R (`tidyr::pivot_wider`) for ggplot QC charts.
 
 ## Dashboard
 
-`bin/qc-dashboard` renders a **portable, self-contained HTML** snapshot from the
-DB — data embedded as JSON, charts via Plotly (CDN), no server, opens in any
-browser (copy it to SMB/SharePoint to share). Stdlib only (no Python deps).
+`bin/qc-dashboard` renders a **portable HTML** snapshot from the DB — data
+embedded as JSON, charts via Plotly, no server, opens in any browser (copy it to
+SMB/SharePoint to share). Stdlib only (no Python deps). Plotly loads from the CDN
+by default (~150 KB file); set **`plotly_js:`** in the config (or `--plotly-js
+<path>`) to **inline Plotly** for a fully **offline, self-contained** file
+(~4.5 MB — what the kraken deployment publishes, so the SMB copy opens without
+internet). Fetch the lib once: `curl -fsSL https://cdn.plot.ly/plotly-2.35.2.min.js -o plotly.min.js`.
 
 Metrics: MS signal (MS1/MS2), precursor count, peak width (FWHM), mass accuracy
 (MS1/MS2), missed cleavages, RT span. Time controls: **Last 7 / 30 / 60 days /

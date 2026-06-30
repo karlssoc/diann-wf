@@ -35,6 +35,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import re
 import sqlite3
 import sys
@@ -152,12 +153,17 @@ def ewma(ys, span=8, log=False):
     return [10 ** v if log else v for v in out]
 
 
-def db_path_from_config(cfg_path):
+def config_value(cfg_path, key):
+    """Minimal `key: value` extraction from the YAML config (no yaml dependency)."""
     for ln in Path(cfg_path).read_text().splitlines():
-        m = re.match(r"\s*db_path\s*:\s*(.+?)\s*(#.*)?$", ln)
+        m = re.match(rf"\s*{re.escape(key)}\s*:\s*(.+?)\s*(#.*)?$", ln)
         if m:
             return m.group(1).strip().strip("'\"")
     return None
+
+
+def db_path_from_config(cfg_path):
+    return config_value(cfg_path, "db_path")
 
 
 # ---------------------------------------------------------------------------
@@ -316,7 +322,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>__TITLE__</title>
-<script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+__PLOTLY__
 <style>
   :root { --bg:#f6f7f9; --card:#fff; --ink:#1f2933; --muted:#6b7280; --line:#e5e7eb; --accent:#2563eb; }
   * { box-sizing:border-box; }
@@ -527,9 +533,20 @@ if (sliderDiv) sliderDiv.on("plotly_relayout", ev => {
 """
 
 
-def render_html(payload):
+PLOTLY_CDN = "https://cdn.plot.ly/plotly-2.35.2.min.js"
+
+
+def render_html(payload, plotly_js=None):
+    """Build the HTML. plotly_js = path to a plotly.min.js to inline (offline,
+    self-contained); otherwise Plotly is loaded from the CDN."""
+    if plotly_js:
+        tag = '<script charset="utf-8">' + Path(plotly_js).read_text() + "</script>"
+    else:
+        tag = f'<script src="{PLOTLY_CDN}" charset="utf-8"></script>'
+    # __PLOTLY__ last, so the (large) inlined JS is not rescanned for placeholders.
     return (HTML_TEMPLATE.replace("__TITLE__", payload["title"])
-            .replace("__DATA__", json.dumps(payload)))
+            .replace("__DATA__", json.dumps(payload))
+            .replace("__PLOTLY__", tag))
 
 
 def main(argv=None):
@@ -548,6 +565,9 @@ def main(argv=None):
     ap.add_argument("--warn-frac", type=float, default=0.75)
     ap.add_argument("--drift-thresh", type=float, default=0.15,
                     help="warn if a watched metric's EWMA is down > this from its recent peak")
+    ap.add_argument("--plotly-js", default=os.environ.get("QC_PLOTLY_JS"),
+                    help="path to plotly.min.js to inline (offline, self-contained); "
+                         "default loads Plotly from the CDN. Config key: plotly_js")
     args = ap.parse_args(argv)
 
     db = args.db or (db_path_from_config(args.config) if args.config else None)
@@ -555,6 +575,13 @@ def main(argv=None):
         sys.exit("ERROR: provide --db or --config (with db_path:)")
     if not Path(db).exists():
         sys.exit(f"ERROR: database not found: {db}")
+
+    plotly_js = args.plotly_js or (config_value(args.config, "plotly_js") if args.config else None)
+    if plotly_js:
+        plotly_js = os.path.expanduser(plotly_js)
+        if not Path(plotly_js).exists():
+            print(f"WARN: plotly_js not found ({plotly_js}); using CDN", file=sys.stderr)
+            plotly_js = None
 
     rows, instruments = load_rows(db, args.instrument)
     flag_outliers(rows, args.outlier_abs_frac, args.outlier_rel_frac, args.outlier_window)
@@ -564,9 +591,10 @@ def main(argv=None):
     payload = build_payload(rows, instruments, title,
                             {"lowess_frac": args.lowess_frac, "ewma_span": args.ewma_span,
                              "status": status})
-    Path(args.out).write_text(render_html(payload))
+    Path(args.out).write_text(render_html(payload, plotly_js))
     print(f"Wrote {args.out}  ({payload['n_valid']} valid + {payload['n_excluded']} "
-          f"excluded, {len(payload['charts'])} charts, status={status['level']})")
+          f"excluded, {len(payload['charts'])} charts, status={status['level']}, "
+          f"plotly={'inline' if plotly_js else 'CDN'})")
     return 0
 
 

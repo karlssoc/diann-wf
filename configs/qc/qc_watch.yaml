@@ -38,6 +38,12 @@ min_raw_mb:    100      # skip raws smaller than this (incomplete/blank/aborted 
 keep_parquet:  false    # drop report.parquet + matrices after metric extraction
 max_retries:   2        # retry a failed dataset at most this many times
 
+# --- dashboard --------------------------------------------------------------
+# Inline Plotly so the published HTML is fully self-contained (opens offline /
+# from the SMB share without internet). Omit to load Plotly from the CDN.
+# Fetch once: curl -fsSL https://cdn.plot.ly/plotly-2.35.2.min.js -o <path>
+plotly_js:     /srv/data1/karlssoc/projects/ms/qc/plotly.min.js
+
 # --- instruments (watch targets) -------------------------------------------
 instruments:
   - name: minerva                 # Q-Exactive HFX + Vanquish Neo + µPAC

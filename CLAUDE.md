@@ -52,10 +52,6 @@ diann-wf/
 │
 ├── bin/                    # Utility scripts
 │   ├── diann-wf                # Wrapper script (abstracts Nextflow for users)
-│   ├── qc-watch                # Automated MS-QC: OpenBIS -> DIA-NN -> SQLite (Python)
-│   ├── qc-watch.sh             # cron wrapper for qc-watch (flock + /dev/shm + publish)
-│   ├── qc-dashboard            # Render portable HTML QC dashboard from the SQLite DB
-│   ├── qc-publish-smb          # Upload dashboard/DB to an LU SMB share (smbprotocol)
 │   ├── compare_pg_matrices.py  # Standalone pg_matrix comparison CLI (DuckDB)
 │   ├── extract_metrics.py      # Extract metrics from DIA-NN reports
 │   ├── collect_models.sh       # Organize tuning outputs into model presets
@@ -297,13 +293,15 @@ diann-wf quantify_only configs/quantify/basic.yaml slurm
 8. ✅ Restructured workflows: removed broken `full_pipeline.nf`, `compare_library_tuning.nf`, `evaluate_methods.nf` (14 → 11 workflows)
 9. ✅ Sanity comparison tool: `bin/compare_pg_matrices.py` + `modules/compare_matrices.nf`
 
-## Recent Major Changes (Jun 2026)
+## Recent Major Changes (Jul 2026)
 
-1. ✅ Automated MS-QC pipeline (`bin/qc-watch` + `bin/qc-watch.sh` + `configs/qc/qc_watch.yaml`):
-   polls OpenBIS for new QC raws → downloads → searches each via `quantify_only` → records metrics
-   (`report.stats.tsv` + RT from `report.parquet`) in a SQLite DB → deletes the raw. Multi-instrument
-   (config `instruments:` list), local-only storage, skips raws `< min_raw_mb`. Runs on kraken via cron.
-   The SQLite DB doubles as the "already processed" ledger. See `docs/qc-pipeline.md`.
+1. ✅ Automated MS-QC pipeline extracted to its own repo: **`ms-qc`**
+   (`~/Projects/Tools/ms-qc`). It orchestrates QC monitoring (SMB/OpenBIS raw
+   pickup → `quantify_only` search → SQLite metrics → HTML dashboard) and uses
+   this workflow as a black box via `nextflow run karlssoc/diann-wf`. The old
+   `bin/qc-watch*`, `bin/qc-dashboard`, `bin/qc-publish-smb`, `configs/qc/`, and
+   `docs/qc-pipeline.md` moved there — diann-wf is back to pure search-workflow
+   scope. See the `ms-qc` repo for the QC pipeline.
 
 ## Recent Major Changes (Mar 2026)
 
@@ -686,5 +684,5 @@ Use `bin/collect_models.sh` to organize tuning outputs into repository structure
 
 ---
 
-*Last updated: 2026-06-26*
+*Last updated: 2026-07-10*
 *This file is specifically for AI assistants working on the project*

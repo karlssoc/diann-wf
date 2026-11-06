@@ -1,5 +1,19 @@
 # DIANN Nextflow Workflows
 
+> [!WARNING]
+> **Archived (2026-11-06). Not maintained; do not use for new analyses.** Superseded by
+> [`diann-pipe`](../diann-pipe) (Snakemake, DIA-NN 2.7, one validated strategy). Last v2 state: tag `v2-final`.
+>
+> - **`QUANTIFY_FASTA_SUBSET`, `QUANTIFY_FASTA_SUBSET_BY_BIOSPE` and `PRESEARCH_AND_QUANTIFY` are circular.** A FASTA or
+>   library subset built from a first pass of the same runs keeps the false hits along with the true ones. In an
+>   entrapment test (LFQB, DIA-NN 2.7, 2026-11), the subset gave +2.5 % protein groups at about 2× the entrapment FDP,
+>   and +6 % at 4–5× (up to 1.02 % at q = 0.01) when the subset was filtered on protein q-value.
+> - Restricted (ID-mapping) target FASTAs gave 9× the protein FDP of full reference proteomes at the same IDs.
+> - The mass-accuracy defaults and "+5 % IDs" notes below were measured in the subset workflow and are not validated.
+>
+> Evidence: `~/Projects/MS/TimsTOF/lfq-bench-analysis` (`notebooks/03_diann27_strategies.ipynb`,
+> `notebooks/04_diann27_generalisation.ipynb`, `docs/diann-wf-v3_design.md`).
+
 Modular Nextflow workflows for DIA-NN mass spectrometry analysis with SLURM integration.
 
 ## Overview
